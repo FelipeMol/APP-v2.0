@@ -13,7 +13,18 @@
       "Bash(echo:*)",
       "Bash(php -r:*)",
       "Bash(cat:*)",
-      "Bash(php -l:*)"
+      "Bash(php -l:*)",
+      "Bash(npm --version:*)",
+      "Bash(where:*)",
+      "Bash(node --version:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(npm create:*)",
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(npx tailwindcss:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm uninstall:*)"
     ]
   }
 }
