@@ -22,7 +22,7 @@
 
 Options -MultiViews
 RewriteEngine On
-RewriteBase /seuapp/    # <-- ajuste para a sua subpasta (ou / se for raiz)
+RewriteBase /
 
 # Serve arquivos reais primeiro
 RewriteCond %{REQUEST_FILENAME} -f [OR]
