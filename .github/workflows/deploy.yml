@@ -47,7 +47,15 @@ jobs:
             echo ".htaccess copiado"
           fi
 
-      # 6. Deploy via FTP para cPanel
+      # 6. Normalizar server-dir (garante barra final)
+      - name: Normalizar FTP path
+        id: ftp
+        run: |
+          path="${{ secrets.FTP_REMOTE_PATH }}"
+          [[ "$path" != */ ]] && path="$path/"
+          echo "path=$path" >> $GITHUB_OUTPUT
+
+      # 7. Deploy via FTP para cPanel
       - name: Deploy FTP → cPanel
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
@@ -55,7 +63,7 @@ jobs:
           username: ${{ secrets.FTP_USER }}
           password: ${{ secrets.FTP_PASS }}
           local-dir: app-v2/dist/
-          server-dir: ${{ secrets.FTP_REMOTE_PATH }}
+          server-dir: ${{ steps.ftp.outputs.path }}
           protocol: ftps
           port: 21
           dangerous-clean-slate: false
