@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { X, Edit2, Trash2, Calendar, User, Flag } from 'lucide-react';
 import {
   Dialog,
@@ -19,7 +19,7 @@ import AtividadesSection from './AtividadesSection';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-const TaskModal = ({ isOpen, tarefaId, onClose, canEdit, canDelete }) => {
+const TaskModal = ({ isOpen, tarefaId, onClose, canEdit, canDelete, onChanged }) => {
   const [tarefa, setTarefa] = useState(null);
   const [etiquetas, setEtiquetas] = useState([]);
   const [checklists, setChecklists] = useState([]);
@@ -28,6 +28,7 @@ const TaskModal = ({ isOpen, tarefaId, onClose, canEdit, canDelete }) => {
   const [anexos, setAnexos] = useState([]);
   const [atividades, setAtividades] = useState([]);
   const [loading, setLoading] = useState(false);
+  const isInitialLoad = useRef(true);
 
   // Carregar todos os dados da tarefa
   useEffect(() => {
@@ -58,14 +59,20 @@ const TaskModal = ({ isOpen, tarefaId, onClose, canEdit, canDelete }) => {
         tarefasService.listarAtividades(tarefaId)
       ]);
 
-      if (tarefaRes.sucesso) setTarefa(tarefaRes.dados);
-      // Garantir que sempre sejam arrays
-      setEtiquetas(Array.isArray(etiquetasRes?.dados) ? etiquetasRes.dados : []);
-      setChecklists(Array.isArray(checklistsRes?.dados?.items) ? checklistsRes.dados.items : []);
-      setMembros(Array.isArray(membrosRes?.dados) ? membrosRes.dados : []);
-      setComentarios(Array.isArray(comentariosRes?.dados) ? comentariosRes.dados : []);
-      setAnexos(Array.isArray(anexosRes?.dados) ? anexosRes.dados : []);
-      setAtividades(Array.isArray(atividadesRes?.dados) ? atividadesRes.dados : []);
+      // service retorna dados brutos (sem envelope {sucesso, dados})
+      setTarefa(tarefaRes);
+      setEtiquetas(Array.isArray(etiquetasRes) ? etiquetasRes : []);
+      setChecklists(Array.isArray(checklistsRes) ? checklistsRes : []);
+      setMembros(Array.isArray(membrosRes) ? membrosRes : []);
+      setComentarios(Array.isArray(comentariosRes) ? comentariosRes : []);
+      setAnexos(Array.isArray(anexosRes) ? anexosRes : []);
+      setAtividades(Array.isArray(atividadesRes) ? atividadesRes : []);
+
+      // Notifica pai sobre alteração (apenas em recargas, não no load inicial)
+      if (!isInitialLoad.current) {
+        onChanged?.();
+      }
+      isInitialLoad.current = false;
     } catch (error) {
       console.error('Erro ao carregar dados da tarefa:', error);
       toast.error('Erro ao carregar dados da tarefa');
@@ -80,6 +87,7 @@ const TaskModal = ({ isOpen, tarefaId, onClose, canEdit, canDelete }) => {
     try {
       await tarefasService.excluir(tarefaId);
       toast.success('Tarefa excluída com sucesso!');
+      onChanged?.();
       onClose();
     } catch (error) {
       console.error('Erro ao excluir tarefa:', error);

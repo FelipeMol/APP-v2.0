@@ -37,19 +37,15 @@ const TaskFormModal = ({ isOpen, initialStatus = 'novo', onClose, onSuccess }) =
 
     setLoading(true);
     try {
-      const response = await tarefasService.criar({
+      await tarefasService.criar({
         ...formData,
         usuario_responsavel_id: user.id,
         criado_por: user.id,
       });
 
-      if (response.sucesso) {
-        toast.success('Tarefa criada com sucesso!');
-        onSuccess?.();
-        onClose();
-      } else {
-        toast.error(response.mensagem || 'Erro ao criar tarefa');
-      }
+      toast.success('Tarefa criada com sucesso!');
+      onSuccess?.();
+      onClose();
     } catch (error) {
       console.error('Erro ao criar tarefa:', error);
       toast.error('Erro ao criar tarefa');

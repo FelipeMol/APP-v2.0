@@ -35,13 +35,8 @@ const useTarefasStore = create((set, get) => ({
         if (!filtrosFinais[key]) delete filtrosFinais[key];
       });
 
-      const response = await tarefasService.listar(filtrosFinais);
-
-      if (response.sucesso) {
-        set({ tarefas: response.dados || [], isLoading: false });
-      } else {
-        throw new Error(response.mensagem || 'Erro ao carregar tarefas');
-      }
+      const tarefas = await tarefasService.listar(filtrosFinais);
+      set({ tarefas, isLoading: false });
     } catch (error) {
       console.error('Erro ao carregar tarefas:', error);
       set({ error: error.message, isLoading: false });
@@ -53,15 +48,11 @@ const useTarefasStore = create((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const response = await tarefasService.criar(dados);
-
-      if (response.sucesso) {
-        await get().carregarTarefas();
-        toast.success('Tarefa criada com sucesso!');
-        return response.dados;
-      } else {
-        throw new Error(response.mensagem || 'Erro ao criar tarefa');
-      }
+      const tarefa = await tarefasService.criar(dados);
+      await get().carregarTarefas();
+      toast.success('Tarefa criada com sucesso!');
+      set({ isLoading: false });
+      return tarefa;
     } catch (error) {
       console.error('Erro ao criar tarefa:', error);
       set({ error: error.message, isLoading: false });
@@ -74,15 +65,11 @@ const useTarefasStore = create((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const response = await tarefasService.atualizar(id, dados);
-
-      if (response.sucesso) {
-        await get().carregarTarefas();
-        toast.success('Tarefa atualizada com sucesso!');
-        return response.dados;
-      } else {
-        throw new Error(response.mensagem || 'Erro ao atualizar tarefa');
-      }
+      const tarefa = await tarefasService.atualizar(id, dados);
+      await get().carregarTarefas();
+      toast.success('Tarefa atualizada com sucesso!');
+      set({ isLoading: false });
+      return tarefa;
     } catch (error) {
       console.error('Erro ao atualizar tarefa:', error);
       set({ error: error.message, isLoading: false });
@@ -95,14 +82,10 @@ const useTarefasStore = create((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const response = await tarefasService.excluir(id);
-
-      if (response.sucesso) {
-        await get().carregarTarefas();
-        toast.success('Tarefa excluída com sucesso!');
-      } else {
-        throw new Error(response.mensagem || 'Erro ao excluir tarefa');
-      }
+      await tarefasService.excluir(id);
+      await get().carregarTarefas();
+      toast.success('Tarefa excluída com sucesso!');
+      set({ isLoading: false });
     } catch (error) {
       console.error('Erro ao excluir tarefa:', error);
       set({ error: error.message, isLoading: false });
@@ -120,13 +103,8 @@ const useTarefasStore = create((set, get) => ({
       );
       set({ tarefas: tarefasAtualizadas });
 
-      const response = await tarefasService.atualizar(id, { status: novoStatus });
-
-      if (!response.sucesso) {
-        // Reverte se falhar
-        set({ tarefas });
-        throw new Error(response.mensagem || 'Erro ao mover tarefa');
-      }
+      // service throws on error — catch block handles revert
+      await tarefasService.atualizar(id, { status: novoStatus });
     } catch (error) {
       console.error('Erro ao mover tarefa:', error);
       toast.error(error.message || 'Erro ao mover tarefa');
@@ -140,11 +118,8 @@ const useTarefasStore = create((set, get) => ({
 
   carregarEtiquetas: async () => {
     try {
-      const response = await tarefasService.listarEtiquetas();
-
-      if (response.sucesso) {
-        set({ etiquetas: response.dados || [] });
-      }
+      const etiquetas = await tarefasService.listarEtiquetas();
+      set({ etiquetas });
     } catch (error) {
       console.error('Erro ao carregar etiquetas:', error);
       toast.error('Erro ao carregar etiquetas');
@@ -153,15 +128,10 @@ const useTarefasStore = create((set, get) => ({
 
   criarEtiqueta: async (dados) => {
     try {
-      const response = await tarefasService.criarEtiqueta(dados);
-
-      if (response.sucesso) {
-        await get().carregarEtiquetas();
-        toast.success('Etiqueta criada com sucesso!');
-        return response.dados;
-      } else {
-        throw new Error(response.mensagem || 'Erro ao criar etiqueta');
-      }
+      const etiqueta = await tarefasService.criarEtiqueta(dados);
+      await get().carregarEtiquetas();
+      toast.success('Etiqueta criada com sucesso!');
+      return etiqueta;
     } catch (error) {
       console.error('Erro ao criar etiqueta:', error);
       toast.error(error.message || 'Erro ao criar etiqueta');

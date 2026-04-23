@@ -14,6 +14,7 @@ const Tarefas = () => {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [tarefaAtualId, setTarefaAtualId] = useState(null);
   const [newTaskStatus, setNewTaskStatus] = useState('novo');
+  const [viewModalDirty, setViewModalDirty] = useState(false);
 
   const { hasPermission } = useAuthStore();
   const { carregarTarefas, carregarEtiquetas, filtros, setFiltros, limparFiltros } = useTarefasStore();
@@ -49,8 +50,10 @@ const Tarefas = () => {
   const handleCloseViewModal = () => {
     setIsViewModalOpen(false);
     setTarefaAtualId(null);
-    // Recarregar tarefas ao fechar modal (para refletir mudanças)
-    carregarTarefas();
+    if (viewModalDirty) {
+      carregarTarefas();
+      setViewModalDirty(false);
+    }
   };
 
   const handleCloseFormModal = () => {
@@ -143,6 +146,7 @@ const Tarefas = () => {
           onClose={handleCloseViewModal}
           canEdit={canEdit}
           canDelete={canDelete}
+          onChanged={() => setViewModalDirty(true)}
         />
       )}
 
