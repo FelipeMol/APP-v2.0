@@ -1,0 +1,54 @@
+# Fallback para SPA - redireciona 404 para index.html
+ErrorDocument 404 /~hg253b74/index.html
+
+# Configuração para React Router funcionar com URLs amigáveis
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /~hg253b74/
+
+  # IMPORTANTE: Permitir acesso direto a assets (JS, CSS, imagens, fontes)
+  RewriteRule ^assets/ - [L]
+  RewriteRule \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|map)$ - [L]
+
+  # Permitir acesso direto à pasta api
+  RewriteRule ^api/ - [L]
+
+  # Se não for um arquivo ou diretório existente, redirecionar para index.html
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^(.*)$ index.html [L]
+</IfModule>
+
+# Configuração de segurança
+<IfModule mod_headers.c>
+  # Força HTTPS (descomente em produção se tiver SSL)
+  # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+  # Proteção XSS
+  Header set X-XSS-Protection "1; mode=block"
+
+  # Proteção contra clickjacking
+  Header always append X-Frame-Options SAMEORIGIN
+
+  # Proteção contra MIME sniffing
+  Header set X-Content-Type-Options nosniff
+</IfModule>
+
+# Compressão GZIP
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
+</IfModule>
+
+# Cache de assets estáticos
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType image/jpg "access plus 1 year"
+  ExpiresByType image/jpeg "access plus 1 year"
+  ExpiresByType image/gif "access plus 1 year"
+  ExpiresByType image/png "access plus 1 year"
+  ExpiresByType image/svg+xml "access plus 1 year"
+  ExpiresByType text/css "access plus 1 month"
+  ExpiresByType application/javascript "access plus 1 month"
+  ExpiresByType application/font-woff "access plus 1 year"
+  ExpiresByType application/font-woff2 "access plus 1 year"
+</IfModule>

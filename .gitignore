@@ -1,1 +1,50 @@
-Construtora-RR/
+# Dependencias
+node_modules/
+vendor/
+
+# Arquivos de ambiente (CREDENCIAIS)
+.env
+.env.local
+.env.*.local
+api/.env
+
+# Variáveis de produção (credenciais Supabase — ficam nos GitHub Secrets)
+app-v2/.env.production
+
+# Build output
+app-v2/dist/
+
+# Pasta interna do agente Copilot
+.claude/
+
+# Logs
+*.log
+api/php_errors.log
+api/storage/logs/
+
+# Cache
+api/storage/cache/
+
+# Uploads (arquivos grandes)
+api/storage/uploads/
+
+# Build
+dist/
+build/
+app-v2/dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Composer
+composer.phar
+composer.lock
+
+# Arquivos temporarios
+*.tmp
+*.temp
+nul

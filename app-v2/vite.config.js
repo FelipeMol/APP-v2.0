@@ -17,11 +17,29 @@ export default defineConfig({
         target: 'http://localhost',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '/Planilha/api'),
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            const authHeader = req.headers['authorization'];
+            if (authHeader) {
+              proxyReq.setHeader('Authorization', authHeader);
+            }
+          });
+        },
       },
     },
   },
   build: {
     outDir: 'dist',
     sourcemap: false,
+    minify: 'terser',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'ui-vendor': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs'],
+        },
+      },
+    },
   },
+  base: '/~hg253b74/',
 })
