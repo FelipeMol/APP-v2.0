@@ -1,4 +1,4 @@
-name: Build e Deploy → cPanel
+name: Build e Deploy - cPanel
 
 on:
   push:
