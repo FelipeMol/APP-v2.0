@@ -18,16 +18,17 @@ const boolFrom = (value) => value === 1 || value === '1' || value === true;
 
 const normalizeModule = (raw) => {
   const id = raw.modulo_id ?? raw.id;
-  const title = raw.modulo_titulo ?? raw.titulo ?? raw.modulo_nome ?? raw.nome ?? 'Modulo';
+  const nome = raw.nome ?? raw.modulo_nome ?? '';
+  const title = raw.modulo_titulo ?? raw.titulo ?? nome ?? 'Modulo';
   const description = raw.descricao ?? raw.modulo_descricao ?? '';
   const requiresAdmin = raw.requer_admin === 1 || raw.requer_admin === '1' || raw.requer_admin === true;
 
   return {
     id: String(id),
+    nome,
     title,
     description,
     requiresAdmin,
-    // Preservar as permissões do módulo
     pode_visualizar: raw.pode_visualizar,
     pode_criar: raw.pode_criar,
     pode_editar: raw.pode_editar,
@@ -46,7 +47,7 @@ const buildSelectionFromModules = (modulesWithFlags) => {
 };
 
 export default function Permissoes() {
-  const { isAdmin } = useAuthStore();
+  const { isAdmin, user: currentUser, refreshPermissions } = useAuthStore();
   const [users, setUsers] = useState([]);
   const [searchText, setSearchText] = useState('');
   const [selectedUserId, setSelectedUserId] = useState(null);
@@ -54,6 +55,7 @@ export default function Permissoes() {
   const [modules, setModules] = useState([]);
   const allModulesRef = useRef([]); // lista completa — nunca substituída pelas permissões do usuário
   const [selection, setSelection] = useState({});
+  const [isDirty, setIsDirty] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingModules, setLoadingModules] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -84,12 +86,10 @@ export default function Permissoes() {
 
   const filteredUsers = useMemo(() => {
     const term = searchText.trim().toLowerCase();
-    return users
-      .filter((user) => {
-        if (!term) return true;
-        return (user.nome || '').toLowerCase().includes(term) || (user.email || '').toLowerCase().includes(term);
-      })
-      .slice(0, 8);
+    return users.filter((user) => {
+      if (!term) return true;
+      return (user.nome || '').toLowerCase().includes(term) || (user.email || '').toLowerCase().includes(term);
+    });
   }, [users, searchText]);
 
   const totals = useMemo(() => {
@@ -122,10 +122,17 @@ export default function Permissoes() {
   }
 
   const handleSelectUser = (user) => {
+    if (isDirty && selectedUserId !== user.id) {
+      if (!window.confirm('Há alterações não salvas. Deseja descartar e trocar de usuário?')) {
+        return;
+      }
+    }
+    setIsDirty(false);
     setSelectedUserId(user.id);
   };
 
   const handleToggle = (moduleId, actionKey) => {
+    setIsDirty(true);
     setSelection((prev) => ({
       ...prev,
       [moduleId]: {
@@ -136,6 +143,7 @@ export default function Permissoes() {
   };
 
   const handleToggleAllInModule = (moduleId, nextValue) => {
+    setIsDirty(true);
     setSelection((prev) => {
       const next = { ...prev };
       const current = next[moduleId] || {};
@@ -172,6 +180,24 @@ export default function Permissoes() {
 
       await permissoesService.save(selectedUser.id, payload);
 
+      setIsDirty(false);
+
+      // Se o admin editou o próprio usuário logado, atualiza as permissões da sessão imediatamente
+      if (currentUser?.id === selectedUser.id) {
+        const normalized = {};
+        modules.forEach(mod => {
+          if (mod.nome) {
+            normalized[mod.nome] = {
+              pode_visualizar: Boolean(selection[mod.id]?.pode_visualizar),
+              pode_criar:      Boolean(selection[mod.id]?.pode_criar),
+              pode_editar:     Boolean(selection[mod.id]?.pode_editar),
+              pode_excluir:    Boolean(selection[mod.id]?.pode_excluir),
+            };
+          }
+        });
+        refreshPermissions(normalized);
+      }
+
       toast.success('Permissões atualizadas com sucesso');
       await loadUserPermissions(selectedUser.id);
     } catch (error) {
@@ -202,8 +228,8 @@ export default function Permissoes() {
       const res = await permissoesService.listModules();
       // service retorna array diretamente (sem envelope {dados})
       const list = Array.isArray(res) ? res : [];
-      const normalized = list.map((mod) => normalizeModule(mod));
-      allModulesRef.current = normalized; // preservar lista completa
+      const normalized = list.map((mod) => normalizeModule(mod)).filter(m => !m.requiresAdmin);
+      allModulesRef.current = normalized;
       setModules(normalized);
       if (!selectedUserId) {
         setSelection(buildSelectionFromModules(normalized));
@@ -246,6 +272,7 @@ export default function Permissoes() {
 
       // Atualiza apenas a seleção — não substitui a lista de módulos
       setSelection(selectionBuilt);
+      setIsDirty(false);
     } catch (error) {
       console.error('Erro ao carregar permissões:', error);
       toast.error('Não foi possível carregar as permissões do usuário.');
@@ -289,7 +316,7 @@ export default function Permissoes() {
             ) : filteredUsers.length === 0 ? (
               <p className="p-3 text-sm text-gray-500">Nenhum usuário encontrado.</p>
             ) : (
-              filteredUsers.map((user) => {
+              filteredUsers.slice(0, 8).map((user) => {
                 const isActive = selectedUserId === user.id;
                 return (
                   <button
@@ -322,8 +349,15 @@ export default function Permissoes() {
                   </button>
                 );
               })
-            )}
+            )}  
           </div>
+
+          {/* Dica de contagem quando há mais de 8 resultados */}
+          {filteredUsers.length > 8 && (
+            <p className="px-4 py-1.5 text-xs text-muted-foreground bg-gray-50 border-t text-center">
+              Mostrando 8 de {filteredUsers.length} usuários — refine a busca
+            </p>
+          )}
 
           {/* Resumo + Salvar (fixo embaixo) */}
           <div className="border-t p-4 space-y-3 bg-gray-50 flex-shrink-0">
@@ -350,11 +384,11 @@ export default function Permissoes() {
             <Button
               onClick={handleSave}
               disabled={!selectedUser || selectedUser?.tipo === 'admin' || loadingModules || saving}
-              className="w-full"
+              className={`w-full ${isDirty ? 'ring-2 ring-offset-1 ring-amber-400' : ''}`}
               size="sm"
             >
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Salvar alterações
+              {isDirty ? '\u25cf Salvar alterações' : 'Salvar alterações'}
             </Button>
           </div>
         </div>

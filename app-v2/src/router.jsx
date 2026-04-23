@@ -1,6 +1,7 @@
 import { createHashRouter, Navigate } from 'react-router-dom';
 import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import AdminRoute from './components/auth/AdminRoute';
 import TenantGate from './components/tenant/TenantGate';
 import Login from './pages/Login';
 import SelecionarEmpresa from './pages/SelecionarEmpresa';
@@ -19,6 +20,9 @@ import RelatorioMensal from './pages/RelatorioMensal';
 import RelatorioEquipePDF from './pages/RelatorioEquipePDF';
 import Tarefas from './pages/Tarefas';
 import Perfil from './pages/Perfil';
+import Contas from './pages/financeiro/Contas';
+import LancamentosFinanceiros from './pages/financeiro/Lancamentos';
+import Extrato from './pages/financeiro/Extrato';
 
 // Usando HashRouter para compatibilidade com hospedagem compartilhada
 // URLs ficam: /#/dashboard, /#/login, etc.
@@ -126,15 +130,37 @@ const router = createHashRouter([
       },
       {
         path: 'usuarios',
-        element: <Usuarios />,
+        element: (
+          <AdminRoute>
+            <Usuarios />
+          </AdminRoute>
+        ),
       },
       {
         path: 'permissoes',
-        element: <Permissoes />,
+        element: (
+          <AdminRoute>
+            <Permissoes />
+          </AdminRoute>
+        ),
       },
       {
         path: 'perfil',
         element: <Perfil />,
+      },
+
+      // Financeiro
+      {
+        path: 'financeiro/contas',
+        element: <Contas />,
+      },
+      {
+        path: 'financeiro/lancamentos',
+        element: <LancamentosFinanceiros />,
+      },
+      {
+        path: 'financeiro/extrato',
+        element: <Extrato />,
       },
     ],
   },

@@ -8,6 +8,9 @@ import {
   Building2,
   Briefcase,
   UserCog,
+  Wallet,
+  CreditCard,
+  FileSpreadsheet,
   CheckSquare,
   BarChart3,
   FileDown,
@@ -40,6 +43,14 @@ export default function Sidebar() {
       ],
     },
     { name: 'Tarefas',          path: '/tarefas',                icon: CheckSquare,     permission: 'tarefas' },
+    {
+      name: 'Financeiro', icon: Wallet, isSubmenu: true,
+      submenuItems: [
+        { name: 'Contas',       path: '/financeiro/contas',       icon: Wallet,          permission: 'financeiro' },
+        { name: 'Lançamentos',  path: '/financeiro/lancamentos',  icon: CreditCard,      permission: 'financeiro' },
+        { name: 'Extrato',      path: '/financeiro/extrato',      icon: FileSpreadsheet, permission: 'financeiro' },
+      ],
+    },
     { name: 'Relatórios',       path: '/relatorios-visao-geral', icon: BarChart3,       permission: 'relatorios' },
     { name: 'Análise',          path: '/relatorios',             icon: BarChart3,       permission: 'relatorios' },
     { name: 'Relatório PDF',    path: '/relatorios/equipe-pdf',  icon: FileDown,        permission: 'relatorios' },
@@ -50,7 +61,10 @@ export default function Sidebar() {
 
   const visibleMenuItems = menuItems.filter((item) => {
     if (item.isSubmenu) {
-      return item.submenuItems.some((s) => !s.adminOnly || isAdmin());
+      return item.submenuItems.some((s) => {
+        if (s.adminOnly && !isAdmin()) return false;
+        return isAdmin() || hasPermission(s.permission, 'visualizar');
+      });
     }
     if (item.adminOnly && !isAdmin()) return false;
     if (item.permission) return isAdmin() || hasPermission(item.permission, 'visualizar');

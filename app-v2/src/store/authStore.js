@@ -93,6 +93,13 @@ const useAuthStore = create((set, get) => ({
   },
 
   /**
+   * Atualizar permissões na sessão atual (ex: admin editou o próprio usuário logado)
+   */
+  refreshPermissions: (normalizedPermissions) => {
+    localStorage.setItem('user_permissions', JSON.stringify(normalizedPermissions));
+  },
+
+  /**
    * Limpar erro
    */
   clearError: () => {
