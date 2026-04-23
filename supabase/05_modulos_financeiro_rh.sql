@@ -3,6 +3,13 @@
 -- Execute no Supabase SQL Editor
 -- ============================================================
 
+-- Corrige a sequence caso esteja dessincronizada com os dados existentes
+SELECT setval(
+  pg_get_serial_sequence('modulos', 'id'),
+  COALESCE((SELECT MAX(id) FROM modulos), 0) + 1,
+  false
+);
+
 INSERT INTO modulos (nome, titulo, descricao, icone, ordem, ativo, requer_admin)
 VALUES
   ('rh',         'RH',         'Módulo de Recursos Humanos — dados de pessoal e contratos',   'UserCheck', 45, 1, 0),
