@@ -14,13 +14,7 @@ const actionList = [
   { key: 'pode_excluir', label: 'Excluir' },
 ];
 
-const boolFrom = (value) => {
-  const result = value === 1 || value === '1' || value === true;
-  if (value !== 0 && value !== '0' && value !== false && value !== null && value !== undefined) {
-    console.log('boolFrom:', value, '(tipo:', typeof value, ') =>', result);
-  }
-  return result;
-};
+const boolFrom = (value) => value === 1 || value === '1' || value === true;
 
 const normalizeModule = (raw) => {
   const id = raw.modulo_id ?? raw.id;
@@ -166,12 +160,14 @@ export default function Permissoes() {
 
     setSaving(true);
     try {
+      // banco usa smallint: 1/0
+      const toInt = (v) => (v ? 1 : 0);
       const payload = modules.map((mod) => ({
         modulo_id: parseInt(mod.id),
-        pode_visualizar: selection[mod.id]?.pode_visualizar || false,
-        pode_criar: selection[mod.id]?.pode_criar || false,
-        pode_editar: selection[mod.id]?.pode_editar || false,
-        pode_excluir: selection[mod.id]?.pode_excluir || false,
+        pode_visualizar: toInt(selection[mod.id]?.pode_visualizar),
+        pode_criar:      toInt(selection[mod.id]?.pode_criar),
+        pode_editar:     toInt(selection[mod.id]?.pode_editar),
+        pode_excluir:    toInt(selection[mod.id]?.pode_excluir),
       }));
 
       await permissoesService.save(selectedUser.id, payload);
