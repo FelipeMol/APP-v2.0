@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
@@ -58,6 +58,7 @@ export default function Permissoes() {
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [modules, setModules] = useState([]);
+  const allModulesRef = useRef([]); // lista completa — nunca substituída pelas permissões do usuário
   const [selection, setSelection] = useState({});
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingModules, setLoadingModules] = useState(false);
@@ -173,39 +174,13 @@ export default function Permissoes() {
         pode_excluir: selection[mod.id]?.pode_excluir || false,
       }));
 
-      console.group('💾 SALVANDO PERMISSÕES');
-      console.log('Usuário ID:', selectedUser.id);
-      console.log('Usuário Nome:', selectedUser.nome);
-      console.log('Total de módulos:', modules.length);
-      console.log('Estado atual da seleção:', selection);
-      console.log('Payload que será enviado:', payload);
-      console.groupEnd();
-
-      const response = await permissoesService.save(selectedUser.id, payload);
-
-      console.group('✅ RESPOSTA DA API');
-      console.log('Status:', response?.sucesso ? 'Sucesso' : 'Erro');
-      console.log('Mensagem:', response?.mensagem);
-      console.log('Dados retornados:', response?.dados);
-      console.log('Resposta completa:', response);
-      console.groupEnd();
+      await permissoesService.save(selectedUser.id, payload);
 
       toast.success('Permissões atualizadas com sucesso');
-
-      // Aguardar um pouco antes de recarregar para garantir que o banco foi atualizado
-      await new Promise(resolve => setTimeout(resolve, 500));
-      console.log('🔄 Recarregando permissões do usuário...');
       await loadUserPermissions(selectedUser.id);
     } catch (error) {
-      console.group('❌ ERRO AO SALVAR PERMISSÕES');
-      console.error('Erro completo:', error);
-      console.error('Erro response:', error.response);
-      console.error('Erro response data:', error.response?.data);
-      console.error('Erro message:', error.message);
-      console.groupEnd();
-
-      const message = error.response?.data?.mensagem || 'Não foi possível salvar as permissões.';
-      toast.error(message);
+      console.error('Erro ao salvar permissões:', error);
+      toast.error('Não foi possível salvar as permissões.');
     } finally {
       setSaving(false);
     }
@@ -232,6 +207,7 @@ export default function Permissoes() {
       // service retorna array diretamente (sem envelope {dados})
       const list = Array.isArray(res) ? res : [];
       const normalized = list.map((mod) => normalizeModule(mod));
+      allModulesRef.current = normalized; // preservar lista completa
       setModules(normalized);
       if (!selectedUserId) {
         setSelection(buildSelectionFromModules(normalized));
@@ -246,48 +222,36 @@ export default function Permissoes() {
   async function loadUserPermissions(userId) {
     setLoadingModules(true);
     try {
-      console.group('🔄 CARREGANDO PERMISSÕES DO USUÁRIO');
-      console.log('User ID solicitado:', userId);
-
       const res = await permissoesService.getByUsuario(userId);
-
-      console.log('Resposta bruta da API:', res);
-      // service retorna array diretamente (sem envelope {dados})
       const list = Array.isArray(res) ? res : [];
-      console.log('Lista validada (length):', list.length);
 
-      if (list.length > 0) {
-        console.log('Primeiro item da lista:', list[0]);
-        console.log('Valores do primeiro item:');
-        console.log('  - pode_visualizar:', list[0].pode_visualizar, 'tipo:', typeof list[0].pode_visualizar);
-        console.log('  - pode_criar:', list[0].pode_criar, 'tipo:', typeof list[0].pode_criar);
-        console.log('  - pode_editar:', list[0].pode_editar, 'tipo:', typeof list[0].pode_editar);
-        console.log('  - pode_excluir:', list[0].pode_excluir, 'tipo:', typeof list[0].pode_excluir);
-        console.log('Último item da lista:', list[list.length - 1]);
-      }
+      // Monta mapa: modulo_id -> flags de permissão vindas do banco
+      const permMap = {};
+      list.forEach(p => {
+        const modId = String(p.modulo_id ?? p.id);
+        permMap[modId] = {
+          pode_visualizar: boolFrom(p.pode_visualizar),
+          pode_criar:      boolFrom(p.pode_criar),
+          pode_editar:     boolFrom(p.pode_editar),
+          pode_excluir:    boolFrom(p.pode_excluir),
+        };
+      });
 
-      const normalized = list.map((mod) => normalizeModule(mod));
-      console.log('Módulos após normalização:', normalized);
+      // Aplica sobre TODOS os módulos (inclusive os sem registro ainda = tudo false)
+      const selectionBuilt = allModulesRef.current.reduce((acc, module) => {
+        acc[module.id] = permMap[module.id] || {
+          pode_visualizar: false,
+          pode_criar:      false,
+          pode_editar:     false,
+          pode_excluir:    false,
+        };
+        return acc;
+      }, {});
 
-      const selectionBuilt = buildSelectionFromModules(normalized);
-      console.log('Selection construída:', selectionBuilt);
-
-      // Verificar se alguma permissão está marcada
-      const hasAnyPermission = Object.values(selectionBuilt).some(modulePerms =>
-        Object.values(modulePerms).some(perm => perm === true)
-      );
-      console.log('Tem alguma permissão marcada?', hasAnyPermission);
-
-      console.groupEnd();
-
-      setModules(normalized);
+      // Atualiza apenas a seleção — não substitui a lista de módulos
       setSelection(selectionBuilt);
     } catch (error) {
-      console.group('❌ ERRO AO CARREGAR PERMISSÕES');
-      console.error('Erro completo:', error);
-      console.error('Erro response:', error.response);
-      console.groupEnd();
-
+      console.error('Erro ao carregar permissões:', error);
       toast.error('Não foi possível carregar as permissões do usuário.');
     } finally {
       setLoadingModules(false);
