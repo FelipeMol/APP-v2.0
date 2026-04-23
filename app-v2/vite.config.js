@@ -41,5 +41,5 @@ export default defineConfig({
       },
     },
   },
-  base: '/~hg253b74/',
+  base: '/',
 })
