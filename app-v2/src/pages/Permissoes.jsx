@@ -224,7 +224,8 @@ export default function Permissoes() {
     setLoadingUsers(true);
     try {
       const res = await usuariosService.list();
-      const list = Array.isArray(res?.dados) ? res.dados : [];
+      // service retorna array diretamente (sem envelope {dados})
+      const list = Array.isArray(res) ? res : [];
       setUsers(list);
     } catch (error) {
       toast.error('Não foi possível carregar os usuários.');
@@ -237,7 +238,8 @@ export default function Permissoes() {
     setLoadingModules(true);
     try {
       const res = await permissoesService.listModules();
-      const list = Array.isArray(res?.dados) ? res.dados : [];
+      // service retorna array diretamente (sem envelope {dados})
+      const list = Array.isArray(res) ? res : [];
       const normalized = list.map((mod) => normalizeModule(mod));
       setModules(normalized);
       if (!selectedUserId) {
@@ -259,10 +261,8 @@ export default function Permissoes() {
       const res = await permissoesService.getByUsuario(userId);
 
       console.log('Resposta bruta da API:', res);
-      console.log('Sucesso?', res?.sucesso);
-      console.log('Dados recebidos (array):', res?.dados);
-
-      const list = Array.isArray(res?.dados) ? res.dados : [];
+      // service retorna array diretamente (sem envelope {dados})
+      const list = Array.isArray(res) ? res : [];
       console.log('Lista validada (length):', list.length);
 
       if (list.length > 0) {
