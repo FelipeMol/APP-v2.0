@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 import useAuthStore from '@/store/authStore';
-import api from '@/services/api';
+import usuariosService from '@/services/usuariosService';
 
 export default function Perfil() {
   const { user } = useAuthStore();
@@ -43,20 +43,10 @@ export default function Perfil() {
     try {
       setLoading(true);
 
-      const res = await api.post('/api_auth.php', {
-        acao: 'trocar_senha',
-        senha_atual: senhaAtual,
-        senha_nova: senhaNova,
-      });
+      const res = await usuariosService.alterarSenha(user?.id, senhaAtual, senhaNova);
 
       if (!res?.sucesso) {
         throw new Error(res?.mensagem || 'Erro ao alterar senha');
-      }
-
-      // Backend pode retornar token novo
-      const novoToken = res?.dados?.token;
-      if (novoToken) {
-        localStorage.setItem('auth_token', novoToken);
       }
 
       toast.success(res?.mensagem || 'Senha alterada com sucesso');
@@ -102,6 +92,8 @@ export default function Perfil() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Hidden username for password manager accessibility */}
+            <input type="text" name="username" value={user?.email || ''} readOnly autoComplete="username" className="hidden" aria-hidden="true" />
             <div className="space-y-2">
               <Label htmlFor="senha-atual">Senha atual</Label>
               <div className="relative">
