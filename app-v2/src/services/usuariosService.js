@@ -49,14 +49,23 @@ const usuariosService = {
     return { sucesso: true }
   },
 
-  async alterarSenha(usuarioId, senhaAtual, senhaNova) {
-    const { data, error } = await supabase.rpc('alterar_senha', {
-      p_usuario_id: usuarioId,
-      p_senha_atual: senhaAtual,
-      p_senha_nova: senhaNova,
+  async alterarSenha(_usuarioId, senhaAtual, senhaNova) {
+    // Obtém o e-mail da sessão Supabase Auth atual
+    const { data: { user: authUser }, error: getUserError } = await supabase.auth.getUser()
+    if (getUserError || !authUser?.email) throw new Error('Sessão inválida. Faça login novamente.')
+
+    // Re-autentica para validar a senha atual (Supabase Auth é o sistema de login)
+    const { error: reAuthError } = await supabase.auth.signInWithPassword({
+      email: authUser.email,
+      password: senhaAtual,
     })
-    check(error)
-    return data
+    if (reAuthError) return { sucesso: false, mensagem: 'Senha atual incorreta' }
+
+    // Atualiza a senha no Supabase Auth
+    const { error: updateError } = await supabase.auth.updateUser({ password: senhaNova })
+    if (updateError) throw new Error(updateError.message)
+
+    return { sucesso: true, mensagem: 'Senha alterada com sucesso' }
   },
 }
 
