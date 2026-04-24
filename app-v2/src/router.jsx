@@ -3,6 +3,7 @@ import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import AdminRoute from './components/auth/AdminRoute';
 import TenantGate from './components/tenant/TenantGate';
+import ModuleGuard from './components/tenant/ModuleGuard';
 import Login from './pages/Login';
 import SelecionarEmpresa from './pages/SelecionarEmpresa';
 import Dashboard from './pages/Dashboard';
@@ -89,7 +90,11 @@ const router = createHashRouter([
       },
       {
         path: 'rh',
-        element: <RH />,
+        element: (
+          <ModuleGuard moduleId="rh">
+            <RH />
+          </ModuleGuard>
+        ),
       },
       {
         path: 'base',
@@ -152,15 +157,27 @@ const router = createHashRouter([
       // Financeiro
       {
         path: 'financeiro/contas',
-        element: <Contas />,
+        element: (
+          <ModuleGuard moduleId="financeiro">
+            <Contas />
+          </ModuleGuard>
+        ),
       },
       {
         path: 'financeiro/lancamentos',
-        element: <LancamentosFinanceiros />,
+        element: (
+          <ModuleGuard moduleId="financeiro">
+            <LancamentosFinanceiros />
+          </ModuleGuard>
+        ),
       },
       {
         path: 'financeiro/extrato',
-        element: <Extrato />,
+        element: (
+          <ModuleGuard moduleId="financeiro">
+            <Extrato />
+          </ModuleGuard>
+        ),
       },
     ],
   },

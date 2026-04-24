@@ -1,64 +1,44 @@
 import { create } from 'zustand';
-
-// Sempre obrigar a escolher: não vamos auto-redirecionar para dashboard
-// sem passar pelo seletor. Persistimos apenas para mostrar "selecionada"
-// e para configurar a API / tema após escolher.
+import supabase from '../lib/supabase.js';
 
 const STORAGE_KEY = 'selected_tenant';
 
-export const TENANTS = {
-  construtora: {
-    id: 'construtora',
-    name: 'Construtora Ramdy Raydan',
-    shortName: 'Ramdy Raydan',
-    logoSrc: new URL('../../public/logo.png', import.meta.url).toString(),
-    accent: {
-      from: 'from-slate-900',
-      via: 'via-slate-700',
-      to: 'to-slate-500',
-    },
-  },
-  workmall: {
-    id: 'workmall',
-    name: 'WorkMall',
-    shortName: 'WorkMall',
-    logoSrc: new URL('../../public/workmall.png', import.meta.url).toString(),
-    accent: {
-      from: 'from-violet-700',
-      via: 'via-fuchsia-600',
-      to: 'to-rose-500',
-    },
-  },
-  houseclub: {
-    id: 'houseclub',
-    name: 'Houseclub',
-    shortName: 'Houseclub',
-    logoSrc: new URL('../../public/houseclub.png', import.meta.url).toString(),
-    accent: {
-      from: 'from-emerald-700',
-      via: 'via-emerald-600',
-      to: 'to-teal-500',
-    },
-  },
-};
-
-function readStoredTenant() {
+function readStoredTenantId() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed?.id) return null;
-    return TENANTS[parsed.id] ? parsed.id : null;
+    return JSON.parse(raw)?.id || null;
   } catch {
     return null;
   }
 }
 
 const useTenantStore = create((set, get) => ({
-  selectedTenantId: readStoredTenant(),
+  selectedTenantId: readStoredTenantId(),
+  tenants: [],
+  isLoadingTenants: false,
+
+  // Carrega tenants do banco filtrando pelos IDs permitidos ao usuário
+  loadTenants: async (allowedTenantIds = []) => {
+    set({ isLoadingTenants: true });
+    try {
+      let query = supabase.from('tenants').select('*').eq('active', true);
+      if (allowedTenantIds.length > 0) {
+        query = query.in('id', allowedTenantIds);
+      }
+      const { data, error } = await query.order('name');
+      if (error) throw error;
+      set({ tenants: data || [], isLoadingTenants: false });
+    } catch (err) {
+      console.error('❌ Erro ao carregar tenants:', err);
+      set({ isLoadingTenants: false });
+    }
+  },
 
   setTenant: (tenantId) => {
-    if (!TENANTS[tenantId]) return;
+    const { tenants } = get();
+    const tenant = tenants.find(t => t.id === tenantId);
+    if (!tenant) return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ id: tenantId }));
     set({ selectedTenantId: tenantId });
   },
@@ -69,8 +49,14 @@ const useTenantStore = create((set, get) => ({
   },
 
   getTenant: () => {
-    const { selectedTenantId } = get();
-    return selectedTenantId ? TENANTS[selectedTenantId] : null;
+    const { selectedTenantId, tenants } = get();
+    return tenants.find(t => t.id === selectedTenantId) || null;
+  },
+
+  // Verifica se o módulo está ativo para o tenant selecionado
+  // Fase 2: buscar de tenant_modules. Por agora: retorna true (todos ativos)
+  isModuleEnabled: (_moduleId) => {
+    return true;
   },
 }));
 
