@@ -23,6 +23,7 @@ import Perfil from './pages/Perfil';
 import Contas from './pages/financeiro/Contas';
 import LancamentosFinanceiros from './pages/financeiro/Lancamentos';
 import Extrato from './pages/financeiro/Extrato';
+import ModuleGuard from './components/tenant/ModuleGuard';
 
 // Usando HashRouter para compatibilidade com hospedagem compartilhada
 // URLs ficam: /#/dashboard, /#/login, etc.
@@ -89,7 +90,11 @@ const router = createHashRouter([
       },
       {
         path: 'rh',
-        element: <RH />,
+        element: (
+          <ModuleGuard moduleId="rh">
+            <RH />
+          </ModuleGuard>
+        ),
       },
       {
         path: 'base',
@@ -152,15 +157,27 @@ const router = createHashRouter([
       // Financeiro
       {
         path: 'financeiro/contas',
-        element: <Contas />,
+        element: (
+          <ModuleGuard moduleId="financeiro">
+            <Contas />
+          </ModuleGuard>
+        ),
       },
       {
         path: 'financeiro/lancamentos',
-        element: <LancamentosFinanceiros />,
+        element: (
+          <ModuleGuard moduleId="financeiro">
+            <LancamentosFinanceiros />
+          </ModuleGuard>
+        ),
       },
       {
         path: 'financeiro/extrato',
-        element: <Extrato />,
+        element: (
+          <ModuleGuard moduleId="financeiro">
+            <Extrato />
+          </ModuleGuard>
+        ),
       },
     ],
   },
