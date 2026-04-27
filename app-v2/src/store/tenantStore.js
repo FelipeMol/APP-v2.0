@@ -17,20 +17,50 @@ const useTenantStore = create((set, get) => ({
   selectedTenantId: readStoredTenantId(),
   tenants: [],
   isLoadingTenants: false,
+  modulosHabilitados: [],
 
-  loadTenants: async (allowedTenantIds = []) => {
+  // grupoId: ID do grupo detectado pelo hostname (null = sem filtro, ex: dev local)
+  loadTenants: async (allowedTenantIds = [], grupoId = null) => {
     set({ isLoadingTenants: true });
     try {
       let query = supabase.from('tenants').select('*').eq('active', true);
       if (allowedTenantIds.length > 0) {
         query = query.in('id', allowedTenantIds);
       }
-      const { data, error } = await query.order('name');
-      if (error) throw error;
-      set({ tenants: data || [], isLoadingTenants: false });
+      // Filtro por grupo: só mostrar tenants do grupo do domínio atual
+      if (grupoId !== null) {
+        query = query.eq('grupo_id', grupoId);
+      }
+      const { data: tenantsData, error: tenantsError } = await query.order('name');
+
+      if (tenantsError) throw tenantsError;
+      set({ tenants: tenantsData || [], isLoadingTenants: false });
     } catch (err) {
       console.error('❌ Erro ao carregar tenants:', err);
       set({ isLoadingTenants: false });
+    }
+  },
+
+  // Carrega módulos habilitados para um tenant específico via tenant_modules
+  loadModulosDoTenant: async (tenantId) => {
+    if (!tenantId) {
+      set({ modulosHabilitados: [] });
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('tenant_modules')
+        .select('module_id')
+        .eq('tenant_id', tenantId)
+        .eq('enabled', true);
+
+      if (error) throw error;
+      const modulosHabilitados = (data || []).map(m => m.module_id);
+      set({ modulosHabilitados });
+    } catch (err) {
+      console.error('❌ Erro ao carregar módulos do tenant:', err);
+      // Fallback permissivo: não bloquear acesso em caso de erro
+      set({ modulosHabilitados: [] });
     }
   },
 
@@ -44,7 +74,7 @@ const useTenantStore = create((set, get) => ({
 
   clearTenant: () => {
     localStorage.removeItem(STORAGE_KEY);
-    set({ selectedTenantId: null });
+    set({ selectedTenantId: null, modulosHabilitados: [] });
   },
 
   getTenant: () => {
@@ -52,8 +82,11 @@ const useTenantStore = create((set, get) => ({
     return tenants.find(t => t.id === selectedTenantId) || null;
   },
 
-  isModuleEnabled: (_moduleId) => {
-    return true;
+  isModuleEnabled: (moduleId) => {
+    const { modulosHabilitados } = get();
+    // Fallback permissivo enquanto a lista ainda não foi carregada
+    if (!modulosHabilitados || modulosHabilitados.length === 0) return true;
+    return modulosHabilitados.includes(moduleId);
   },
 }));
 

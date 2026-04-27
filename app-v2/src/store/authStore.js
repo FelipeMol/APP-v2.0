@@ -71,6 +71,13 @@ const useAuthStore = create((set, get) => ({
   },
 
   /**
+   * Verificar se é super admin (acesso ao painel global)
+   */
+  isSuperAdmin: () => {
+    return authService.isSuperAdmin();
+  },
+
+  /**
    * Verificar permissão
    */
   hasPermission: (modulo, acao) => {

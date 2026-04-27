@@ -1,8 +1,16 @@
 import { RouterProvider } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { useEffect } from 'react';
 import router from './router';
+import useGrupoStore from './store/grupoStore';
 
 function App() {
+  const loadGrupo = useGrupoStore(s => s.loadGrupo);
+
+  useEffect(() => {
+    loadGrupo();
+  }, [loadGrupo]);
+
   return (
     <>
       <RouterProvider router={router} />

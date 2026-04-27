@@ -91,7 +91,12 @@ const authService = {
   },
 
   isAdmin() {
-    return this.getCurrentUser()?.tipo === 'admin';
+    const tipo = this.getCurrentUser()?.tipo;
+    return tipo === 'admin' || tipo === 'superadmin';
+  },
+
+  isSuperAdmin() {
+    return this.getCurrentUser()?.tipo === 'superadmin';
   },
 
   getPermissions() {

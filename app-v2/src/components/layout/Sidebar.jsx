@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import useAuthStore from '../../store/authStore';
 import {
   LayoutDashboard,
@@ -22,13 +23,39 @@ import {
   UserCheck,
   HardHat,
   Layers,
+  PieChart,
+  BookUser,
+  Settings,
 } from 'lucide-react';
 
 export default function Sidebar() {
   const navigate = useNavigate();
-  const { isAdmin, hasPermission } = useAuthStore();
+  const { isAdmin, isSuperAdmin, hasPermission } = useAuthStore();
+  const queryClient = useQueryClient();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isSubmenuOpen, setIsSubmenuOpen] = useState(true);
+
+  const isAdminOrSuper = () => isAdmin() || isSuperAdmin();
+
+  // Mapa path → queries a prefetch
+  const prefetchMap = {
+    '/financeiro/lancamentos':   () => import('../../services/financeiroService').then(m => [
+      queryClient.prefetchQuery({ queryKey: ['fin-lancamentos', {}], queryFn: () => m.lancamentosFinService.list({}) }),
+      queryClient.prefetchQuery({ queryKey: ['fin-categorias'],      queryFn: () => m.categoriasService.list(),   staleTime: 5 * 60 * 1000 }),
+      queryClient.prefetchQuery({ queryKey: ['fin-contas'],          queryFn: () => m.contasService.list(),       staleTime: 5 * 60 * 1000 }),
+    ]),
+    '/financeiro/configuracoes': () => import('../../services/financeiroService').then(m => [
+      queryClient.prefetchQuery({ queryKey: ['fin-categorias'],    queryFn: () => m.categoriasService.list(),    staleTime: 5 * 60 * 1000 }),
+      queryClient.prefetchQuery({ queryKey: ['fin-centros-custo'], queryFn: () => m.centrosCustoService.list(), staleTime: 5 * 60 * 1000 }),
+    ]),
+    '/cadastros/contatos': () => import('../../services/contatosService').then(m =>
+      queryClient.prefetchQuery({ queryKey: ['contatos'], queryFn: () => m.contatosService.list() })
+    ),
+  };
+
+  function handlePrefetch(path) {
+    if (prefetchMap[path]) prefetchMap[path]();
+  }
 
   const menuItems = [
     { name: 'Dashboard',        path: '/dashboard',              icon: LayoutDashboard, permission: 'dashboard' },
@@ -36,19 +63,22 @@ export default function Sidebar() {
     {
       name: 'Cadastros', icon: Layers, isSubmenu: true,
       submenuItems: [
-        { name: 'Funcionários', path: '/funcionarios', icon: Users,     permission: 'funcionarios' },
-        { name: 'Funções',      path: '/funcoes',      icon: Briefcase, permission: 'base' },
-        { name: 'Obras',        path: '/obras',        icon: Building2, permission: 'obras' },
-        { name: 'Empresas',     path: '/empresas',     icon: HardHat,   permission: 'empresas' },
+        { name: 'Contatos',     path: '/cadastros/contatos', icon: BookUser,  permission: 'base' },
+        { name: 'Funcionários', path: '/funcionarios',        icon: Users,     permission: 'funcionarios' },
+        { name: 'Funções',      path: '/funcoes',             icon: Briefcase, permission: 'base' },
+        { name: 'Obras',        path: '/obras',               icon: Building2, permission: 'obras' },
+        { name: 'Empresas',     path: '/empresas',            icon: HardHat,   permission: 'empresas' },
       ],
     },
     { name: 'Tarefas',          path: '/tarefas',                icon: CheckSquare,     permission: 'tarefas' },
     {
       name: 'Financeiro', icon: Wallet, isSubmenu: true,
       submenuItems: [
-        { name: 'Contas',       path: '/financeiro/contas',       icon: Wallet,          permission: 'financeiro' },
-        { name: 'Lançamentos',  path: '/financeiro/lancamentos',  icon: CreditCard,      permission: 'financeiro' },
-        { name: 'Extrato',      path: '/financeiro/extrato',      icon: FileSpreadsheet, permission: 'financeiro' },
+        { name: 'Painel',         path: '/financeiro/painel',          icon: PieChart,        permission: 'financeiro' },
+        { name: 'Contas',         path: '/financeiro/contas',          icon: Wallet,          permission: 'financeiro' },
+        { name: 'Lançamentos',    path: '/financeiro/lancamentos',     icon: CreditCard,      permission: 'financeiro' },
+        { name: 'Extrato',        path: '/financeiro/extrato',         icon: FileSpreadsheet, permission: 'financeiro' },
+        { name: 'Configurações',  path: '/financeiro/configuracoes',   icon: Settings,        permission: 'financeiro' },
       ],
     },
     { name: 'Relatórios',       path: '/relatorios-visao-geral', icon: BarChart3,       permission: 'relatorios' },
@@ -62,12 +92,12 @@ export default function Sidebar() {
   const visibleMenuItems = menuItems.filter((item) => {
     if (item.isSubmenu) {
       return item.submenuItems.some((s) => {
-        if (s.adminOnly && !isAdmin()) return false;
-        return isAdmin() || hasPermission(s.permission, 'visualizar');
+        if (s.adminOnly && !isAdminOrSuper()) return false;
+        return isAdminOrSuper() || hasPermission(s.permission, 'visualizar');
       });
     }
-    if (item.adminOnly && !isAdmin()) return false;
-    if (item.permission) return isAdmin() || hasPermission(item.permission, 'visualizar');
+    if (item.adminOnly && !isAdminOrSuper()) return false;
+    if (item.permission) return isAdminOrSuper() || hasPermission(item.permission, 'visualizar');
     return true;
   });
 
@@ -75,7 +105,7 @@ export default function Sidebar() {
     const Icon = item.icon;
 
     if (item.isSubmenu) {
-      const subs = item.submenuItems.filter((s) => !s.adminOnly || isAdmin());
+      const subs = item.submenuItems.filter((s) => !s.adminOnly || isAdminOrSuper());
       return (
         <div key={item.name}>
           <button
@@ -103,6 +133,7 @@ export default function Sidebar() {
                   <NavLink
                     key={sub.path}
                     to={sub.path}
+                    onMouseEnter={() => handlePrefetch(sub.path)}
                     className={({ isActive }) =>
                       `sidebar-nav-item ${isActive ? 'active' : ''}`
                     }

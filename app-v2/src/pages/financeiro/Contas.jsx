@@ -1,40 +1,230 @@
+// Financeiro — Contas Bancárias
+// Design: cards com header colorido por banco + saldo banner navy + modal nova conta
 import { useEffect, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Plus, Pencil, Trash2, Wallet, PiggyBank, BarChart2, TrendingUp, TrendingDown } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { contasService } from '@/services/financeiroService'
 import useAuthStore from '@/store/authStore'
 
-const TIPO_CONFIG = {
-  corrente:     { label: 'Conta Corrente', Icon: Wallet,    color: 'text-blue-500',   bg: 'bg-blue-50' },
-  poupanca:     { label: 'Poupança',        Icon: PiggyBank, color: 'text-green-500',  bg: 'bg-green-50' },
-  investimento: { label: 'Investimento',    Icon: BarChart2, color: 'text-purple-500', bg: 'bg-purple-50' },
-  caixa:        { label: 'Caixa',           Icon: Wallet,    color: 'text-amber-500',  bg: 'bg-amber-50' },
+const C = {
+  navy: '#17273C', amber: '#E8A628', ok: '#3D7A50', bad: '#B84A33',
+  surface: '#FFFFFF', surface2: '#F6F3ED',
+  ink: '#1C2330', ink2: '#45505F', ink3: '#7F8A99',
+  line: '#DDD6C7', line2: '#E8E2D5',
 }
+
+function brl(n) {
+  const abs = Math.abs(n)
+  return (n < 0 ? '−' : '') + 'R$ ' + abs.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+function brlK(n) {
+  const abs = Math.abs(n)
+  if (abs >= 1_000_000) return (n < 0 ? '−' : '') + 'R$ ' + (abs / 1_000_000).toFixed(1).replace('.', ',') + 'M'
+  if (abs >= 1_000) return (n < 0 ? '−' : '') + 'R$ ' + (abs / 1_000).toFixed(0) + 'k'
+  return brl(n)
+}
+
+// Mapeamento de banco → cores do cartão
+const BANCO_CORES = {
+  'banco do brasil': { bgCor: '#0033A0', cor: '#FFE600' },
+  'itaú':           { bgCor: '#EC7000', cor: '#FFFFFF' },
+  'itau':           { bgCor: '#EC7000', cor: '#FFFFFF' },
+  'bradesco':       { bgCor: '#CC092F', cor: '#FFFFFF' },
+  'santander':      { bgCor: '#EC0000', cor: '#FFFFFF' },
+  'caixa':          { bgCor: '#005CA9', cor: '#FFFFFF' },
+  'nubank':         { bgCor: '#820AD1', cor: '#FFFFFF' },
+  'inter':          { bgCor: '#FF7A00', cor: '#FFFFFF' },
+  'sicoob':         { bgCor: '#006E3A', cor: '#FFFFFF' },
+  'sicredi':        { bgCor: '#008542', cor: '#FFFFFF' },
+}
+
+function getBankColors(banco = '') {
+  const lower = banco.toLowerCase()
+  const key = Object.keys(BANCO_CORES).find(k => lower.includes(k))
+  return BANCO_CORES[key] || { bgCor: C.navy, cor: '#FFFFFF' }
+}
+
+function getBankInitials(banco = '') {
+  return banco.split(' ').filter(w => /[A-Za-z]/.test(w[0])).map(w => w[0]).join('').slice(0, 2).toUpperCase() || banco.slice(0, 2).toUpperCase()
+}
+
+const TIPO_LABEL = { corrente: 'Conta Corrente', poupanca: 'Poupança', investimento: 'Investimento', caixa: 'Caixa' }
 
 const EMPTY = { nome: '', banco: '', agencia: '', conta: '', tipo: 'corrente', saldo_inicial: '0' }
 
-function fmt(v) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
+// ── Card de conta ─────────────────────────────────────────────────
+function ContaCard({ conta, saldo, onEdit, onDelete, canEdit, canDelete }) {
+  const { bgCor, cor } = getBankColors(conta.banco)
+  const initials = getBankInitials(conta.banco)
+  const tipo = TIPO_LABEL[conta.tipo] || conta.tipo
+
+  return (
+    <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      {/* Bank header */}
+      <div style={{ background: bgCor, color: cor, padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.15)', display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 700, letterSpacing: '-0.01em', flexShrink: 0 }}>
+            {initials}
+          </div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '-0.01em' }}>{conta.banco || conta.nome}</div>
+            {(conta.agencia || conta.conta) && (
+              <div style={{ fontSize: 10, opacity: 0.8, fontFamily: '"JetBrains Mono", monospace', marginTop: 1 }}>
+                {conta.agencia ? `AG ${conta.agencia}` : ''}{conta.agencia && conta.conta ? ' · ' : ''}{conta.conta ? `CC ${conta.conta}` : ''}
+              </div>
+            )}
+          </div>
+        </div>
+        {(canEdit || canDelete) && (
+          <div style={{ display: 'flex', gap: 4 }}>
+            {canEdit && (
+              <button onClick={() => onEdit(conta)} style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(255,255,255,0.15)', border: 'none', cursor: 'pointer', color: cor, display: 'grid', placeItems: 'center', fontSize: 14 }}>
+                ✎
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Body */}
+      <div style={{ padding: '16px 18px', flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 10, letterSpacing: '0.14em', color: C.ink3, fontWeight: 600 }}>APELIDO</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.ink, marginTop: 2 }}>{conta.nome}</div>
+        </div>
+
+        <div style={{ borderTop: `1px solid ${C.line2}`, paddingTop: 12 }}>
+          <div style={{ fontSize: 10, letterSpacing: '0.14em', color: C.ink3, fontWeight: 600 }}>SALDO ATUAL</div>
+          <div style={{ fontFamily: '"Libre Caslon Text", Georgia, serif', fontSize: 26, fontWeight: 500, color: saldo >= 0 ? C.ink : C.bad, letterSpacing: '-0.01em', marginTop: 3 }}>
+            {brl(saldo)}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: `1px solid ${C.line2}`, paddingTop: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.ok }} />
+            <span style={{ fontSize: 10, color: C.ink2, letterSpacing: '0.04em' }}>Ativa · {tipo}</span>
+          </div>
+          {canDelete && (
+            <button onClick={() => onDelete(conta.id)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: C.ink3, fontSize: 11, padding: '2px 6px', borderRadius: 4 }}>
+              Excluir
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Footer actions */}
+      <div style={{ display: 'flex', borderTop: `1px solid ${C.line2}` }}>
+        <Link to={`/financeiro/extrato`} style={cardBtn()}>Extrato</Link>
+        <Link to="/financeiro/lancamentos" style={{ ...cardBtn(), borderLeft: `1px solid ${C.line2}` }}>Lançar</Link>
+      </div>
+    </div>
+  )
 }
 
+function cardBtn() {
+  return { flex: 1, padding: '10px 0', background: 'transparent', border: 'none', fontSize: 11, fontWeight: 600, color: C.ink2, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none', display: 'block', textAlign: 'center' }
+}
+
+// Card "adicionar conta"
+function AddCard({ onClick }) {
+  return (
+    <div onClick={onClick} style={{ background: 'transparent', border: '1.5px dashed #C9C2B0', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 24, minHeight: 260, cursor: 'pointer' }}>
+      <div style={{ width: 44, height: 44, borderRadius: '50%', background: C.surface, border: `1px solid ${C.line}`, display: 'grid', placeItems: 'center', fontSize: 22, color: C.navy }}>+</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>Adicionar conta</div>
+      <div style={{ fontSize: 11, color: C.ink3, textAlign: 'center', maxWidth: 180 }}>Cadastre uma nova conta corrente para começar a registrar movimentações.</div>
+    </div>
+  )
+}
+
+// Modal nova / editar conta
+function ContaModal({ open, onClose, onSave, form, setForm, saving, editId }) {
+  if (!open) return null
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,22,35,0.55)', backdropFilter: 'blur(2px)', display: 'grid', placeItems: 'center', zIndex: 200 }}>
+      <div style={{ background: C.surface, borderRadius: 14, width: 560, maxHeight: '92vh', overflow: 'hidden', boxShadow: '0 30px 80px rgba(0,0,0,0.25)', border: `1px solid ${C.line}` }}>
+        {/* Header */}
+        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.line}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: '0.18em', color: C.ink3, fontWeight: 600 }}>FINANCEIRO · CADASTRO</div>
+            <h2 style={{ fontFamily: '"Libre Caslon Text", Georgia, serif', fontSize: 22, fontWeight: 500, margin: '4px 0 0', color: C.ink }}>{editId ? 'Editar conta' : 'Nova conta bancária'}</h2>
+            <div style={{ fontSize: 12, color: C.ink3, marginTop: 4 }}>Vincule uma conta para registrar movimentações financeiras.</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: C.ink3, fontSize: 20, padding: 4, lineHeight: 1 }}>×</button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={onSave}>
+          <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14, maxHeight: '60vh', overflowY: 'auto' }}>
+            <Field label="Apelido (como aparece no painel) *">
+              <input style={inp()} placeholder="Ex: BB Operacional" value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} required />
+            </Field>
+            <Field label="Banco">
+              <input style={inp()} placeholder="Ex: Banco do Brasil" value={form.banco} onChange={e => setForm(f => ({ ...f, banco: e.target.value }))} />
+            </Field>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 12 }}>
+              <Field label="Agência">
+                <input style={inp()} placeholder="0000-0" value={form.agencia} onChange={e => setForm(f => ({ ...f, agencia: e.target.value }))} />
+              </Field>
+              <Field label="Conta corrente">
+                <input style={inp()} placeholder="00000-0" value={form.conta} onChange={e => setForm(f => ({ ...f, conta: e.target.value }))} />
+              </Field>
+            </div>
+            <Field label="Tipo">
+              <div style={{ display: 'flex', gap: 6, padding: 3, background: C.surface2, borderRadius: 8 }}>
+                {[['corrente', 'Conta Corrente'], ['poupanca', 'Poupança'], ['investimento', 'Investimento']].map(([val, lbl]) => (
+                  <button key={val} type="button" onClick={() => setForm(f => ({ ...f, tipo: val }))} style={{ flex: 1, padding: '7px 10px', fontSize: 12, fontWeight: 500, border: 'none', borderRadius: 6, background: form.tipo === val ? C.navy : 'transparent', color: form.tipo === val ? '#FFF' : C.ink2, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <Field label="Saldo inicial (R$)" hint="Use o saldo na data do cadastro para manter o painel consistente.">
+              <div style={{ display: 'flex', alignItems: 'center', border: `1px solid ${C.line}`, borderRadius: 8, overflow: 'hidden' }}>
+                <span style={{ padding: '8px 12px', borderRight: `1px solid ${C.line}`, fontSize: 12, color: C.ink3, fontWeight: 600, background: C.surface2 }}>R$</span>
+                <input type="number" step="0.01" style={{ ...inp(), border: 'none', borderRadius: 0, flex: 1 }} value={form.saldo_inicial} onChange={e => setForm(f => ({ ...f, saldo_inicial: e.target.value }))} />
+              </div>
+            </Field>
+          </div>
+
+          {/* Footer */}
+          <div style={{ padding: '14px 24px', borderTop: `1px solid ${C.line}`, display: 'flex', justifyContent: 'flex-end', gap: 8, background: C.surface2 }}>
+            <button type="button" onClick={onClose} style={ghostBtnS()}>Cancelar</button>
+            <button type="submit" disabled={saving} style={amberBtnS()}>{saving ? 'Salvando...' : editId ? 'Salvar alterações' : 'Cadastrar conta'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function Field({ label, hint, children }) {
+  return (
+    <div>
+      <label style={{ fontSize: 10, letterSpacing: '0.14em', color: C.ink3, fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>{label}</label>
+      {children}
+      {hint && <div style={{ fontSize: 10, color: C.ink3, marginTop: 5, fontStyle: 'italic' }}>{hint}</div>}
+    </div>
+  )
+}
+function inp() { return { width: '100%', padding: '9px 12px', border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 13, background: C.surface, color: C.ink, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' } }
+function ghostBtnS() { return { background: C.surface, border: `1px solid ${C.line}`, color: C.ink2, fontSize: 12, fontWeight: 500, padding: '9px 18px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' } }
+function amberBtnS() { return { background: '#E8A628', border: 'none', color: C.navy, fontSize: 12, fontWeight: 700, padding: '9px 18px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' } }
+
+// ── Main page ──────────────────────────────────────────────────────
 export default function Contas() {
   const { isAdmin, hasPermission } = useAuthStore()
   const canCreate = isAdmin() || hasPermission('financeiro', 'criar')
   const canEdit   = isAdmin() || hasPermission('financeiro', 'editar')
   const canDelete = isAdmin() || hasPermission('financeiro', 'excluir')
 
-  const [contas, setContas]       = useState([])
-  const [saldos, setSaldos]       = useState({})
-  const [loading, setLoading]     = useState(true)
-  const [open, setOpen]           = useState(false)
-  const [form, setForm]           = useState(EMPTY)
-  const [editId, setEditId]       = useState(null)
-  const [saving, setSaving]       = useState(false)
+  const [contas, setContas]   = useState([])
+  const [saldos, setSaldos]   = useState({})
+  const [loading, setLoading] = useState(true)
+  const [open, setOpen]       = useState(false)
+  const [form, setForm]       = useState(EMPTY)
+  const [editId, setEditId]   = useState(null)
+  const [saving, setSaving]   = useState(false)
 
   useEffect(() => { load() }, [])
 
@@ -55,8 +245,7 @@ export default function Contas() {
 
   function abrir(conta = null) {
     if (conta) {
-      setForm({ nome: conta.nome, banco: conta.banco || '', agencia: conta.agencia || '',
-        conta: conta.conta || '', tipo: conta.tipo, saldo_inicial: String(conta.saldo_inicial ?? 0) })
+      setForm({ nome: conta.nome, banco: conta.banco || '', agencia: conta.agencia || '', conta: conta.conta || '', tipo: conta.tipo, saldo_inicial: String(conta.saldo_inicial ?? 0) })
       setEditId(conta.id)
     } else {
       setForm(EMPTY); setEditId(null)
@@ -66,7 +255,7 @@ export default function Contas() {
 
   async function salvar(e) {
     e.preventDefault()
-    if (!form.nome.trim()) { toast.error('Nome obrigatório'); return }
+    if (!form.nome.trim()) { toast.error('Apelido obrigatório'); return }
     setSaving(true)
     try {
       const payload = { ...form, saldo_inicial: parseFloat(form.saldo_inicial) || 0 }
@@ -84,142 +273,98 @@ export default function Contas() {
   }
 
   const totalSaldo = Object.values(saldos).reduce((a, b) => a + b, 0)
+  const totalPend  = contas.reduce((s, c) => s + (c.pendentes || 0), 0)
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div style={{ margin: '-22px -28px -40px', background: '#EEEBE5', minHeight: 'calc(100vh - 60px)', padding: '22px 28px 40px' }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Contas Bancárias</h1>
-          <p className="text-gray-500 text-sm mt-1">Gerencie suas contas e acompanhe os saldos</p>
+          <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.02em', color: C.ink }}>Contas Bancárias</h1>
+          <div style={{ fontSize: 12, color: C.ink3, marginTop: 4 }}>Gerencie suas contas e acompanhe os saldos do grupo.</div>
         </div>
-        {canCreate && (
-          <Button onClick={() => abrir()}>
-            <Plus className="w-4 h-4" /> Nova Conta
-          </Button>
-        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Link to="/financeiro/painel" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: C.surface, border: `1px solid ${C.line}`, color: C.ink2, fontSize: 12, fontWeight: 500, padding: '8px 14px', borderRadius: 8, cursor: 'pointer', textDecoration: 'none' }}>
+            ← Painel
+          </Link>
+          {canCreate && (
+            <button onClick={() => abrir()} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#E8A628', border: 'none', color: C.navy, fontSize: 12, fontWeight: 700, padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>
+              + Nova conta
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Saldo total */}
-      <Card className={`text-white ${totalSaldo >= 0 ? 'bg-gradient-to-r from-blue-600 to-blue-500' : 'bg-gradient-to-r from-red-600 to-red-500'}`}>
-        <CardContent className="p-5">
-          <p className="text-blue-100 text-sm font-medium">Saldo Total em Caixa</p>
-          <p className="text-3xl font-bold mt-1">{fmt(totalSaldo)}</p>
-          <p className="text-blue-100 text-xs mt-2">{contas.length} conta{contas.length !== 1 ? 's' : ''} ativa{contas.length !== 1 ? 's' : ''}</p>
-        </CardContent>
-      </Card>
+      {/* Saldo banner */}
+      <div style={{ background: C.navy, color: '#FFF', borderRadius: 10, padding: '24px 28px', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 0, marginBottom: 20 }}>
+        <div style={{ paddingRight: 24, borderRight: '1px solid rgba(255,255,255,0.12)' }}>
+          <div style={{ fontSize: 10, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>SALDO TOTAL EM CAIXA</div>
+          <div style={{ fontFamily: '"Libre Caslon Text", Georgia, serif', fontSize: 36, fontWeight: 500, letterSpacing: '-0.02em', marginTop: 6 }}>{brl(totalSaldo)}</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>{contas.length} conta{contas.length !== 1 ? 's' : ''} ativa{contas.length !== 1 ? 's' : ''} · atualizado agora</div>
+        </div>
+        <div style={{ paddingLeft: 24, paddingRight: 24, borderRight: '1px solid rgba(255,255,255,0.12)' }}>
+          <div style={{ fontSize: 10, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>BANCOS</div>
+          <div style={{ fontFamily: '"Libre Caslon Text", Georgia, serif', fontSize: 24, fontWeight: 500, marginTop: 6 }}>
+            {new Set(contas.map(c => c.banco).filter(Boolean)).size || contas.length}
+          </div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Distribuição multibanco</div>
+        </div>
+        <div style={{ paddingLeft: 24, paddingRight: 24, borderRight: '1px solid rgba(255,255,255,0.12)' }}>
+          <div style={{ fontSize: 10, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>CONTAS</div>
+          <div style={{ fontFamily: '"Libre Caslon Text", Georgia, serif', fontSize: 24, fontWeight: 500, marginTop: 6 }}>{contas.length}</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Corrente · poupança · invest.</div>
+        </div>
+        <div style={{ paddingLeft: 24 }}>
+          <div style={{ fontSize: 10, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>PENDÊNCIAS</div>
+          <div style={{ fontFamily: '"Libre Caslon Text", Georgia, serif', fontSize: 24, fontWeight: 500, marginTop: 6, color: totalPend > 0 ? '#F4B19C' : '#8ED1A5' }}>{totalPend}</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Para conciliação</div>
+        </div>
+      </div>
 
+      {/* Cards */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1,2,3].map(i => <div key={i} className="h-48 bg-gray-100 rounded-xl animate-pulse" />)}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+          {[1, 2, 3].map(i => (
+            <div key={i} style={{ height: 280, background: '#E2DDD6', borderRadius: 12, animation: 'pulse 1.5s infinite' }} />
+          ))}
         </div>
       ) : contas.length === 0 ? (
-        <Card>
-          <CardContent className="py-16 text-center text-gray-400">
-            <Wallet className="w-12 h-12 mx-auto mb-3 opacity-20" />
-            <p className="font-medium">Nenhuma conta cadastrada</p>
-            {canCreate && <Button variant="outline" className="mt-4" onClick={() => abrir()}>Adicionar primeira conta</Button>}
-          </CardContent>
-        </Card>
+        <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, padding: '48px 24px', textAlign: 'center', color: C.ink3 }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>🏦</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: C.ink2, marginBottom: 8 }}>Nenhuma conta cadastrada</div>
+          <div style={{ fontSize: 13, marginBottom: 20 }}>Adicione sua primeira conta bancária para começar a registrar movimentações.</div>
+          {canCreate && (
+            <button onClick={() => abrir()} style={amberBtnS()}>+ Adicionar conta</button>
+          )}
+        </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {contas.map(conta => {
-            const cfg = TIPO_CONFIG[conta.tipo] || TIPO_CONFIG.corrente
-            const { Icon } = cfg
-            const saldo = saldos[conta.id] ?? 0
-            return (
-              <Card key={conta.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${cfg.bg}`}>
-                        <Icon className={`w-5 h-5 ${cfg.color}`} />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-900 leading-tight">{conta.nome}</p>
-                        <p className="text-xs text-gray-400">{cfg.label}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-1">
-                      {canEdit && (
-                        <button onClick={() => abrir(conta)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-600 transition-colors">
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button onClick={() => excluir(conta.id)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-red-600 transition-colors">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {conta.banco && (
-                    <p className="text-xs text-gray-400 mb-3">
-                      {conta.banco}{conta.agencia ? ` · Ag. ${conta.agencia}` : ''}{conta.conta ? ` · Cc. ${conta.conta}` : ''}
-                    </p>
-                  )}
-                  <div className={`rounded-lg p-3 text-center ${saldo >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-                    <p className="text-xs text-gray-500 mb-1">Saldo atual</p>
-                    <div className="flex items-center justify-center gap-1.5">
-                      {saldo >= 0
-                        ? <TrendingUp className="w-4 h-4 text-green-600" />
-                        : <TrendingDown className="w-4 h-4 text-red-600" />}
-                      <span className={`text-xl font-bold ${saldo >= 0 ? 'text-green-700' : 'text-red-700'}`}>{fmt(saldo)}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+          {contas.map(c => (
+            <ContaCard
+              key={c.id}
+              conta={c}
+              saldo={saldos[c.id] ?? 0}
+              onEdit={abrir}
+              onDelete={excluir}
+              canEdit={canEdit}
+              canDelete={canDelete}
+            />
+          ))}
+          {canCreate && <AddCard onClick={() => abrir()} />}
         </div>
       )}
 
       {/* Modal */}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editId ? 'Editar Conta' : 'Nova Conta'}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={salvar} className="space-y-4 mt-2">
-            <div>
-              <Label>Nome *</Label>
-              <Input className="mt-1" placeholder="Ex: Bradesco Corrente" value={form.nome} onChange={e => setForm(f => ({...f, nome: e.target.value}))} required />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Tipo</Label>
-                <select className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" value={form.tipo} onChange={e => setForm(f => ({...f, tipo: e.target.value}))}>
-                  <option value="corrente">Conta Corrente</option>
-                  <option value="poupanca">Poupança</option>
-                  <option value="investimento">Investimento</option>
-                  <option value="caixa">Caixa</option>
-                </select>
-              </div>
-              <div>
-                <Label>Saldo Inicial (R$)</Label>
-                <Input className="mt-1" type="number" step="0.01" value={form.saldo_inicial} onChange={e => setForm(f => ({...f, saldo_inicial: e.target.value}))} />
-              </div>
-            </div>
-            <div>
-              <Label>Banco</Label>
-              <Input className="mt-1" placeholder="Ex: Bradesco" value={form.banco} onChange={e => setForm(f => ({...f, banco: e.target.value}))} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Agência</Label>
-                <Input className="mt-1" placeholder="0000-0" value={form.agencia} onChange={e => setForm(f => ({...f, agencia: e.target.value}))} />
-              </div>
-              <div>
-                <Label>Nº Conta</Label>
-                <Input className="mt-1" placeholder="00000-0" value={form.conta} onChange={e => setForm(f => ({...f, conta: e.target.value}))} />
-              </div>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => setOpen(false)}>Cancelar</Button>
-              <Button type="submit" className="flex-1" disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <ContaModal
+        open={open}
+        onClose={() => setOpen(false)}
+        onSave={salvar}
+        form={form}
+        setForm={setForm}
+        saving={saving}
+        editId={editId}
+      />
     </div>
   )
 }

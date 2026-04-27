@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Settings2, Plus, GripVertical, Calendar, Star, FileText, Save, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
+import funcionariosService from '@/services/funcionariosService';
+import TarefasFuncionario from './TarefasFuncionario';
 
 function generateDefaultTabs() {
   return [
@@ -53,6 +55,19 @@ function evalStorageKey(funcionarioId) {
   return `rh.funcionario.${funcionarioId}.avaliacoes.v1`;
 }
 
+// Lê as abas do localStorage como fallback
+function readTabsFromStorage(funcionarioId) {
+  if (!funcionarioId) return generateDefaultTabs();
+  try {
+    const raw = localStorage.getItem(storageKey(funcionarioId));
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch { /* ignore */ }
+  return generateDefaultTabs();
+}
+
 function readAvaliacoes(funcionarioId) {
   if (!funcionarioId) return [];
   try {
@@ -80,27 +95,12 @@ function formatDateBR(dateStr) {
 
 export default function FuncionarioDrawer({ open, onOpenChange, funcionario }) {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [loadingDados, setLoadingDados] = useState(false);
 
-  const initialTabs = useMemo(() => {
-    if (!funcionario?.id) return generateDefaultTabs();
+  const [tabs, setTabs] = useState(generateDefaultTabs);
+  const [activeTab, setActiveTab] = useState('avaliacoes');
 
-    try {
-      const raw = localStorage.getItem(storageKey(funcionario.id));
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {
-      // ignore
-    }
-
-    return generateDefaultTabs();
-  }, [funcionario?.id]);
-
-  const [tabs, setTabs] = useState(initialTabs);
-  const [activeTab, setActiveTab] = useState(initialTabs?.[0]?.id || 'avaliacoes');
-
-  const [avaliacoes, setAvaliacoes] = useState(() => readAvaliacoes(funcionario?.id));
+  const [avaliacoes, setAvaliacoes] = useState([]);
   const [selectedAvaliacao, setSelectedAvaliacao] = useState(null);
   const [isAvaliacaoModalOpen, setIsAvaliacaoModalOpen] = useState(false);
   const [avaliacaoDraft, setAvaliacaoDraft] = useState(null);
@@ -175,11 +175,10 @@ export default function FuncionarioDrawer({ open, onOpenChange, funcionario }) {
   }
 
   function onDrawerOpenChange(nextOpen) {
-    onOpenChange(nextOpen);
-    // recarregar avaliações ao trocar de funcionário / abrir
-    if (nextOpen) {
-      setAvaliacoes(readAvaliacoes(funcionario?.id));
+    if (!nextOpen && funcionario?.id) {
+      saveToDb();
     }
+    onOpenChange(nextOpen);
   }
 
   function persist(nextTabs) {
@@ -271,22 +270,47 @@ export default function FuncionarioDrawer({ open, onOpenChange, funcionario }) {
     persist(next);
   }
 
-  // Recarregar avaliações ao trocar o funcionário (evita "vai para todos")
+  // Recarregar dados (DB → localStorage → default) ao trocar de funcionário
   useEffect(() => {
     if (!funcionario?.id) return;
-    setAvaliacoes(readAvaliacoes(funcionario.id));
-    // fecha modal/draft ao trocar de funcionário
+
     setIsAvaliacaoModalOpen(false);
     setSelectedAvaliacao(null);
     setAvaliacaoDraft(null);
+    setIsConfigOpen(false);
+    setLoadingDados(true);
+
+    funcionariosService.getDados(funcionario.id)
+      .then((dbDados) => {
+        if (dbDados?.tabs && Array.isArray(dbDados.tabs) && dbDados.tabs.length > 0) {
+          setTabs(dbDados.tabs);
+          setAvaliacoes(Array.isArray(dbDados.avaliacoes) ? dbDados.avaliacoes : []);
+        } else {
+          // fallback: localStorage (migração graceful)
+          setTabs(readTabsFromStorage(funcionario.id));
+          setAvaliacoes(readAvaliacoes(funcionario.id));
+        }
+        setActiveTab((prev) => prev || 'avaliacoes');
+      })
+      .catch(() => {
+        // DB indisponível — degradação graciosa para localStorage
+        setTabs(readTabsFromStorage(funcionario.id));
+        setAvaliacoes(readAvaliacoes(funcionario.id));
+      })
+      .finally(() => {
+        setLoadingDados(false);
+      });
   }, [funcionario?.id]);
 
-  // Manter tabs/aba ativa consistentes ao trocar funcionário
-  useEffect(() => {
-    setTabs(initialTabs);
-    setActiveTab(initialTabs?.[0]?.id || 'avaliacoes');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [funcionario?.id]);
+  async function saveToDb() {
+    if (!funcionario?.id) return;
+    try {
+      await funcionariosService.upsertDados(funcionario.id, { tabs, avaliacoes });
+    } catch (err) {
+      // Falha silenciosa — dados ainda estão no localStorage
+      console.warn('FuncionarioDrawer: falha ao salvar no banco:', err?.message);
+    }
+  }
 
   function clampNota(raw) {
     if (raw === '' || raw == null) return '';
@@ -346,10 +370,24 @@ export default function FuncionarioDrawer({ open, onOpenChange, funcionario }) {
                       {t.title}
                     </TabsTrigger>
                   ))}
+                  <TabsTrigger value="tarefas">Tarefas</TabsTrigger>
                 </TabsList>
               </div>
 
               <div className="flex-1 overflow-y-auto px-6 py-5">
+                {loadingDados ? (
+                  <div className="space-y-4 animate-pulse">
+                    <div className="grid grid-cols-2 gap-4">
+                      {[1, 2, 3, 4].map(i => (
+                        <div key={i} className="space-y-1.5">
+                          <div className="h-3 w-20 bg-muted rounded" />
+                          <div className="h-8 bg-muted rounded" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                <>
                 {tabs.map((t) => (
                   <TabsContent key={t.id} value={t.id}>
                     {/* Layout especial para Avaliações (tipo imagem) */}
@@ -524,6 +562,19 @@ export default function FuncionarioDrawer({ open, onOpenChange, funcionario }) {
                     )}
                   </TabsContent>
                 ))}
+
+                {/* Aba Tarefas — dados do banco, não editável manualmente */}
+                <TabsContent value="tarefas">
+                  <div className="space-y-4">
+                    <div>
+                      <div className="text-lg font-semibold">Tarefas</div>
+                      <div className="text-sm text-muted-foreground">Tarefas vinculadas a este funcionário</div>
+                    </div>
+                    <TarefasFuncionario funcionarioId={funcionario.id} />
+                  </div>
+                </TabsContent>
+                </>
+                )}
               </div>
             </Tabs>
           </div>

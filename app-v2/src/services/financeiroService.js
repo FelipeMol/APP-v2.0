@@ -49,6 +49,21 @@ export const categoriasService = {
     const { data, error } = await q
     check(error); return data || []
   },
+  async create(payload) {
+    const { data, error } = await supabase
+      .from('financeiro_categorias').insert(payload).select().single()
+    check(error); return data
+  },
+  async update(id, payload) {
+    const { data, error } = await supabase
+      .from('financeiro_categorias').update(payload).eq('id', id).select().single()
+    check(error); return data
+  },
+  async remove(id) {
+    const { error } = await supabase
+      .from('financeiro_categorias').update({ ativo: false }).eq('id', id)
+    check(error)
+  },
 }
 
 // ── Lançamentos ──────────────────────────────────────────
@@ -56,7 +71,7 @@ export const lancamentosFinService = {
   async list(filtros = {}) {
     let q = supabase
       .from('financeiro_lancamentos')
-      .select('*, financeiro_categorias(nome,cor,icone), financeiro_contas(nome)')
+      .select('*, financeiro_categorias(nome,cor,icone), financeiro_contas(nome), contatos(nome,documento,tipo), financeiro_centros_custo(nome)')
       .order('data_vencimento', { ascending: true })
     if (filtros.tipo)      q = q.eq('tipo', filtros.tipo)
     if (filtros.status)    q = q.eq('status', filtros.status)
@@ -145,6 +160,30 @@ export const extratoService = {
   },
   async remove(id) {
     const { error } = await supabase.from('financeiro_extrato').delete().eq('id', id)
+    check(error)
+  },
+}
+
+// ── Centros de Custo ─────────────────────────────────────
+export const centrosCustoService = {
+  async list() {
+    const { data, error } = await supabase
+      .from('financeiro_centros_custo').select('*').eq('ativo', true).order('nome')
+    check(error); return data || []
+  },
+  async create(payload) {
+    const { data, error } = await supabase
+      .from('financeiro_centros_custo').insert(payload).select().single()
+    check(error); return data
+  },
+  async update(id, payload) {
+    const { data, error } = await supabase
+      .from('financeiro_centros_custo').update(payload).eq('id', id).select().single()
+    check(error); return data
+  },
+  async remove(id) {
+    const { error } = await supabase
+      .from('financeiro_centros_custo').update({ ativo: false }).eq('id', id)
     check(error)
   },
 }

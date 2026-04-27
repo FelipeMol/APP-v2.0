@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
+import authService from '../services/authService';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -13,7 +14,10 @@ export default function Login() {
   const [formData, setFormData] = useState({ usuario: '', senha: '' });
 
   useEffect(() => {
-    if (isAuthenticated) navigate('/selecionar-empresa', { replace: true });
+    if (isAuthenticated) {
+      const dest = authService.isSuperAdmin() ? '/super-admin' : '/selecionar-empresa';
+      navigate(dest, { replace: true });
+    }
   }, [isAuthenticated, navigate]);
 
   const handleChange = (e) => {
@@ -26,7 +30,8 @@ export default function Login() {
     if (!formData.usuario || !formData.senha) return;
     try {
       await login(formData.usuario, formData.senha);
-      navigate('/selecionar-empresa', { replace: true });
+      const dest = authService.isSuperAdmin() ? '/super-admin' : '/selecionar-empresa';
+      navigate(dest, { replace: true });
     } catch (err) {
       console.error('Erro no login:', err);
     }

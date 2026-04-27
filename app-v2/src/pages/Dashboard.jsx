@@ -592,7 +592,7 @@ function AlertsPanel() {
 
 // ── Main Dashboard ────────────────────────────────────────────
 export default function Dashboard() {
-  const { isAdmin, hasPermission } = useAuthStore();
+  const { isAdmin, isSuperAdmin, hasPermission } = useAuthStore();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -607,11 +607,12 @@ export default function Dashboard() {
   });
   const controllerRef = useRef(null);
 
+  const isSA = isSuperAdmin();
   const canView = {
-    funcionarios: isAdmin() || hasPermission('funcionarios', 'visualizar'),
-    obras: isAdmin() || hasPermission('obras', 'visualizar'),
-    lancamentos: isAdmin() || hasPermission('lancamentos', 'visualizar'),
-    tarefas: isAdmin() || hasPermission('tarefas', 'visualizar'),
+    funcionarios: isSA || isAdmin() || hasPermission('funcionarios', 'visualizar'),
+    obras: isSA || isAdmin() || hasPermission('obras', 'visualizar'),
+    lancamentos: isSA || isAdmin() || hasPermission('lancamentos', 'visualizar'),
+    tarefas: isSA || isAdmin() || hasPermission('tarefas', 'visualizar'),
   };
 
   useEffect(() => {

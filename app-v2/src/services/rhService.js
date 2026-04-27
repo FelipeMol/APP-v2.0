@@ -1,13 +1,16 @@
 ﻿import supabase from '../lib/supabase.js'
+import useTenantStore from '../store/tenantStore.js'
 
 const check = (error) => { if (error) throw new Error(error.message) }
+const getTenantId = () => useTenantStore.getState().selectedTenantId || 'construtora'
 
 class RHService {
   // ========================================
   // REQUISIÃ‡Ã•ES DE VAGAS
   // ========================================
   async listarRequisicoes(filtros = {}) {
-    let query = supabase.from('requisicoes_vagas').select('*, obras(nome)').order('criado_em', { ascending: false })
+    const tenantId = getTenantId()
+    let query = supabase.from('requisicoes_vagas').select('*, obras(nome)').eq('tenant_id', tenantId).order('criado_em', { ascending: false })
     if (filtros.status)  query = query.eq('status', filtros.status)
     if (filtros.obra_id) query = query.eq('obra_id', filtros.obra_id)
     const { data, error } = await query
@@ -16,7 +19,7 @@ class RHService {
   }
 
   async criarRequisicao(dados) {
-    const { data, error } = await supabase.from('requisicoes_vagas').insert(dados).select().single()
+    const { data, error } = await supabase.from('requisicoes_vagas').insert({ ...dados, tenant_id: getTenantId() }).select().single()
     check(error)
     return data
   }
@@ -40,7 +43,8 @@ class RHService {
   // CANDIDATOS
   // ========================================
   async listarCandidatos(filtros = {}) {
-    let query = supabase.from('candidatos').select('*, requisicoes_vagas(cargo)').order('criado_em', { ascending: false })
+    const tenantId = getTenantId()
+    let query = supabase.from('candidatos').select('*, requisicoes_vagas(cargo)').eq('tenant_id', tenantId).order('criado_em', { ascending: false })
     if (filtros.status)        query = query.eq('status', filtros.status)
     if (filtros.requisicao_id) query = query.eq('requisicao_id', filtros.requisicao_id)
     const { data, error } = await query
@@ -49,7 +53,7 @@ class RHService {
   }
 
   async criarCandidato(dados) {
-    const { data, error } = await supabase.from('candidatos').insert(dados).select().single()
+    const { data, error } = await supabase.from('candidatos').insert({ ...dados, tenant_id: getTenantId() }).select().single()
     check(error)
     return data
   }
@@ -65,7 +69,8 @@ class RHService {
   // ENTREVISTAS
   // ========================================
   async listarEntrevistas(candidato_id) {
-    let query = supabase.from('entrevistas').select('*').order('data_agendada')
+    const tenantId = getTenantId()
+    let query = supabase.from('entrevistas').select('*').eq('tenant_id', tenantId).order('data_agendada')
     if (candidato_id) query = query.eq('candidato_id', candidato_id)
     const { data, error } = await query
     check(error)
@@ -73,7 +78,7 @@ class RHService {
   }
 
   async agendarEntrevista(dados) {
-    const { data, error } = await supabase.from('entrevistas').insert(dados).select().single()
+    const { data, error } = await supabase.from('entrevistas').insert({ ...dados, tenant_id: getTenantId() }).select().single()
     check(error)
     return data
   }
@@ -89,7 +94,8 @@ class RHService {
   // ADMISSÃ•ES
   // ========================================
   async listarAdmissoes(status) {
-    let query = supabase.from('admissoes').select('*, candidatos(nome), funcionarios(nome)').order('criado_em', { ascending: false })
+    const tenantId = getTenantId()
+    let query = supabase.from('admissoes').select('*, candidatos(nome), funcionarios(nome)').eq('tenant_id', tenantId).order('criado_em', { ascending: false })
     if (status) query = query.eq('status', status)
     const { data, error } = await query
     check(error)
@@ -97,7 +103,7 @@ class RHService {
   }
 
   async criarAdmissao(dados) {
-    const { data, error } = await supabase.from('admissoes').insert(dados).select().single()
+    const { data, error } = await supabase.from('admissoes').insert({ ...dados, tenant_id: getTenantId() }).select().single()
     check(error)
     return data
   }
@@ -121,7 +127,8 @@ class RHService {
   // EXPERIÃŠNCIAS (via avaliacoes)
   // ========================================
   async listarExperiencias(filtros = {}) {
-    let query = supabase.from('avaliacoes').select('*, funcionarios(nome)').order('criado_em', { ascending: false })
+    const tenantId = getTenantId()
+    let query = supabase.from('avaliacoes').select('*, funcionarios(nome)').eq('tenant_id', tenantId).order('criado_em', { ascending: false })
     if (filtros.funcionario_id) query = query.eq('funcionario_id', filtros.funcionario_id)
     if (filtros.status)         query = query.eq('status', filtros.status)
     const { data, error } = await query
@@ -140,7 +147,8 @@ class RHService {
   // AVALIAÃ‡Ã•ES DE DESEMPENHO
   // ========================================
   async listarAvaliacoes(funcionario_id) {
-    let query = supabase.from('avaliacoes').select('*').order('criado_em', { ascending: false })
+    const tenantId = getTenantId()
+    let query = supabase.from('avaliacoes').select('*').eq('tenant_id', tenantId).order('criado_em', { ascending: false })
     if (funcionario_id) query = query.eq('funcionario_id', funcionario_id)
     const { data, error } = await query
     check(error)
@@ -148,7 +156,7 @@ class RHService {
   }
 
   async criarAvaliacao(dados) {
-    const { data, error } = await supabase.from('avaliacoes').insert(dados).select().single()
+    const { data, error } = await supabase.from('avaliacoes').insert({ ...dados, tenant_id: getTenantId() }).select().single()
     check(error)
     return data
   }
@@ -191,11 +199,12 @@ class RHService {
   // DASHBOARD E RELATÃ“RIOS
   // ========================================
   async getDashboard() {
+    const tenantId = getTenantId()
     const [{ data: requisicoes }, { data: candidatos }, { data: admissoes }, { data: avaliacoes }] = await Promise.all([
-      supabase.from('requisicoes_vagas').select('status'),
-      supabase.from('candidatos').select('status'),
-      supabase.from('admissoes').select('status'),
-      supabase.from('avaliacoes').select('nota_geral'),
+      supabase.from('requisicoes_vagas').select('status').eq('tenant_id', tenantId),
+      supabase.from('candidatos').select('status').eq('tenant_id', tenantId),
+      supabase.from('admissoes').select('status').eq('tenant_id', tenantId),
+      supabase.from('avaliacoes').select('nota_geral').eq('tenant_id', tenantId),
     ])
     return {
       requisicoes_abertas: (requisicoes || []).filter(r => r.status === 'aberta').length,

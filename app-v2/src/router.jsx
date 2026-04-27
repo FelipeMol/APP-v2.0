@@ -23,7 +23,12 @@ import Perfil from './pages/Perfil';
 import Contas from './pages/financeiro/Contas';
 import LancamentosFinanceiros from './pages/financeiro/Lancamentos';
 import Extrato from './pages/financeiro/Extrato';
+import PainelFinanceiro from './pages/financeiro/Painel';
 import ModuleGuard from './components/tenant/ModuleGuard';
+import SuperAdminRoute from './components/auth/SuperAdminRoute';
+import SuperAdmin from './pages/super-admin/SuperAdmin';
+import Configuracoes from './pages/financeiro/Configuracoes';
+import ContatosCadastros from './pages/cadastros/Contatos';
 
 // Usando HashRouter para compatibilidade com hospedagem compartilhada
 // URLs ficam: /#/dashboard, /#/login, etc.
@@ -156,6 +161,14 @@ const router = createHashRouter([
 
       // Financeiro
       {
+        path: 'financeiro/painel',
+        element: (
+          <ModuleGuard moduleId="financeiro">
+            <PainelFinanceiro />
+          </ModuleGuard>
+        ),
+      },
+      {
         path: 'financeiro/contas',
         element: (
           <ModuleGuard moduleId="financeiro">
@@ -179,7 +192,31 @@ const router = createHashRouter([
           </ModuleGuard>
         ),
       },
+      {
+        path: 'financeiro/configuracoes',
+        element: (
+          <ModuleGuard moduleId="financeiro">
+            <Configuracoes />
+          </ModuleGuard>
+        ),
+      },
+      {
+        path: 'cadastros/contatos',
+        element: <ContatosCadastros />,
+      },
     ],
+  },
+
+  // Rota super-admin (protegida por email)
+  {
+    path: '/super-admin',
+    element: (
+      <ProtectedRoute>
+        <SuperAdminRoute>
+          <SuperAdmin />
+        </SuperAdminRoute>
+      </ProtectedRoute>
+    ),
   },
 
   // Rota 404 - redireciona para dashboard

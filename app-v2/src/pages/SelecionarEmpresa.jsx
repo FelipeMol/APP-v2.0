@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import useTenantStore from '../store/tenantStore';
+import useGrupoStore from '../store/grupoStore';
 import authService from '../services/authService';
 import { Check, HardHat } from 'lucide-react';
 
@@ -43,7 +44,8 @@ function TenantCard({ tenant, isSelected, disabled, onSelect }) {
 
 export default function SelecionarEmpresa() {
   const navigate = useNavigate();
-  const { selectedTenantId, setTenant, tenants, isLoadingTenants, loadTenants } = useTenantStore();
+  const { selectedTenantId, setTenant, tenants, isLoadingTenants, loadTenants, loadModulosDoTenant } = useTenantStore();
+  const grupo = useGrupoStore(s => s.grupo);
 
   const [entering, setEntering] = useState(false);
   const [entered, setEntered] = useState(false);
@@ -51,13 +53,15 @@ export default function SelecionarEmpresa() {
 
   useEffect(() => {
     const allowedTenants = authService.getAllowedTenants().map(t => t.id ?? t);
-    loadTenants(allowedTenants);
-  }, [loadTenants]);
+    const grupoId = grupo?.id ?? null;
+    loadTenants(allowedTenants, grupoId);
+  }, [loadTenants, grupo]);
 
-  const handleSelect = (tenantId) => {
+  const handleSelect = async (tenantId) => {
     const tenant = tenants.find(t => t.id === tenantId);
     if (!tenant || entering) return;
     setTenant(tenantId);
+    await loadModulosDoTenant(tenantId);
     setEnteringTenant(tenant);
     setEntering(true);
     window.setTimeout(() => {
