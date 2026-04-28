@@ -148,7 +148,7 @@ jobs:
           password: ${{ secrets.FTP_PASS }}
           local-dir: dist/
           server-dir: ${{ steps.ftp.outputs.path }}
-          protocol: ftps
+          protocol: ftp
           port: 21
           dangerous-clean-slate: false
           exclude: |
