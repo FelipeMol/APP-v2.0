@@ -6,7 +6,7 @@ const DEFAULTS = {
   corPrimaria: '#3b82f6',
   corSecundaria: '#1e293b',
   corAccent: '#f59e0b',
-  nomeExibicao: 'Construtora RR',
+  nomeExibicao: 'Sistema de Gestao',
   subtitulo: 'Sistema de gestao',
   rodapeTexto: '',
   logoUrl: '/logo.png',

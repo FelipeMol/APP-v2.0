@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import useAuthStore from '../../store/authStore';
 import {
@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import { Input } from '../ui/input';
+import useTenantBranding from '../../hooks/useTenantBranding';
 import {
   User,
   LogOut,
@@ -47,6 +48,7 @@ export default function Header() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout, isAdmin } = useAuthStore();
+  const branding = useTenantBranding();
   const [isDark, setIsDark] = useState(false);
 
   const currentPage = ROUTE_LABELS[location.pathname] ?? 'Página';
@@ -68,12 +70,12 @@ export default function Header() {
       >
         <div
           className="w-7 h-7 rounded flex items-center justify-center text-white font-bold flex-shrink-0"
-          style={{ background: 'var(--rr-navy)', fontSize: 10, letterSpacing: '0.05em' }}
+          style={{ background: branding.corPrimaria, fontSize: 10, letterSpacing: '0.05em' }}
         >
-          RR
+          {branding.nomeExibicao?.substring(0, 2).toUpperCase() || 'AP'}
         </div>
         <div className="hidden sm:flex flex-col text-left">
-          <span className="text-xs font-semibold text-foreground leading-tight">Construtora Ramdy Raydan</span>
+          <span className="text-xs font-semibold text-foreground leading-tight">{branding.nomeExibicao}</span>
           <span className="text-xs leading-tight" style={{ color: '#7F8A99', letterSpacing: '0.08em', fontSize: 10 }}>EMPRESA</span>
         </div>
         <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#7F8A99" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
