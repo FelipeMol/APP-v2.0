@@ -6,6 +6,7 @@ on:
     paths:
       - 'app-v2/**'
       - 'supabase/**'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 jobs:
