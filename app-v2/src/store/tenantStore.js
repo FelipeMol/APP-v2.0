@@ -30,9 +30,13 @@ const useTenantStore = create((set, get) => ({
       }
 
       if (domainTenants.length > 0) {
-        const filtered = allowedTenantIds.length > 0
-          ? domainTenants.filter(t => allowedTenantIds.some(a => (a.id ?? a) === t.id))
-          : domainTenants;
+        // Domain tenants take priority - they come from resolve_domain RPC
+        let filtered = domainTenants;
+        if (allowedTenantIds.length > 0) {
+          const intersected = domainTenants.filter(t => allowedTenantIds.some(a => (a.id ?? a) === t.id));
+          // Only narrow if intersection is non-empty; otherwise show all domain tenants
+          if (intersected.length > 0) filtered = intersected;
+        }
         set({ tenants: filtered, isLoadingTenants: false });
         return;
       }

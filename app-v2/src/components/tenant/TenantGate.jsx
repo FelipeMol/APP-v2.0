@@ -5,7 +5,7 @@ import useAuthStore from '../../store/authStore';
 import { Navigate, useLocation } from 'react-router-dom';
 
 export default function TenantGate({ children }) {
-  const { selectedTenantId, setTenant, loadModulosDoTenant, loadTenants, isLoadingTenants } = useTenantStore();
+  const { selectedTenantId, tenants, setTenant, loadModulosDoTenant, loadTenants, isLoadingTenants } = useTenantStore();
   const { grupo, autoTenantId, domainTenants } = useGrupoStore();
   const isSuperAdmin = useAuthStore(s => s.isSuperAdmin);
   const location = useLocation();
@@ -20,7 +20,7 @@ export default function TenantGate({ children }) {
       return;
     }
 
-    if (domainTenants.length > 0 && !isLoadingTenants) {
+    if (domainTenants.length > 0 && tenants.length > 0 && !isLoadingTenants) {
       return;
     }
 

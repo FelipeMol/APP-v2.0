@@ -1,14 +1,18 @@
-import { RouterProvider } from 'react-router-dom';
+﻿import { RouterProvider } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useEffect } from 'react';
 import router from './router';
 import useGrupoStore from './store/grupoStore';
+import useTenantStore from './store/tenantStore';
+import { initTenantFilter } from './lib/supabase';
 
 function App() {
   const loadGrupo = useGrupoStore(s => s.loadGrupo);
 
   useEffect(() => {
     loadGrupo();
+    // Initialize tenant filter so all Supabase queries auto-filter by tenant
+    initTenantFilter(() => useTenantStore.getState().selectedTenantId);
   }, [loadGrupo]);
 
   return (
