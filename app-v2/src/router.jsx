@@ -30,6 +30,7 @@ import SuperAdmin from './pages/super-admin/SuperAdmin';
 import Configuracoes from './pages/financeiro/Configuracoes';
 import PrevistoRealizado from './pages/financeiro/PrevistoRealizado';
 import ContatosCadastros from './pages/cadastros/Contatos';
+import CategoriasFinanceiro from './pages/cadastros/CategoriasFinanceiro';
 
 // Usando HashRouter para compatibilidade com hospedagem compartilhada
 // URLs ficam: /#/dashboard, /#/login, etc.
@@ -212,6 +213,10 @@ const router = createHashRouter([
       {
         path: 'cadastros/contatos',
         element: <ContatosCadastros />,
+      },
+      {
+        path: 'cadastros/financeiro',
+        element: <CategoriasFinanceiro />,
       },
     ],
   },

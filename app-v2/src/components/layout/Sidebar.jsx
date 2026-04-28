@@ -64,7 +64,8 @@ export default function Sidebar() {
     {
       name: 'Cadastros', icon: Layers, isSubmenu: true,
       submenuItems: [
-        { name: 'Contatos',     path: '/cadastros/contatos', icon: BookUser,  permission: 'base' },
+        { name: 'Contatos',     path: '/cadastros/contatos',    icon: BookUser,  permission: 'base' },
+        { name: 'Fin. Categorias', path: '/cadastros/financeiro', icon: Settings,  permission: 'financeiro' },
         { name: 'Funcionarios', path: '/funcionarios',        icon: Users,     permission: 'funcionarios' },
         { name: 'Funcoes',      path: '/funcoes',             icon: Briefcase, permission: 'base' },
         { name: 'Obras',        path: '/obras',               icon: Building2, permission: 'obras' },

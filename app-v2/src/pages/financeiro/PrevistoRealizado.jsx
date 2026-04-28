@@ -1,183 +1,168 @@
-// Financeiro — Previsto x Realizado
-// Design: navy banner + tabela 12 meses com subgrupos expansíveis
-import { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { lancamentosFinService, categoriasService } from '@/services/financeiroService'
+﻿// Financeiro — Previsto x Realizado
+// Filtro por obra + ano | Categorias hierarquicas | Edicao inline de previsto
+import React, { useState, useMemo, useRef, useEffect } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { categoriasService, orcamentosService, lancamentosFinService, buildCategoriasTree } from '@/services/financeiroService'
+import obrasService from '@/services/obrasService'
+import { ChevronRight, ChevronDown, Building2, Check, X, AlertCircle } from 'lucide-react'
 
-// ── Palette ──────────────────────────────────────────────────────
 const C = {
-  navy: '#17273C', amber: '#E8A628', ok: '#3D7A50', bad: '#B84A33',
-  warn: '#B8862C',
+  navy: '#17273C', amber: '#E8A628',
+  ok: '#3D7A50', bad: '#B84A33', warn: '#B8862C',
   surface: '#FFFFFF', surface2: '#F6F3ED',
   ink: '#1C2330', ink2: '#45505F', ink3: '#7F8A99',
   line: '#DDD6C7', line2: '#E8E2D5',
-  subgrupo: 'rgba(23,39,60,0.04)',
 }
 
-// ── Constants ─────────────────────────────────────────────────────
-const ANO = new Date().getFullYear()
-const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+const ANO_ATUAL = new Date().getFullYear()
+const ANOS = [ANO_ATUAL - 1, ANO_ATUAL, ANO_ATUAL + 1]
 
-// ── Helpers ───────────────────────────────────────────────────────
 function brl(n) {
-  if (!n && n !== 0) return '—'
+  if (!n && n !== 0) return 'R$ 0'
   const abs = Math.abs(n)
-  return (n < 0 ? '−' : '') + 'R$ ' + abs.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+  return (n < 0 ? '-' : '') + 'R$ ' + abs.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
 function brlK(n) {
+  if (!n && n !== 0) return '—'
   const abs = Math.abs(n)
   if (abs === 0) return '—'
-  if (abs >= 1_000_000) return (n < 0 ? '−' : '') + 'R$ ' + (abs / 1_000_000).toFixed(1).replace('.', ',') + 'M'
-  if (abs >= 1_000)     return (n < 0 ? '−' : '') + 'R$ ' + (abs / 1_000).toFixed(0) + 'k'
+  if (abs >= 1_000_000) return (n < 0 ? '-' : '') + 'R$ ' + (abs / 1_000_000).toFixed(1).replace('.', ',') + 'M'
+  if (abs >= 1_000)     return (n < 0 ? '-' : '') + 'R$ ' + (abs / 1_000).toFixed(0) + 'k'
   return brl(n)
 }
-function pct(realizado, previsto) {
-  if (!previsto) return null
-  return Math.round((realizado / previsto) * 100)
+function parseValor(str) {
+  const clean = str.replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.')
+  const n = parseFloat(clean)
+  return isNaN(n) ? 0 : n
 }
 
-// Status da célula: dentro (verde), próximo do limite (âmbar), estouro (vermelho)
-function cellStatus(realizado, previsto) {
-  if (!previsto) return 'neutro'
-  const p = realizado / previsto
-  if (p <= 0.85) return 'ok'
-  if (p <= 1.0)  return 'warn'
-  return 'bad'
+function Toast({ msg, type }) {
+  if (!msg) return null
+  return (
+    <div style={{
+      position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
+      background: type === 'error' ? '#FFF0EE' : '#EAF5EE',
+      border: `1px solid ${type === 'error' ? C.bad : C.ok}`,
+      borderRadius: 10, padding: '12px 18px',
+      display: 'flex', alignItems: 'center', gap: 10,
+      minWidth: 260, boxShadow: '0 4px 16px rgba(0,0,0,.12)',
+    }}>
+      {type === 'error' ? <AlertCircle size={16} color={C.bad} /> : <Check size={16} color={C.ok} />}
+      <span style={{ fontSize: 14, color: C.ink }}>{msg}</span>
+    </div>
+  )
 }
 
-const STATUS_COLORS = {
-  ok:     { bg: '#E4F1E8', fg: '#3D7A50' },
-  warn:   { bg: '#FDF3DF', fg: '#8A6210' },
-  bad:    { bg: '#FBE9E4', fg: '#B84A33' },
-  neutro: { bg: 'transparent', fg: C.ink3 },
-}
-
-// ── KPI Banner ────────────────────────────────────────────────────
-function Banner({ totalPrevisto, totalRealizado }) {
+function Banner({ totalPrevisto, totalRealizado, obraNome, ano }) {
   const diff    = totalPrevisto - totalRealizado
   const execPct = totalPrevisto > 0 ? Math.round((totalRealizado / totalPrevisto) * 100) : 0
-
   return (
-    <div style={{ background: C.navy, color: '#FFF', borderRadius: 10, padding: '24px 28px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0, marginBottom: 14 }}>
-      <div style={{ paddingRight: 24, borderRight: '1px solid rgba(255,255,255,0.12)' }}>
-        <div style={{ fontSize: 10, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>PREVISTO · {ANO}</div>
-        <div style={{ fontFamily: '"Libre Caslon Text", Georgia, serif', fontSize: 32, fontWeight: 500, letterSpacing: '-0.02em', marginTop: 6 }}>{brlK(totalPrevisto)}</div>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Orçamento anual total</div>
+    <div style={{
+      background: C.navy, borderRadius: 12, padding: '22px 28px',
+      display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0, marginBottom: 16,
+    }}>
+      <div style={{ paddingRight: 24, borderRight: '1px solid rgba(255,255,255,.12)' }}>
+        <div style={{ fontSize: 10, letterSpacing: '.15em', color: 'rgba(255,255,255,.5)', fontWeight: 600 }}>OBRA</div>
+        <div style={{ fontWeight: 800, fontSize: 18, color: '#fff', marginTop: 6, lineHeight: 1.2 }}>
+          {obraNome || 'Todas as obras'}
+        </div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginTop: 4 }}>Ano {ano}</div>
       </div>
-      <div style={{ paddingLeft: 24, paddingRight: 24, borderRight: '1px solid rgba(255,255,255,0.12)' }}>
-        <div style={{ fontSize: 10, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>REALIZADO · {ANO}</div>
-        <div style={{ fontFamily: '"Libre Caslon Text", Georgia, serif', fontSize: 32, fontWeight: 500, marginTop: 6, color: '#F4B19C' }}>
-          {brlK(totalRealizado)}
-        </div>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Despesas pagas no ano</div>
+      <div style={{ paddingLeft: 24, paddingRight: 24, borderRight: '1px solid rgba(255,255,255,.12)' }}>
+        <div style={{ fontSize: 10, letterSpacing: '.15em', color: 'rgba(255,255,255,.5)', fontWeight: 600 }}>PREVISTO</div>
+        <div style={{ fontSize: 30, fontWeight: 700, color: '#fff', marginTop: 6 }}>{brlK(totalPrevisto)}</div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginTop: 4 }}>Orcamento total</div>
       </div>
-      <div style={{ paddingLeft: 24, paddingRight: 24, borderRight: '1px solid rgba(255,255,255,0.12)' }}>
-        <div style={{ fontSize: 10, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>DIFERENÇA</div>
-        <div style={{ fontFamily: '"Libre Caslon Text", Georgia, serif', fontSize: 32, fontWeight: 500, marginTop: 6, color: diff >= 0 ? '#8ED1A5' : '#F4B19C' }}>
-          {diff >= 0 ? '+' : ''}{brlK(diff)}
-        </div>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>
-          {diff >= 0 ? 'Dentro do orçamento' : 'Acima do orçamento'}
-        </div>
+      <div style={{ paddingLeft: 24, paddingRight: 24, borderRight: '1px solid rgba(255,255,255,.12)' }}>
+        <div style={{ fontSize: 10, letterSpacing: '.15em', color: 'rgba(255,255,255,.5)', fontWeight: 600 }}>REALIZADO</div>
+        <div style={{ fontSize: 30, fontWeight: 700, color: '#F4B19C', marginTop: 6 }}>{brlK(totalRealizado)}</div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginTop: 4 }}>Despesas pagas</div>
       </div>
       <div style={{ paddingLeft: 24 }}>
-        <div style={{ fontSize: 10, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>EXECUÇÃO</div>
-        <div style={{ fontFamily: '"Libre Caslon Text", Georgia, serif', fontSize: 32, fontWeight: 500, marginTop: 6, color: execPct <= 100 ? '#8ED1A5' : '#F4B19C' }}>
+        <div style={{ fontSize: 10, letterSpacing: '.15em', color: 'rgba(255,255,255,.5)', fontWeight: 600 }}>EXECUCAO</div>
+        <div style={{ fontSize: 30, fontWeight: 700, color: diff >= 0 ? '#8ED1A5' : '#F4B19C', marginTop: 6 }}>
           {totalPrevisto > 0 ? `${execPct}%` : '—'}
         </div>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Do orçamento utilizado</div>
+        <div style={{ fontSize: 11, color: diff >= 0 ? '#8ED1A5' : '#F4B19C', marginTop: 4 }}>
+          {diff >= 0 ? `${brlK(diff)} de saldo` : `${brlK(Math.abs(diff))} acima do orcamento`}
+        </div>
       </div>
     </div>
   )
 }
 
-// ── Toolbar ───────────────────────────────────────────────────────
-const FILTROS = [
-  { key: 'todos',       label: 'Todos' },
-  { key: 'com_gastos',  label: 'Com gastos' },
-  { key: 'sem_gastos',  label: 'Sem gastos' },
-  { key: 'economia',    label: 'Economia' },
-  { key: 'estouro',     label: 'Estouro' },
-]
+function CelulaPrevisto({ value, onSave, disabled }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const inputRef = useRef(null)
 
-function Toolbar({ filtro, setFiltro, busca, setBusca, expandAll, collapseAll }) {
+  useEffect(() => {
+    if (editing && inputRef.current) inputRef.current.focus()
+  }, [editing])
+
+  function startEdit() {
+    if (disabled) return
+    setDraft(value > 0 ? String(value) : '')
+    setEditing(true)
+  }
+  function commit() { onSave(parseValor(draft)); setEditing(false) }
+  function cancel() { setEditing(false) }
+  function handleKey(e) {
+    if (e.key === 'Enter') commit()
+    if (e.key === 'Escape') cancel()
+  }
+
+  if (editing) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'flex-end' }}>
+        <input ref={inputRef} value={draft} onChange={e => setDraft(e.target.value)}
+          onKeyDown={handleKey} onBlur={commit}
+          style={{ width: 72, fontSize: 11, padding: '2px 5px', borderRadius: 4,
+            border: `1.5px solid ${C.navy}`, outline: 'none', textAlign: 'right',
+            background: '#fff', color: C.ink, fontFamily: 'inherit' }}
+          placeholder="0"
+        />
+        <button onMouseDown={commit} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 1 }}><Check size={11} color={C.ok} /></button>
+        <button onMouseDown={cancel} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 1 }}><X size={11} color={C.bad} /></button>
+      </div>
+    )
+  }
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-      {/* Filter pills */}
-      <div style={{ display: 'flex', gap: 4 }}>
-        {FILTROS.map(f => (
-          <button
-            key={f.key}
-            onClick={() => setFiltro(f.key)}
-            style={{
-              padding: '6px 12px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none',
-              background: filtro === f.key ? C.navy : C.surface2,
-              color: filtro === f.key ? '#FFF' : C.ink2,
-              fontFamily: 'inherit',
-            }}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Search */}
-      <input
-        value={busca}
-        onChange={e => setBusca(e.target.value)}
-        placeholder="Buscar subgrupo…"
-        style={{
-          padding: '6px 12px', borderRadius: 6, border: `1px solid ${C.line}`, fontSize: 12, color: C.ink,
-          background: C.surface, outline: 'none', fontFamily: 'inherit', minWidth: 180,
-        }}
-      />
-
-      <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-        <button onClick={expandAll}   style={ghostBtnStyle}>Expandir tudo</button>
-        <button onClick={collapseAll} style={ghostBtnStyle}>Recolher tudo</button>
-      </div>
+    <div onClick={startEdit} title={disabled ? '' : 'Clique para editar previsto'}
+      style={{ fontSize: 10, color: value > 0 ? C.ink2 : C.line, textAlign: 'right',
+        cursor: disabled ? 'default' : 'pointer', borderRadius: 3, padding: '1px 2px',
+        borderBottom: disabled ? 'none' : `1px dashed ${value > 0 ? C.line : 'transparent'}` }}>
+      {value > 0 ? brlK(value) : (disabled ? '—' : '+ prev')}
     </div>
   )
 }
 
-const ghostBtnStyle = {
-  padding: '6px 12px', borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: 'pointer',
-  border: `1px solid ${C.line}`, background: C.surface, color: C.ink2, fontFamily: 'inherit',
-}
-
-// ── Célula de valor Prev/Real/Diff ────────────────────────────────
-function CelulaTriple({ previsto, realizado }) {
-  const diff   = realizado - previsto
-  const status = cellStatus(realizado, previsto)
-  const sc     = STATUS_COLORS[status]
-  const execP  = pct(realizado, previsto)
-
+function CelulaTriple({ previsto, realizado, onSavePrevisto, obraId }) {
+  const diff = realizado - previsto
+  let status = 'neutro'
+  if (previsto > 0) {
+    const p = realizado / previsto
+    status = p <= 0.85 ? 'ok' : p <= 1.0 ? 'warn' : 'bad'
+  }
+  const SC = { ok: { fg: C.ok, bg: '#E4F1E8' }, warn: { fg: C.warn, bg: '#FDF3DF' }, bad: { fg: C.bad, bg: '#FBE9E4' }, neutro: { fg: C.ink3, bg: 'transparent' } }
+  const sc = SC[status]
+  const execPct = previsto > 0 ? Math.min(Math.round((realizado / previsto) * 100), 100) : 0
   return (
-    <td style={{ padding: '6px 4px', verticalAlign: 'top', minWidth: 96, borderLeft: `1px solid ${C.line2}` }}>
-      {/* Mini status bar */}
+    <td style={{ padding: '5px 7px', verticalAlign: 'top', minWidth: 90, borderLeft: `1px solid ${C.line2}` }}>
       {previsto > 0 && (
         <div style={{ height: 2, background: C.line2, borderRadius: 1, marginBottom: 4, overflow: 'hidden' }}>
-          <div style={{
-            width: Math.min(execP || 0, 100) + '%', height: '100%', borderRadius: 1,
-            background: status === 'ok' ? C.ok : status === 'warn' ? C.warn : C.bad,
-          }} />
+          <div style={{ width: execPct + '%', height: '100%', borderRadius: 1, background: sc.fg }} />
         </div>
       )}
-      <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: C.ink3, marginBottom: 1 }}>
-        {brlK(previsto)}
-      </div>
-      <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, fontWeight: 600, color: C.ink }}>
-        {brlK(realizado)}
+      <CelulaPrevisto value={previsto} onSave={onSavePrevisto} disabled={!obraId} />
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.ink, textAlign: 'right', marginTop: 2 }}>
+        {realizado > 0 ? brlK(realizado) : <span style={{ color: C.line2 }}>—</span>}
       </div>
       {(previsto > 0 || realizado > 0) && (
-        <div style={{
-          fontFamily: '"JetBrains Mono", monospace', fontSize: 9,
-          color: diff <= 0 ? sc.fg : C.ink3,
-          background: diff > 0 ? sc.bg : 'transparent',
-          padding: diff > 0 ? '1px 4px' : 0,
-          borderRadius: 3,
-          marginTop: 1,
-        }}>
+        <div style={{ fontSize: 9, textAlign: 'right', marginTop: 2, color: sc.fg,
+          background: (diff > 0 && status !== 'neutro') ? sc.bg : 'transparent',
+          borderRadius: 3, padding: (diff > 0 && status !== 'neutro') ? '1px 4px' : 0 }}>
           {diff > 0 ? `+${brlK(diff)}` : diff < 0 ? brlK(diff) : '='}
         </div>
       )}
@@ -185,309 +170,272 @@ function CelulaTriple({ previsto, realizado }) {
   )
 }
 
-// ── Linha de categoria ────────────────────────────────────────────
-function LinhaCategoria({ categoria, realizadoPorMes, orcamentoPorMes }) {
+function LinhaGrupo({ cat, isExpanded, onToggle, prevPorMes, realPorMes, obraId, onSave }) {
+  const totalPrev = Object.values(prevPorMes).reduce((s, v) => s + v, 0)
+  const totalReal = Object.values(realPorMes).reduce((s, v) => s + v, 0)
   return (
-    <tr style={{ background: C.surface }}>
-      <td style={{ padding: '8px 12px 8px 32px', fontSize: 12, color: C.ink2, whiteSpace: 'nowrap', position: 'sticky', left: 0, background: C.surface, zIndex: 1 }}>
-        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: categoria.cor || C.ink3, marginRight: 8, flexShrink: 0 }} />
-        {categoria.nome}
+    <tr style={{ background: C.surface2, borderBottom: `1px solid ${C.line}` }}>
+      <td style={{ padding: '9px 12px', position: 'sticky', left: 0, zIndex: 2, background: C.surface2, minWidth: 200, maxWidth: 200, borderRight: `1px solid ${C.line}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button onClick={onToggle} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: C.ink3, flexShrink: 0 }}>
+            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          </button>
+          <span style={{ fontSize: 16, lineHeight: 1, flexShrink: 0 }}>{cat.icone || '📁'}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{cat.nome}</span>
+          {cat.subcategorias?.length > 0 && (
+            <span style={{ fontSize: 10, color: C.ink3, background: C.line2, borderRadius: 3, padding: '1px 5px', flexShrink: 0 }}>
+              {cat.subcategorias.length}
+            </span>
+          )}
+        </div>
       </td>
-      {Array.from({ length: 12 }, (_, i) => (
-        <CelulaTriple
-          key={i}
-          previsto={orcamentoPorMes[i + 1] || 0}
-          realizado={realizadoPorMes[i + 1] || 0}
-        />
+      {MESES.map((_, i) => (
+        <CelulaTriple key={i} previsto={prevPorMes[i+1]||0} realizado={realPorMes[i+1]||0}
+          obraId={obraId} onSavePrevisto={(val) => onSave(cat.id, i+1, val)} />
       ))}
-      <CelulaTriple
-        previsto={Object.values(orcamentoPorMes).reduce((s, v) => s + v, 0)}
-        realizado={Object.values(realizadoPorMes).reduce((s, v) => s + v, 0)}
-      />
+      <td style={{ padding: '5px 10px', borderLeft: `2px solid ${C.line}`, background: C.surface2, minWidth: 90, textAlign: 'right' }}>
+        <div style={{ fontSize: 10, color: C.ink3 }}>{brlK(totalPrev)}</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.ink }}>{brlK(totalReal)}</div>
+      </td>
     </tr>
   )
 }
 
-// ── Linha de subgrupo (header expansível) ─────────────────────────
-function LinhaSubgrupo({ nome, totalPrevisto, totalRealizado, prevPorMes, realPorMes, expandido, onToggle }) {
+function LinhaSubcat({ cat, prevPorMes, realPorMes, obraId, onSave }) {
+  const totalPrev = Object.values(prevPorMes).reduce((s, v) => s + v, 0)
+  const totalReal = Object.values(realPorMes).reduce((s, v) => s + v, 0)
   return (
-    <tr
-      onClick={onToggle}
-      style={{ background: C.subgrupo, cursor: 'pointer', userSelect: 'none' }}
-    >
-      <td style={{
-        padding: '10px 12px', fontSize: 12, fontWeight: 700, color: C.ink,
-        whiteSpace: 'nowrap', position: 'sticky', left: 0, background: C.subgrupo, zIndex: 1,
-        display: 'flex', alignItems: 'center', gap: 6,
-      }}>
-        <span style={{
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          width: 16, height: 16, borderRadius: 3, background: C.navy, color: '#FFF', fontSize: 9, fontWeight: 700,
-          transform: expandido ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.15s',
-          flexShrink: 0,
-        }}>▼</span>
-        {nome}
+    <tr style={{ background: C.surface, borderBottom: `1px solid ${C.line2}` }}>
+      <td style={{ padding: '7px 12px 7px 38px', position: 'sticky', left: 0, zIndex: 2, background: C.surface, minWidth: 200, maxWidth: 200, borderRight: `1px solid ${C.line2}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 2, background: cat.cor || C.ink3, flexShrink: 0 }} />
+          <span style={{ fontSize: 12, color: C.ink2 }}>{cat.nome}</span>
+        </div>
       </td>
-      {Array.from({ length: 12 }, (_, i) => (
-        <CelulaTriple
-          key={i}
-          previsto={prevPorMes[i + 1] || 0}
-          realizado={realPorMes[i + 1] || 0}
-        />
+      {MESES.map((_, i) => (
+        <CelulaTriple key={i} previsto={prevPorMes[i+1]||0} realizado={realPorMes[i+1]||0}
+          obraId={obraId} onSavePrevisto={(val) => onSave(cat.id, i+1, val)} />
       ))}
-      <CelulaTriple previsto={totalPrevisto} realizado={totalRealizado} />
+      <td style={{ padding: '5px 10px', borderLeft: `2px solid ${C.line}`, minWidth: 90, textAlign: 'right' }}>
+        <div style={{ fontSize: 10, color: C.ink3 }}>{brlK(totalPrev)}</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.ink }}>{brlK(totalReal)}</div>
+      </td>
     </tr>
   )
 }
 
-// ── Main table ────────────────────────────────────────────────────
-function TabelaPVR({ grupos, realizadoMap, orcamentoMap, filtro, busca, expandidos, toggleGrupo }) {
-  // Totals por mês (all groups)
-  const totPrevPorMes  = useMemo(() => {
-    const r = {}
-    for (let m = 1; m <= 12; m++) {
-      r[m] = grupos.flatMap(g => g.categorias).reduce((s, c) => s + (orcamentoMap[c.id]?.[m] || 0), 0)
-    }
-    return r
-  }, [grupos, orcamentoMap])
-  const totRealPorMes  = useMemo(() => {
-    const r = {}
-    for (let m = 1; m <= 12; m++) {
-      r[m] = grupos.flatMap(g => g.categorias).reduce((s, c) => s + (realizadoMap[c.id]?.[m] || 0), 0)
-    }
-    return r
-  }, [grupos, realizadoMap])
-
-  const filteredGrupos = useMemo(() => {
-    let gs = grupos
-    if (busca) gs = gs.filter(g => g.nome.toLowerCase().includes(busca.toLowerCase()))
-    if (filtro === 'com_gastos')  gs = gs.filter(g => g.categorias.some(c => Object.values(realizadoMap[c.id] || {}).some(v => v > 0)))
-    if (filtro === 'sem_gastos')  gs = gs.filter(g => g.categorias.every(c => Object.values(realizadoMap[c.id] || {}).every(v => !v)))
-    if (filtro === 'economia')    gs = gs.filter(g => {
-      const rTotal = g.categorias.reduce((s, c) => s + Object.values(realizadoMap[c.id] || {}).reduce((x, v) => x + v, 0), 0)
-      const pTotal = g.categorias.reduce((s, c) => s + Object.values(orcamentoMap[c.id] || {}).reduce((x, v) => x + v, 0), 0)
-      return pTotal > 0 && rTotal < pTotal
-    })
-    if (filtro === 'estouro')     gs = gs.filter(g => {
-      const rTotal = g.categorias.reduce((s, c) => s + Object.values(realizadoMap[c.id] || {}).reduce((x, v) => x + v, 0), 0)
-      const pTotal = g.categorias.reduce((s, c) => s + Object.values(orcamentoMap[c.id] || {}).reduce((x, v) => x + v, 0), 0)
-      return pTotal > 0 && rTotal > pTotal
-    })
-    return gs
-  }, [grupos, filtro, busca, realizadoMap, orcamentoMap])
-
-  return (
-    <div style={{ overflowX: 'auto', borderRadius: 10, border: `1px solid ${C.line}`, background: C.surface }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-        <thead>
-          <tr style={{ background: C.navy, color: '#FFF' }}>
-            <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', position: 'sticky', left: 0, background: C.navy, zIndex: 2, minWidth: 200 }}>
-              Categoria
-            </th>
-            {MESES.map((m, i) => (
-              <th key={i} style={{ padding: '10px 4px', textAlign: 'center', fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', minWidth: 96, borderLeft: '1px solid rgba(255,255,255,0.08)' }}>
-                {m}
-              </th>
-            ))}
-            <th style={{ padding: '10px 4px', textAlign: 'center', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', minWidth: 96, borderLeft: '1px solid rgba(255,255,255,0.15)', color: C.amber }}>
-              Total
-            </th>
-          </tr>
-          {/* Sub-header: Prev / Real / Dif */}
-          <tr style={{ background: '#0F1D2E', color: 'rgba(255,255,255,0.5)' }}>
-            <th style={{ padding: '4px 12px', position: 'sticky', left: 0, background: '#0F1D2E', zIndex: 2 }} />
-            {Array.from({ length: 13 }, (_, i) => (
-              <th key={i} style={{ padding: '4px 4px', fontSize: 9, fontWeight: 500, letterSpacing: '0.04em', borderLeft: '1px solid rgba(255,255,255,0.06)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, textAlign: 'center' }}>
-                  <span style={{ color: 'rgba(255,255,255,0.4)' }}>Prev</span>
-                  <span style={{ color: '#FFF' }}>Real</span>
-                  <span style={{ color: C.amber }}>Dif</span>
-                </div>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {filteredGrupos.length === 0 ? (
-            <tr>
-              <td colSpan={14} style={{ padding: '40px 20px', textAlign: 'center', color: C.ink3, fontSize: 13 }}>
-                Nenhum subgrupo encontrado
-              </td>
-            </tr>
-          ) : filteredGrupos.map(grupo => {
-            const expandido = expandidos.has(grupo.nome)
-            const prevPorMes = {}
-            const realPorMes = {}
-            for (let m = 1; m <= 12; m++) {
-              prevPorMes[m] = grupo.categorias.reduce((s, c) => s + (orcamentoMap[c.id]?.[m] || 0), 0)
-              realPorMes[m] = grupo.categorias.reduce((s, c) => s + (realizadoMap[c.id]?.[m] || 0), 0)
-            }
-            const totalPrevisto  = Object.values(prevPorMes).reduce((s, v) => s + v, 0)
-            const totalRealizado = Object.values(realPorMes).reduce((s, v) => s + v, 0)
-
-            return [
-              <LinhaSubgrupo
-                key={`sg-${grupo.nome}`}
-                nome={grupo.nome}
-                totalPrevisto={totalPrevisto}
-                totalRealizado={totalRealizado}
-                prevPorMes={prevPorMes}
-                realPorMes={realPorMes}
-                expandido={expandido}
-                onToggle={() => toggleGrupo(grupo.nome)}
-              />,
-              ...(expandido ? grupo.categorias.map(c => (
-                <LinhaCategoria
-                  key={`cat-${c.id}`}
-                  categoria={c}
-                  realizadoPorMes={realizadoMap[c.id] || {}}
-                  orcamentoPorMes={orcamentoMap[c.id] || {}}
-                />
-              )) : []),
-            ]
-          })}
-          {/* Total row */}
-          <tr style={{ background: C.navy, color: '#FFF', fontWeight: 700 }}>
-            <td style={{ padding: '10px 12px', fontSize: 12, fontWeight: 700, position: 'sticky', left: 0, background: C.navy, zIndex: 1, color: '#FFF' }}>
-              TOTAL GERAL
-            </td>
-            {Array.from({ length: 12 }, (_, i) => (
-              <CelulaTriple
-                key={i}
-                previsto={totPrevPorMes[i + 1] || 0}
-                realizado={totRealPorMes[i + 1] || 0}
-              />
-            ))}
-            <CelulaTriple
-              previsto={Object.values(totPrevPorMes).reduce((s, v) => s + v, 0)}
-              realizado={Object.values(totRealPorMes).reduce((s, v) => s + v, 0)}
-            />
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-// ── Page ──────────────────────────────────────────────────────────
 export default function PrevistoRealizado() {
-  const [filtro, setFiltro]   = useState('todos')
-  const [busca, setBusca]     = useState('')
-  const [expandidos, setExpandidos] = useState(() => new Set())
+  const qc = useQueryClient()
+  const [obraId, setObraId] = useState(null)
+  const [ano, setAno]       = useState(ANO_ATUAL)
+  const [expanded, setExpanded] = useState({})
+  const [toast, setToast]   = useState(null)
 
-  // Fetch all despesa categories
+  const { data: obras = [] } = useQuery({
+    queryKey: ['obras'],
+    queryFn: async () => { const r = await obrasService.list(); return r.dados || [] },
+  })
+
   const { data: categorias = [] } = useQuery({
-    queryKey: ['fin-categorias'],
-    queryFn: () => categoriasService.list('despesa'),
-    staleTime: 5 * 60 * 1000,
+    queryKey: ['financeiro_categorias'],
+    queryFn: () => categoriasService.list(),
   })
 
-  // Fetch all lancamentos for the current year (despesas pagas)
-  const inicioAno = `${ANO}-01-01`
-  const fimAno    = `${ANO}-12-31`
+  const { data: orcamentos = [] } = useQuery({
+    queryKey: ['financeiro_orcamentos', obraId, ano],
+    queryFn: () => orcamentosService.listByObraAno(obraId, ano),
+  })
+
   const { data: lancamentos = [], isLoading } = useQuery({
-    queryKey: ['fin-lancamentos-pvr', ANO],
-    queryFn: () => lancamentosFinService.list({ inicio: inicioAno, fim: fimAno }),
+    queryKey: ['financeiro_lancamentos_pxr', obraId, ano],
+    queryFn: () => lancamentosFinService.list({
+      status: 'pago',
+      inicio: `${ano}-01-01`,
+      fim:    `${ano}-12-31`,
+      ...(obraId ? { obra_id: obraId } : {}),
+    }),
   })
 
-  // Group categories by grupo (fallback to type label)
-  const grupos = useMemo(() => {
-    const map = {}
-    categorias.forEach(c => {
-      const g = c.grupo || 'Sem grupo'
-      if (!map[g]) map[g] = []
-      map[g].push(c)
-    })
-    return Object.entries(map)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([nome, cats]) => ({ nome, categorias: cats }))
-  }, [categorias])
+  const notify = (msg, type = 'ok') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000) }
 
-  // realizadoMap: { categoria_id: { mes: valor } }
-  const realizadoMap = useMemo(() => {
+  const mutSave = useMutation({
+    mutationFn: ({ catId, mes, valor }) => orcamentosService.upsert(obraId, catId, ano, mes, valor),
+    onSuccess: () => qc.invalidateQueries(['financeiro_orcamentos', obraId, ano]),
+    onError: (e) => notify(e.message, 'error'),
+  })
+
+  const prevMap = useMemo(() => {
     const m = {}
-    lancamentos
-      .filter(l => l.tipo === 'despesa' && l.status === 'pago' && l.categoria_id)
-      .forEach(l => {
-        const mes = parseInt(l.data_vencimento?.slice(5, 7) || l.data_pagamento?.slice(5, 7) || '0', 10)
-        if (!mes) return
-        if (!m[l.categoria_id]) m[l.categoria_id] = {}
-        m[l.categoria_id][mes] = (m[l.categoria_id][mes] || 0) + (+l.valor || 0)
-      })
+    orcamentos.forEach(o => {
+      if (!m[o.categoria_id]) m[o.categoria_id] = {}
+      m[o.categoria_id][o.mes] = Number(o.valor)
+    })
+    return m
+  }, [orcamentos])
+
+  const realMap = useMemo(() => {
+    const m = {}
+    lancamentos.forEach(l => {
+      if (!l.categoria_id) return
+      const d = l.data_pagamento || l.data_vencimento
+      if (!d) return
+      const mes = parseInt(d.slice(5, 7), 10)
+      if (!m[l.categoria_id]) m[l.categoria_id] = {}
+      m[l.categoria_id][mes] = (m[l.categoria_id][mes] || 0) + Number(l.valor)
+    })
     return m
   }, [lancamentos])
 
-  // orcamentoMap: empty until financeiro_orcamentos table is populated
-  const orcamentoMap = useMemo(() => ({}), [])
+  const tree = useMemo(() => buildCategoriasTree(categorias), [categorias])
+  const treeDespesas = tree.filter(c => c.tipo === 'despesa')
+  const treeReceitas = tree.filter(c => c.tipo === 'receita')
 
-  const totalRealizado = useMemo(() =>
-    Object.values(realizadoMap).flatMap(m => Object.values(m)).reduce((s, v) => s + v, 0),
-    [realizadoMap]
-  )
+  const { totalPrevisto, totalRealizado } = useMemo(() => {
+    let tp = 0, tr = 0
+    orcamentos.forEach(o => { tp += Number(o.valor) })
+    lancamentos.forEach(l => { tr += Number(l.valor) })
+    return { totalPrevisto: tp, totalRealizado: tr }
+  }, [orcamentos, lancamentos])
 
-  function toggleGrupo(nome) {
-    setExpandidos(prev => {
-      const next = new Set(prev)
-      if (next.has(nome)) next.delete(nome)
-      else next.add(nome)
-      return next
+  function getConsolidado(cat) {
+    const filhos = cat.subcategorias || []
+    if (filhos.length === 0) return { prev: prevMap[cat.id] || {}, real: realMap[cat.id] || {} }
+    const prev = {}, real = {}
+    filhos.forEach(f => {
+      const pf = prevMap[f.id] || {}, rf = realMap[f.id] || {}
+      MESES.forEach((_, i) => {
+        const m = i + 1
+        prev[m] = (prev[m] || 0) + (pf[m] || 0)
+        real[m] = (real[m] || 0) + (rf[m] || 0)
+      })
     })
+    return { prev, real }
   }
 
-  function expandAll()   { setExpandidos(new Set(grupos.map(g => g.nome))) }
-  function collapseAll() { setExpandidos(new Set()) }
+  function toggleExpand(id) { setExpanded(p => ({ ...p, [id]: !p[id] })) }
+
+  const obraNome = obras.find(o => o.id === obraId)?.nome
+
+  function renderGrupo(cats, tipo) {
+    if (cats.length === 0) return null
+    const tipoColor = tipo === 'despesa' ? C.bad : C.ok
+    return (
+      <>
+        <tr>
+          <td colSpan={14} style={{ padding: '8px 14px 4px', fontSize: 10, fontWeight: 800,
+            letterSpacing: '.12em', color: tipoColor,
+            background: tipo === 'despesa' ? '#FFF8F7' : '#F0FBF4',
+            borderBottom: `1px solid ${C.line}` }}>
+            {tipo === 'despesa' ? 'DESPESAS' : 'RECEITAS'}
+          </td>
+        </tr>
+        {cats.map(cat => {
+          const isExp = expanded[cat.id] !== undefined ? expanded[cat.id] : (cat.subcategorias?.length > 0)
+          const { prev, real } = getConsolidado(cat)
+          return (
+            <React.Fragment key={cat.id}>
+              <LinhaGrupo cat={cat} isExpanded={isExp} onToggle={() => toggleExpand(cat.id)}
+                prevPorMes={prev} realPorMes={real} obraId={obraId}
+                onSave={(catId, mes, val) => mutSave.mutate({ catId, mes, valor: val })} />
+              {isExp && (cat.subcategorias || []).map(sub => (
+                <LinhaSubcat key={sub.id} cat={sub}
+                  prevPorMes={prevMap[sub.id] || {}} realPorMes={realMap[sub.id] || {}}
+                  obraId={obraId}
+                  onSave={(catId, mes, val) => mutSave.mutate({ catId, mes, valor: val })} />
+              ))}
+            </React.Fragment>
+          )
+        })}
+      </>
+    )
+  }
 
   return (
-    <div style={{ margin: '-22px -28px -40px', background: '#EEEBE5', minHeight: 'calc(100vh - 60px)', padding: '22px 28px 40px' }}>
+    <div style={{ paddingBottom: 40 }}>
+      {/* Filtros */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Building2 size={15} color={C.ink3} />
+          <select value={obraId ?? ''} onChange={e => setObraId(e.target.value ? Number(e.target.value) : null)}
+            style={{ padding: '7px 28px 7px 12px', borderRadius: 8, border: `1px solid ${C.line}`,
+              fontSize: 13, color: C.ink, background: C.surface, cursor: 'pointer', outline: 'none' }}>
+            <option value="">Todas as obras</option>
+            {obras.filter(o => o.status !== 'concluida').map(o => (
+              <option key={o.id} value={o.id}>{o.nome}</option>
+            ))}
+            {obras.filter(o => o.status === 'concluida').length > 0 && (
+              <optgroup label="Concluidas">
+                {obras.filter(o => o.status === 'concluida').map(o => (
+                  <option key={o.id} value={o.id}>{o.nome}</option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </div>
+        <select value={ano} onChange={e => setAno(Number(e.target.value))}
+          style={{ padding: '7px 12px', borderRadius: 8, border: `1px solid ${C.line}`,
+            fontSize: 13, color: C.ink, background: C.surface, cursor: 'pointer', outline: 'none' }}>
+          {ANOS.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+        {!obraId && (
+          <span style={{ fontSize: 11, color: C.warn, background: '#FDF3DF',
+            border: `1px solid ${C.warn}`, borderRadius: 6, padding: '4px 10px' }}>
+            Selecione uma obra para editar o previsto
+          </span>
+        )}
+      </div>
 
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.02em', color: C.ink }}>Previsto × Realizado</h1>
-          <div style={{ fontSize: 12, color: C.ink3, marginTop: 4 }}>
-            Orçamento anual vs. despesas pagas · {ANO}
-          </div>
+      <Banner totalPrevisto={totalPrevisto} totalRealizado={totalRealizado} obraNome={obraNome} ano={ano} />
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 10, fontSize: 10, color: C.ink3 }}>
+        <span>Linha sup: Previsto (clique p/ editar) | Linha inf: Realizado | Barra: execucao</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <button onClick={() => setExpanded(Object.fromEntries(categorias.map(c => [c.id, true])))}
+            style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${C.line}`, background: C.surface, cursor: 'pointer', fontSize: 11, color: C.ink2 }}>
+            Expandir tudo
+          </button>
+          <button onClick={() => setExpanded(Object.fromEntries(categorias.map(c => [c.id, false])))}
+            style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${C.line}`, background: C.surface, cursor: 'pointer', fontSize: 11, color: C.ink2 }}>
+            Recolher tudo
+          </button>
         </div>
       </div>
 
-      {/* Banner */}
-      <Banner totalPrevisto={0} totalRealizado={totalRealizado} />
-
-      {/* Toolbar */}
-      <Toolbar
-        filtro={filtro}
-        setFiltro={setFiltro}
-        busca={busca}
-        setBusca={setBusca}
-        expandAll={expandAll}
-        collapseAll={collapseAll}
-      />
-
-      {/* Table */}
+      {/* Tabela */}
       {isLoading ? (
         <div style={{ background: C.surface, borderRadius: 10, border: `1px solid ${C.line}`, padding: '60px 20px', textAlign: 'center', color: C.ink3, fontSize: 13 }}>
-          Carregando lançamentos…
+          Carregando...
+        </div>
+      ) : categorias.length === 0 ? (
+        <div style={{ background: C.surface, borderRadius: 10, border: `1px solid ${C.line}`, padding: '60px 20px', textAlign: 'center', color: C.ink3, fontSize: 14 }}>
+          Nenhuma categoria cadastrada.{' '}
+          <a href="#/cadastros/financeiro" style={{ color: C.navy, fontWeight: 600 }}>Cadastre aqui.</a>
         </div>
       ) : (
-        <TabelaPVR
-          grupos={grupos}
-          realizadoMap={realizadoMap}
-          orcamentoMap={orcamentoMap}
-          filtro={filtro}
-          busca={busca}
-          expandidos={expandidos}
-          toggleGrupo={toggleGrupo}
-        />
-      )}
-
-      {/* Info box: previsto ainda zerado */}
-      {categorias.length > 0 && (
-        <div style={{ marginTop: 16, padding: '12px 16px', borderRadius: 8, background: '#FDF3DF', border: '1px solid #E8D5A0', fontSize: 12, color: '#8A6210' }}>
-          <strong>Coluna Previsto zerada</strong> · Os valores orçados serão preenchidos após criar a tabela{' '}
-          <code style={{ fontFamily: '"JetBrains Mono", monospace', background: 'rgba(0,0,0,0.06)', padding: '1px 4px', borderRadius: 3 }}>financeiro_orcamentos</code>{' '}
-          no Supabase e inserir os dados via modal de edição.
+        <div style={{ overflowX: 'auto', border: `1px solid ${C.line}`, borderRadius: 10 }}>
+          <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 900 }}>
+            <thead>
+              <tr style={{ background: C.navy }}>
+                <th style={{ textAlign: 'left', padding: '9px 14px', fontSize: 11, fontWeight: 700,
+                  color: 'rgba(255,255,255,.65)', position: 'sticky', left: 0, zIndex: 3,
+                  background: C.navy, minWidth: 200 }}>CATEGORIA</th>
+                {MESES.map((m, i) => (
+                  <th key={i} style={{ textAlign: 'center', padding: '9px 4px', fontSize: 10, fontWeight: 700,
+                    color: 'rgba(255,255,255,.65)', minWidth: 90 }}>{m}</th>
+                ))}
+                <th style={{ textAlign: 'right', padding: '9px 10px', fontSize: 10, fontWeight: 700,
+                  color: C.amber, minWidth: 90, borderLeft: `2px solid rgba(255,255,255,.15)` }}>TOTAL</th>
+              </tr>
+            </thead>
+            <tbody>
+              {renderGrupo(treeDespesas, 'despesa')}
+              {renderGrupo(treeReceitas, 'receita')}
+            </tbody>
+          </table>
         </div>
       )}
+
+      <Toast msg={toast?.msg} type={toast?.type} />
     </div>
   )
 }

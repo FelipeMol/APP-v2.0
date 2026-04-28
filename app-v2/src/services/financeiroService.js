@@ -43,8 +43,27 @@ export const contasService = {
 
 // ── Categorias ───────────────────────────────────────────
 export const categoriasService = {
+  // Retorna categorias planas (com parent_id). Use buildTree() no front para hierarquia.
   async list(tipo = null) {
-    let q = supabase.from('financeiro_categorias').select('*').eq('ativo', true).order('tipo').order('nome')
+    let q = supabase
+      .from('financeiro_categorias')
+      .select('*')
+      .eq('ativo', true)
+      .order('tipo')
+      .order('nome')
+    if (tipo) q = q.eq('tipo', tipo)
+    const { data, error } = await q
+    check(error); return data || []
+  },
+  // Retorna apenas categorias raiz (sem pai) — útil para selects
+  async listRaiz(tipo = null) {
+    let q = supabase
+      .from('financeiro_categorias')
+      .select('*')
+      .eq('ativo', true)
+      .is('parent_id', null)
+      .order('tipo')
+      .order('nome')
     if (tipo) q = q.eq('tipo', tipo)
     const { data, error } = await q
     check(error); return data || []
@@ -66,6 +85,21 @@ export const categoriasService = {
   },
 }
 
+// Utilitário: transforma lista plana em árvore { ...cat, subcategorias: [...] }
+export function buildCategoriasTree(flat) {
+  const map = {}
+  flat.forEach(c => { map[c.id] = { ...c, subcategorias: [] } })
+  const roots = []
+  flat.forEach(c => {
+    if (c.parent_id && map[c.parent_id]) {
+      map[c.parent_id].subcategorias.push(map[c.id])
+    } else {
+      roots.push(map[c.id])
+    }
+  })
+  return roots
+}
+
 // ── Lançamentos ──────────────────────────────────────────
 export const lancamentosFinService = {
   async list(filtros = {}) {
@@ -76,6 +110,7 @@ export const lancamentosFinService = {
     if (filtros.tipo)      q = q.eq('tipo', filtros.tipo)
     if (filtros.status)    q = q.eq('status', filtros.status)
     if (filtros.conta_id)  q = q.eq('conta_id', filtros.conta_id)
+    if (filtros.obra_id)   q = q.eq('obra_id', filtros.obra_id)
     if (filtros.inicio)    q = q.gte('data_vencimento', filtros.inicio)
     if (filtros.fim)       q = q.lte('data_vencimento', filtros.fim)
     const { data, error } = await q
@@ -160,6 +195,50 @@ export const extratoService = {
   },
   async remove(id) {
     const { error } = await supabase.from('financeiro_extrato').delete().eq('id', id)
+    check(error)
+  },
+}
+
+// ── Orçamentos (Previsto) ────────────────────────────────
+// previsto por obra × categoria × mês × ano
+export const orcamentosService = {
+  // Retorna todos os orçamentos de uma obra+ano (ou ano inteiro se obra=null)
+  async listByObraAno(obraId, ano) {
+    let q = supabase
+      .from('financeiro_orcamentos')
+      .select('*, financeiro_categorias(id,nome,tipo,parent_id,grupo)')
+      .eq('ano', ano)
+    if (obraId) q = q.eq('obra_id', obraId)
+    else q = q.is('obra_id', null)
+    const { data, error } = await q
+    check(error); return data || []
+  },
+  // Upsert um único valor (cria ou atualiza)
+  async upsert(obraId, categoriaId, ano, mes, valor) {
+    const payload = {
+      obra_id: obraId || null,
+      categoria_id: categoriaId,
+      ano,
+      mes,
+      valor,
+    }
+    const { data, error } = await supabase
+      .from('financeiro_orcamentos')
+      .upsert(payload, { onConflict: 'tenant_id,obra_id,categoria_id,ano,mes' })
+      .select()
+      .single()
+    check(error); return data
+  },
+  // Upsert em lote (array de { obra_id, categoria_id, ano, mes, valor })
+  async upsertBatch(rows) {
+    const { data, error } = await supabase
+      .from('financeiro_orcamentos')
+      .upsert(rows, { onConflict: 'tenant_id,obra_id,categoria_id,ano,mes' })
+      .select()
+    check(error); return data || []
+  },
+  async remove(id) {
+    const { error } = await supabase.from('financeiro_orcamentos').delete().eq('id', id)
     check(error)
   },
 }
