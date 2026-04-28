@@ -117,6 +117,22 @@ jobs:
           name: dist-build
           path: dist/
 
+      - name: Diagnosticar FTP
+        run: |
+          echo "=== FTP Diagnostico ==="
+          echo "FTP_HOST length: ${#FTP_HOST}"
+          echo "FTP_HOST first 4: ${FTP_HOST:0:4}"
+          echo "FTP_USER length: ${#FTP_USER}"
+          echo "FTP_USER first 3: ${FTP_USER:0:3}"
+          echo "FTP_USER last 4: ${FTP_USER: -4}"
+          echo "FTP_REMOTE_PATH: [${FTP_REMOTE_PATH}]"
+          echo "=== Teste de conexao FTP ==="
+          echo "QUIT" | curl -v --connect-timeout 10 ftps://"$FTP_HOST":21/ 2>&1 || true
+        env:
+          FTP_HOST: "${{ secrets.FTP_HOST }}"
+          FTP_USER: "${{ secrets.FTP_USER }}"
+          FTP_REMOTE_PATH: "${{ secrets.FTP_REMOTE_PATH }}"
+
       - name: Normalizar FTP path
         id: ftp
         run: |
