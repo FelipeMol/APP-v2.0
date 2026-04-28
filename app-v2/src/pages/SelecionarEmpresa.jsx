@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -6,6 +6,7 @@ import useTenantStore from '../store/tenantStore';
 import useGrupoStore from '../store/grupoStore';
 import authService from '../services/authService';
 import { Check, HardHat } from 'lucide-react';
+import useTenantBranding from '../hooks/useTenantBranding';
 
 function TenantCardSkeleton() {
   return (
@@ -45,17 +46,25 @@ function TenantCard({ tenant, isSelected, disabled, onSelect }) {
 export default function SelecionarEmpresa() {
   const navigate = useNavigate();
   const { selectedTenantId, setTenant, tenants, isLoadingTenants, loadTenants, loadModulosDoTenant } = useTenantStore();
-  const grupo = useGrupoStore(s => s.grupo);
+  const { grupo, domainTenants, autoTenantId } = useGrupoStore();
+  const branding = useTenantBranding();
 
   const [entering, setEntering] = useState(false);
   const [entered, setEntered] = useState(false);
   const [enteringTenant, setEnteringTenant] = useState(null);
 
   useEffect(() => {
+    if (autoTenantId && domainTenants.length === 1) {
+      setTenant(autoTenantId);
+      loadModulosDoTenant(autoTenantId);
+      navigate('/dashboard', { replace: true });
+      return;
+    }
+
     const allowedTenants = authService.getAllowedTenants().map(t => t.id ?? t);
     const grupoId = grupo?.id ?? null;
-    loadTenants(allowedTenants, grupoId);
-  }, [loadTenants, grupo]);
+    loadTenants(allowedTenants, grupoId, domainTenants, autoTenantId);
+  }, [loadTenants, grupo, domainTenants, autoTenantId, setTenant, loadModulosDoTenant, navigate]);
 
   const handleSelect = async (tenantId) => {
     const tenant = tenants.find(t => t.id === tenantId);
@@ -73,14 +82,14 @@ export default function SelecionarEmpresa() {
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
       <div className="absolute inset-0 bg-grid-pattern opacity-[0.03]" />
-      <div className="absolute -top-24 -right-24 w-[520px] h-[520px] bg-primary/10 rounded-full blur-3xl" />
+      <div className="absolute -top-24 -right-24 w-[520px] h-[520px] rounded-full blur-3xl" style={{ background: `${branding.corPrimaria}18` }} />
 
       <div className="relative z-10 min-h-screen flex items-center justify-center p-6">
         <div className="w-full max-w-6xl">
           <div className="text-center mb-10">
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">Escolha a empresa</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Você precisa selecionar um ambiente para continuar.
+              Voce precisa selecionar um ambiente para continuar.
             </p>
           </div>
 
@@ -93,7 +102,7 @@ export default function SelecionarEmpresa() {
               </>
             ) : tenants.length === 0 ? (
               <div className="col-span-3 text-center py-12 text-muted-foreground text-sm">
-                Nenhuma empresa disponível para sua conta.
+                Nenhuma empresa disponivel para sua conta.
               </div>
             ) : (
               tenants.map((t) => (
@@ -136,14 +145,14 @@ export default function SelecionarEmpresa() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             animation: 'rr-pop-in 0.45s 0.25s cubic-bezier(0.34,1.56,0.64,1) both',
           }}>
-            <HardHat size={36} color="#E8A628" strokeWidth={1.5} />
+            <HardHat size={36} color={branding.corAccent || '#E8A628'} strokeWidth={1.5} />
           </div>
           <div style={{
             color: 'rgba(255,255,255,0.92)', fontSize: 18, fontWeight: 600,
             letterSpacing: '-0.01em',
             animation: 'rr-pop-in 0.45s 0.35s cubic-bezier(0.34,1.56,0.64,1) both',
           }}>
-            {enteringTenant?.name || 'Construtora RR'}
+            {enteringTenant?.name || branding.nomeExibicao}
           </div>
           <style>{`
             @keyframes rr-fade-in { from { opacity: 0; } to { opacity: 1; } }

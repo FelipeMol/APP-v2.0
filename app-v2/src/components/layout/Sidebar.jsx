@@ -1,7 +1,8 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import useAuthStore from '../../store/authStore';
+import useTenantBranding from '../../hooks/useTenantBranding';
 import {
   LayoutDashboard,
   FileText,
@@ -32,12 +33,12 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const { isAdmin, isSuperAdmin, hasPermission } = useAuthStore();
   const queryClient = useQueryClient();
+  const branding = useTenantBranding();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isSubmenuOpen, setIsSubmenuOpen] = useState(true);
 
   const isAdminOrSuper = () => isAdmin() || isSuperAdmin();
 
-  // Mapa path → queries a prefetch
   const prefetchMap = {
     '/financeiro/lancamentos':   () => import('../../services/financeiroService').then(m => [
       queryClient.prefetchQuery({ queryKey: ['fin-lancamentos', {}], queryFn: () => m.lancamentosFinService.list({}) }),
@@ -59,13 +60,13 @@ export default function Sidebar() {
 
   const menuItems = [
     { name: 'Dashboard',        path: '/dashboard',              icon: LayoutDashboard, permission: 'dashboard' },
-    { name: 'Lançamentos',      path: '/lancamentos',            icon: FileText,        permission: 'lancamentos' },
+    { name: 'Lancamentos',      path: '/lancamentos',            icon: FileText,        permission: 'lancamentos' },
     {
       name: 'Cadastros', icon: Layers, isSubmenu: true,
       submenuItems: [
         { name: 'Contatos',     path: '/cadastros/contatos', icon: BookUser,  permission: 'base' },
-        { name: 'Funcionários', path: '/funcionarios',        icon: Users,     permission: 'funcionarios' },
-        { name: 'Funções',      path: '/funcoes',             icon: Briefcase, permission: 'base' },
+        { name: 'Funcionarios', path: '/funcionarios',        icon: Users,     permission: 'funcionarios' },
+        { name: 'Funcoes',      path: '/funcoes',             icon: Briefcase, permission: 'base' },
         { name: 'Obras',        path: '/obras',               icon: Building2, permission: 'obras' },
         { name: 'Empresas',     path: '/empresas',            icon: HardHat,   permission: 'empresas' },
       ],
@@ -76,17 +77,17 @@ export default function Sidebar() {
       submenuItems: [
         { name: 'Painel',         path: '/financeiro/painel',          icon: PieChart,        permission: 'financeiro' },
         { name: 'Contas',         path: '/financeiro/contas',          icon: Wallet,          permission: 'financeiro' },
-        { name: 'Lançamentos',    path: '/financeiro/lancamentos',     icon: CreditCard,      permission: 'financeiro' },
+        { name: 'Lancamentos',    path: '/financeiro/lancamentos',     icon: CreditCard,      permission: 'financeiro' },
         { name: 'Extrato',        path: '/financeiro/extrato',         icon: FileSpreadsheet, permission: 'financeiro' },
-        { name: 'Configurações',  path: '/financeiro/configuracoes',   icon: Settings,        permission: 'financeiro' },
+        { name: 'Configuracoes',  path: '/financeiro/configuracoes',   icon: Settings,        permission: 'financeiro' },
       ],
     },
-    { name: 'Relatórios',       path: '/relatorios-visao-geral', icon: BarChart3,       permission: 'relatorios' },
-    { name: 'Análise',          path: '/relatorios',             icon: BarChart3,       permission: 'relatorios' },
-    { name: 'Relatório PDF',    path: '/relatorios/equipe-pdf',  icon: FileDown,        permission: 'relatorios' },
+    { name: 'Relatorios',       path: '/relatorios-visao-geral', icon: BarChart3,       permission: 'relatorios' },
+    { name: 'Analise',          path: '/relatorios',             icon: BarChart3,       permission: 'relatorios' },
+    { name: 'Relatorio PDF',    path: '/relatorios/equipe-pdf',  icon: FileDown,        permission: 'relatorios' },
     { name: 'RH',               path: '/rh',                     icon: UserCheck,       permission: 'rh' },
-    { name: 'Usuários',         path: '/usuarios',               icon: UserCog,         permission: 'usuarios',  adminOnly: true },
-    { name: 'Permissões',       path: '/permissoes',             icon: Shield,          permission: 'permissoes', adminOnly: true },
+    { name: 'Usuarios',         path: '/usuarios',               icon: UserCog,         permission: 'usuarios',  adminOnly: true },
+    { name: 'Permissoes',       path: '/permissoes',             icon: Shield,          permission: 'permissoes', adminOnly: true },
   ];
 
   const visibleMenuItems = menuItems.filter((item) => {
@@ -171,7 +172,6 @@ export default function Sidebar() {
         ${isCollapsed ? 'w-[60px]' : 'w-[232px]'}
       `}
     >
-      {/* Logo / brand */}
       <div
         className="flex items-center justify-between px-3 py-[18px] border-b"
         style={{ borderColor: 'rgba(255,255,255,0.08)' }}
@@ -183,22 +183,22 @@ export default function Sidebar() {
             className="flex items-center gap-2.5 flex-1 min-w-0 text-left group"
             title="Trocar empresa"
           >
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.12)' }}>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${branding.corPrimaria}30` }}>
               <HardHat className="w-4 h-4 text-white" />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold leading-tight truncate text-white">
-                Ramdy Raydan
+                {branding.nomeExibicao}
               </p>
               <p className="text-xs leading-tight" style={{ color: 'rgba(255,255,255,0.5)', letterSpacing: '0.1em' }}>
-                CONSTRUTORA
+                {branding.subtitulo.toUpperCase().slice(0, 15)}
               </p>
             </div>
           </button>
         )}
 
         {isCollapsed && (
-          <div className="w-8 h-8 mx-auto rounded-lg flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.12)' }}>
+          <div className="w-8 h-8 mx-auto rounded-lg flex items-center justify-center" style={{ background: `${branding.corPrimaria}30` }}>
             <HardHat className="w-4 h-4 text-white" />
           </div>
         )}
@@ -214,12 +214,10 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5 scrollbar-thin">
         {visibleMenuItems.map(renderMenuItem)}
       </nav>
 
-      {/* Expand button (collapsed state) */}
       {isCollapsed && (
         <div className="px-2 pb-3">
           <button
@@ -232,11 +230,10 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* Footer */}
       {!isCollapsed && (
         <div className="px-4 py-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
           <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em', textAlign: 'center' }}>
-            © 2026 · CONSTRUTORA RR
+            {branding.rodapeTexto || `\u00A9 ${new Date().getFullYear()} \u00B7 ${branding.nomeExibicao}`}
           </p>
         </div>
       )}

@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 import supabase from '../lib/supabase.js';
 
 const STORAGE_KEY = 'selected_tenant';
@@ -19,15 +19,28 @@ const useTenantStore = create((set, get) => ({
   isLoadingTenants: false,
   modulosHabilitados: [],
 
-  // grupoId: ID do grupo detectado pelo hostname (null = sem filtro, ex: dev local)
-  loadTenants: async (allowedTenantIds = [], grupoId = null) => {
+  loadTenants: async (allowedTenantIds = [], grupoId = null, domainTenants = [], autoTenantId = null) => {
     set({ isLoadingTenants: true });
     try {
+      if (autoTenantId && domainTenants.length === 1) {
+        const t = domainTenants[0];
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ id: t.id }));
+        set({ tenants: domainTenants, selectedTenantId: t.id, isLoadingTenants: false });
+        return;
+      }
+
+      if (domainTenants.length > 0) {
+        const filtered = allowedTenantIds.length > 0
+          ? domainTenants.filter(t => allowedTenantIds.some(a => (a.id ?? a) === t.id))
+          : domainTenants;
+        set({ tenants: filtered, isLoadingTenants: false });
+        return;
+      }
+
       let query = supabase.from('tenants').select('*').eq('active', true);
       if (allowedTenantIds.length > 0) {
         query = query.in('id', allowedTenantIds);
       }
-      // Filtro por grupo: só mostrar tenants do grupo do domínio atual
       if (grupoId !== null) {
         query = query.eq('grupo_id', grupoId);
       }
@@ -36,12 +49,11 @@ const useTenantStore = create((set, get) => ({
       if (tenantsError) throw tenantsError;
       set({ tenants: tenantsData || [], isLoadingTenants: false });
     } catch (err) {
-      console.error('❌ Erro ao carregar tenants:', err);
+      console.error('Erro ao carregar tenants:', err);
       set({ isLoadingTenants: false });
     }
   },
 
-  // Carrega módulos habilitados para um tenant específico via tenant_modules
   loadModulosDoTenant: async (tenantId) => {
     if (!tenantId) {
       set({ modulosHabilitados: [] });
@@ -58,8 +70,7 @@ const useTenantStore = create((set, get) => ({
       const modulosHabilitados = (data || []).map(m => m.module_id);
       set({ modulosHabilitados });
     } catch (err) {
-      console.error('❌ Erro ao carregar módulos do tenant:', err);
-      // Fallback permissivo: não bloquear acesso em caso de erro
+      console.error('Erro ao carregar modulos do tenant:', err);
       set({ modulosHabilitados: [] });
     }
   },
@@ -84,7 +95,6 @@ const useTenantStore = create((set, get) => ({
 
   isModuleEnabled: (moduleId) => {
     const { modulosHabilitados } = get();
-    // Fallback permissivo enquanto a lista ainda não foi carregada
     if (!modulosHabilitados || modulosHabilitados.length === 0) return true;
     return modulosHabilitados.includes(moduleId);
   },

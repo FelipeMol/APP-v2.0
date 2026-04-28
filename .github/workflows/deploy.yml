@@ -1,23 +1,21 @@
-name: Build e Deploy - cPanel
+name: Build e Deploy - Multi-tenant
 
 on:
   push:
     branches: [main]
     paths:
       - 'app-v2/**'
-  workflow_dispatch: # permite rodar manualmente pelo GitHub
+      - 'supabase/**'
+  workflow_dispatch:
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
+    timeout-minutes: 10
     steps:
-      # 1. Checkout do repositório
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2. Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -25,21 +23,18 @@ jobs:
           cache: npm
           cache-dependency-path: app-v2/package-lock.json
 
-      # 3. Instalar dependências
-      - name: Instalar dependências
+      - name: Instalar dependencias
         working-directory: app-v2
         run: npm ci
 
-      # 4. Build (usa .env.production que está no repo)
-      - name: Build
+      - name: Build de producao
         working-directory: app-v2
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
 
-      # 5. Copiar .htaccess para dist/ (necessário para o React Router funcionar)
-      - name: Copiar .htaccess
+      - name: Copiar .htaccess para dist/
         working-directory: app-v2
         run: |
           if [ -f .htaccess ]; then
@@ -47,7 +42,31 @@ jobs:
             echo ".htaccess copiado"
           fi
 
-      # 6. Normalizar server-dir (garante barra final)
+      - name: Verificar build
+        working-directory: app-v2
+        run: |
+          ls -la dist/
+          test -f dist/index.html || (echo "ERRO: index.html nao encontrado!" && exit 1)
+
+      - name: Upload artefato de build
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-build
+          path: app-v2/dist/
+          retention-days: 1
+
+  deploy-construtora:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: construtorarr
+    steps:
+      - name: Download artefato
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-build
+          path: dist/
+
       - name: Normalizar FTP path
         id: ftp
         run: |
@@ -55,19 +74,57 @@ jobs:
           [[ "$path" != */ ]] && path="$path/"
           echo "path=$path" >> $GITHUB_OUTPUT
 
-      # 7. Deploy via FTP para cPanel
-      - name: Deploy FTP → cPanel
+      - name: Deploy FTP -> construtorarr.online
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_HOST }}
           username: ${{ secrets.FTP_USER }}
           password: ${{ secrets.FTP_PASS }}
-          local-dir: app-v2/dist/
+          local-dir: dist/
           server-dir: ${{ steps.ftp.outputs.path }}
           protocol: ftps
           port: 21
           dangerous-clean-slate: false
           exclude: |
             **/.git*
-            **/.git*/**
-            **/node_modules/**
+            api/**
+
+      - name: Resumo
+        run: echo "Deploy concluido para construtorarr.online"
+
+  deploy-empresa2:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: empresa2
+    steps:
+      - name: Download artefato
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-build
+          path: dist/
+
+      - name: Normalizar FTP path
+        id: ftp
+        run: |
+          path="${{ secrets.FTP_REMOTE_PATH }}"
+          [[ "$path" != */ ]] && path="$path/"
+          echo "path=$path" >> $GITHUB_OUTPUT
+
+      - name: Deploy FTP -> segundo dominio
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASS }}
+          local-dir: dist/
+          server-dir: ${{ steps.ftp.outputs.path }}
+          protocol: ftps
+          port: 21
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git*
+            api/**
+
+      - name: Resumo
+        run: echo "Deploy concluido para segundo dominio"

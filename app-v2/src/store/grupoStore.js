@@ -1,12 +1,10 @@
-// src/store/grupoStore.js
-// Store Zustand para detecção do grupo a partir do domínio atual.
-// Carregado uma vez no App.jsx ao iniciar o app.
-
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 import supabase from '../lib/supabase.js';
 
 const useGrupoStore = create((set, get) => ({
   grupo: null,
+  domainTenants: [],
+  autoTenantId: null,
   isLoadingGrupo: false,
   loaded: false,
   grupoError: null,
@@ -16,26 +14,41 @@ const useGrupoStore = create((set, get) => ({
     set({ isLoadingGrupo: true, grupoError: null });
     try {
       const hostname = window.location.hostname;
-      // Fallback dev: localhost não filtra por grupo
       const isDev = hostname === 'localhost' || hostname === '127.0.0.1';
       if (isDev) {
-        set({ grupo: { id: null, nome: 'Dev', dominio: hostname }, isLoadingGrupo: false, loaded: true });
+        set({
+          grupo: { id: null, nome: 'Dev', dominio: hostname, cor_primaria: '#3b82f6', cor_secundaria: '#1e293b', cor_accent: '#f59e0b', nome_exibicao: 'Dev', subtitulo: 'Ambiente de desenvolvimento', rodape_texto: '' },
+          domainTenants: [],
+          autoTenantId: null,
+          isLoadingGrupo: false,
+          loaded: true,
+        });
         return;
       }
 
-      const { data, error } = await supabase
-        .from('grupos')
-        .select('id, nome, dominio, logo_url')
-        .eq('dominio', hostname)
-        .eq('ativo', true)
-        .single();
+      const { data, error } = await supabase.rpc('resolve_domain', { p_hostname: hostname });
 
-      if (error || !data) {
-        console.warn('[grupoStore] Domínio não encontrado no banco:', hostname);
-        set({ grupo: null, isLoadingGrupo: false, loaded: true, grupoError: 'Grupo não encontrado para este domínio.' });
+      if (error || !data?.found) {
+        console.warn('[grupoStore] Dominio nao encontrado:', hostname);
+        set({ grupo: null, domainTenants: [], autoTenantId: null, isLoadingGrupo: false, loaded: true, grupoError: 'Grupo nao encontrado para este dominio.' });
         return;
       }
-      set({ grupo: data, isLoadingGrupo: false, loaded: true });
+
+      const grupo = data.grupo;
+      const tenants = data.tenants || [];
+      const autoTenantId = tenants.length === 1 ? tenants[0].id : null;
+
+      if (grupo.favicon_url) {
+        const link = document.querySelector("link[rel~='icon']") || document.createElement('link');
+        link.rel = 'icon';
+        link.href = grupo.favicon_url;
+        document.head.appendChild(link);
+      }
+      if (grupo.nome_exibicao) {
+        document.title = grupo.nome_exibicao;
+      }
+
+      set({ grupo, domainTenants: tenants, autoTenantId, isLoadingGrupo: false, loaded: true });
     } catch (err) {
       console.error('[grupoStore] Erro ao carregar grupo:', err);
       set({ grupoError: err.message, isLoadingGrupo: false, loaded: true });

@@ -1,22 +1,46 @@
+﻿import { useEffect } from 'react';
 import useTenantStore from '../../store/tenantStore';
+import useGrupoStore from '../../store/grupoStore';
 import useAuthStore from '../../store/authStore';
 import { Navigate, useLocation } from 'react-router-dom';
 
-/**
- * Sempre obrigar selecionar empresa após login.
- * Se estiver autenticado e não tiver tenant => manda para /selecionar-empresa.
- * Superadmin é dispensado pois opera globalmente.
- */
 export default function TenantGate({ children }) {
-  const tenantId = useTenantStore((s) => s.selectedTenantId);
-  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
+  const { selectedTenantId, setTenant, loadModulosDoTenant, loadTenants, isLoadingTenants } = useTenantStore();
+  const { grupo, autoTenantId, domainTenants } = useGrupoStore();
+  const isSuperAdmin = useAuthStore(s => s.isSuperAdmin);
   const location = useLocation();
 
-  // Superadmin opera globalmente, sem necessidade de tenant
+  useEffect(() => {
+    if (isSuperAdmin()) return;
+    if (selectedTenantId) return;
+
+    if (autoTenantId && domainTenants.length === 1) {
+      setTenant(autoTenantId);
+      loadModulosDoTenant(autoTenantId);
+      return;
+    }
+
+    if (domainTenants.length > 0 && !isLoadingTenants) {
+      return;
+    }
+
+    const allowedTenants = JSON.parse(localStorage.getItem('allowed_tenants') || '[]');
+    const allowedIds = allowedTenants.map(t => t.id ?? t);
+    const grupoId = grupo?.id ?? null;
+    loadTenants(allowedIds, grupoId, domainTenants, autoTenantId);
+  }, [autoTenantId, domainTenants, selectedTenantId, grupo, isSuperAdmin, setTenant, loadModulosDoTenant, loadTenants, isLoadingTenants]);
+
   if (isSuperAdmin()) return children;
 
-  // Evitar loop caso já esteja no seletor
-  if (!tenantId && location.pathname !== '/selecionar-empresa') {
+  if (autoTenantId && !selectedTenantId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-pulse text-muted-foreground text-sm">Carregando...</div>
+      </div>
+    );
+  }
+
+  if (!selectedTenantId && location.pathname !== '/selecionar-empresa') {
     return <Navigate to="/selecionar-empresa" replace />;
   }
 
