@@ -19,7 +19,7 @@ export default function Login() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      const dest = authService.isSuperAdmin() ? '/super-admin' : '/selecionar-empresa';
+      const dest = '/selecionar-empresa';
       navigate(dest, { replace: true });
     }
   }, [isAuthenticated, navigate]);
@@ -34,7 +34,7 @@ export default function Login() {
     if (!formData.usuario || !formData.senha) return;
     try {
       await login(formData.usuario, formData.senha);
-      const dest = authService.isSuperAdmin() ? '/super-admin' : '/selecionar-empresa';
+      const dest = '/selecionar-empresa';
       navigate(dest, { replace: true });
     } catch (err) {
       console.error('Erro no login:', err);

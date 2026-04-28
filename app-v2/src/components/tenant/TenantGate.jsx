@@ -11,7 +11,6 @@ export default function TenantGate({ children }) {
   const location = useLocation();
 
   useEffect(() => {
-    if (isSuperAdmin()) return;
     if (selectedTenantId) return;
 
     if (autoTenantId && domainTenants.length === 1) {
@@ -29,8 +28,6 @@ export default function TenantGate({ children }) {
     const grupoId = grupo?.id ?? null;
     loadTenants(allowedIds, grupoId, domainTenants, autoTenantId);
   }, [autoTenantId, domainTenants, selectedTenantId, grupo, isSuperAdmin, setTenant, loadModulosDoTenant, loadTenants, isLoadingTenants]);
-
-  if (isSuperAdmin()) return children;
 
   if (autoTenantId && !selectedTenantId) {
     return (
