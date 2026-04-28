@@ -20,7 +20,7 @@ const TENANT_TABLES = new Set([
   'relatorios', 'relatorios_fotos', 'relatorios_atividades', 'relatorios_ocorrencias',
   'requisicoes_vagas', 'candidatos', 'entrevistas', 'admissoes',
   'financeiro_contas', 'financeiro_lancamentos', 'financeiro_categorias',
-  'financeiro_extrato', 'financeiro_centros_custo',
+  'financeiro_extrato', 'financeiro_centros_custo', 'financeiro_orcamentos',
   'view_tarefas_resumo',
 ])
 

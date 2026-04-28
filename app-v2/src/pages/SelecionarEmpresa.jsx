@@ -93,7 +93,15 @@ export default function SelecionarEmpresa() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className={`grid gap-6 ${
+            isLoadingTenants
+              ? 'grid-cols-1 md:grid-cols-3'
+              : tenants.length === 1
+                ? 'grid-cols-1 max-w-md mx-auto'
+                : tenants.length === 2
+                  ? 'grid-cols-1 md:grid-cols-2 max-w-3xl mx-auto'
+                  : 'grid-cols-1 md:grid-cols-3'
+          }`}>
             {isLoadingTenants ? (
               <>
                 <TenantCardSkeleton />
@@ -101,7 +109,7 @@ export default function SelecionarEmpresa() {
                 <TenantCardSkeleton />
               </>
             ) : tenants.length === 0 ? (
-              <div className="col-span-3 text-center py-12 text-muted-foreground text-sm">
+              <div className="col-span-full text-center py-12 text-muted-foreground text-sm">
                 Nenhuma empresa disponivel para sua conta.
               </div>
             ) : (

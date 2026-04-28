@@ -28,6 +28,7 @@ import ModuleGuard from './components/tenant/ModuleGuard';
 import SuperAdminRoute from './components/auth/SuperAdminRoute';
 import SuperAdmin from './pages/super-admin/SuperAdmin';
 import Configuracoes from './pages/financeiro/Configuracoes';
+import PrevistoRealizado from './pages/financeiro/PrevistoRealizado';
 import ContatosCadastros from './pages/cadastros/Contatos';
 
 // Usando HashRouter para compatibilidade com hospedagem compartilhada
@@ -197,6 +198,14 @@ const router = createHashRouter([
         element: (
           <ModuleGuard moduleId="financeiro">
             <Configuracoes />
+          </ModuleGuard>
+        ),
+      },
+      {
+        path: 'financeiro/previsto-realizado',
+        element: (
+          <ModuleGuard moduleId="financeiro">
+            <PrevistoRealizado />
           </ModuleGuard>
         ),
       },
