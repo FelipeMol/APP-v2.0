@@ -68,6 +68,18 @@ jobs:
           name: dist-build
           path: dist/
 
+      - name: Diagnosticar FTP
+        run: |
+          echo "FTP_HOST length: ${#FTP_HOST}"
+          echo "FTP_HOST first 4 chars: ${FTP_HOST:0:4}"
+          if command -v nslookup &> /dev/null; then
+            nslookup "$FTP_HOST" || echo "DNS lookup failed"
+          else
+            host "$FTP_HOST" || echo "DNS lookup failed"
+          fi
+        env:
+          FTP_HOST: "${{ secrets.FTP_HOST }}"
+
       - name: Normalizar FTP path
         id: ftp
         run: |
