@@ -474,7 +474,7 @@ export default function Lancamentos() {
   const { data: contas = [] }     = useQuery({ queryKey: ['fin-contas'],     queryFn: () => contasService.list(),    staleTime: 5 * 60 * 1000 })
   const { data: contatos = [] }   = useQuery({ queryKey: ['contatos'],       queryFn: () => contatosService.list(),  staleTime: 5 * 60 * 1000 })
   const { data: centrosCusto = [] } = useQuery({ queryKey: ['fin-centros-custo'], queryFn: () => centrosCustoService.list(), staleTime: 5 * 60 * 1000 })
-  const { data: obras = [] } = useQuery({ queryKey: ['obras'], queryFn: () => obrasService.list(), staleTime: 5 * 60 * 1000 })
+  const { data: obras = [] } = useQuery({ queryKey: ['obras'], queryFn: async () => { const r = await obrasService.list(); return r?.dados ?? r ?? [] }, staleTime: 5 * 60 * 1000 })
 
   const { data: lancamentos = [], isFetching: loading } = useQuery({
     queryKey: ['fin-lancamentos', filtros],
