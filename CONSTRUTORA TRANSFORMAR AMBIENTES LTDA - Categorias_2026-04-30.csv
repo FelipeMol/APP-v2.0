@@ -1,0 +1,194 @@
+﻿Grupo;Subgrupo;Categoria;Tipo
+Receitas operacionais;Receita com vendas;Vendas de montagens comerciais e equiipamentos;Entrada
+Receitas operacionais;Receita com serviços;Execução de Projetos Arquitetônicos;Entrada
+Receitas operacionais;Receita com serviços;Execução de Obras Civis;Entrada
+Receitas operacionais;Receita Financeiras;Comissão de Terceiros;Entrada
+Receitas operacionais;Receita Financeiras;Juros Empréstimos Concedidos;Entrada
+Receitas operacionais;Receita Financeiras;Estorno de Pagamentos;Entrada
+Receitas operacionais;Receits Financeiras;Rendimentos de Aplicações;Entrada
+Receitas operacionais;;Juros Recebidos;Entrada
+Receitas operacionais;;Multas Recebidas;Entrada
+Receitas operacionais;;Descontos Concedidos;Saída
+Receitas operacionais;;Outras receitas;Entrada
+Custos operacionais;Serviços Preliminares;Logística/Mobilização de início de obra;Saída
+Custos operacionais;Serviços Preliminares;Instalações Provisórias de Canteiro;Saída
+Custos operacionais;Serviços Preliminares;Tapume para fechamento de vãos;Saída
+Custos operacionais;Serviços Preliminares;Plotagens e cópias;Saída
+Custos operacionais;Serviços Preliminares;Placa de obra;Saída
+Custos operacionais;Serviços Preliminares;ART e Fiscalização de Execução de Obra Civil;Saída
+Custos operacionais;Serviços Preliminares;Seguro de Obra;Saída
+Custos operacionais;Serviços Preliminares;Projetos Complementares e Respectivas ART's;Saída
+Custos operacionais;Serviços Preliminares;Licenças e Taxas da Prefeitura;Saída
+Custos operacionais;Demolições;Mão de Obra para Execução da Demolição;Saída
+Custos operacionais;Demolições;Materiais para Execução de Demolição;Saída
+Custos operacionais;Estruturas de Concreto e Metálicas - Alvenaria;Mão de Obra para Estrutura e Alvenaria;Saída
+Custos operacionais;Estruturas de Concreto e Metálicas - Alvenaria;Materiais para Execução - Estrutura e Alvenaria;Saída
+Custos operacionais;Instalação Prevenção e Combate a Incêndio;Mão de Obra Prevenção e Combate a Incêndio;Saída
+Custos operacionais;Instalação Prevenção e Combate a Incêndio;Materiais para Prevenção e Combate a Incêndio;Saída
+Custos operacionais;Instalação de Ar Condicionado;Material para Ar Condicionado;Saída
+Custos operacionais;Instalação de Ar Condicionado;Dutos para ar condicionado;Saída
+Custos operacionais;Instalação de Ar Condicionado;Aparelhos de Ar Condicionado;Saída
+Custos operacionais;Instalação de Ar Condicionado;Mão de Obra - Ar Condicionado;Saída
+Custos operacionais;Instalação de Aquecimento de Água / Gás;Mão de Obra Aquecimento Água/Gás;Saída
+Custos operacionais;Instalação de Aquecimento de Água / Gás;Materiais para Aquecimento de Água e Gás;Saída
+Custos operacionais;Instalação Elétrica;Mão de Obra Elétrica;Saída
+Custos operacionais;Instalação Elétrica;Quadros Elétricos;Saída
+Custos operacionais;Instalação Elétrica;Luminotécnico;Saída
+Custos operacionais;Instalação Elétrica;Materiais Diversos de Elétrica;Saída
+Custos operacionais;Instalação Hidraúlica e Sanitária;Mão de Obra Hidráulica;Saída
+Custos operacionais;Instalação Hidraúlica e Sanitária;Materiais Diversos de Hidráulica;Saída
+Custos operacionais;Pisos e Revestimentos Cerâmicos;Mão de Obra Piso e Revest.;Saída
+Custos operacionais;Pisos e Revestimentos Cerâmicos;Pisos;Saída
+Custos operacionais;Pisos e Revestimentos Cerâmicos;Revestimentos;Saída
+Custos operacionais;Pisos e Revestimentos Cerâmicos;Materiais Diversos Pisos e Revestimentos;Saída
+Custos operacionais;Fechamentos e Forros (Gesso);Materiais de Gesso;Saída
+Custos operacionais;Fechamentos e Forros (Gesso);Mão de Obra de Gesso;Saída
+Custos operacionais;Impermeabilização;Materiais de Impermeabilização;Saída
+Custos operacionais;Impermeabilização;Mão de Obra para Impermeabilização;Saída
+Custos operacionais;Montagens Comerciais;Montagem Comercial em Geral - Rofril;Saída
+Custos operacionais;Montagens Comerciais;Montagem Comercial em Inox - Cofap;Saída
+Custos operacionais;Montagens Comerciais;Expositores e Refrigerados - Nacional / Refrimate;Saída
+Custos operacionais;Marcenaria;Materiais de Marcenaria;Saída
+Custos operacionais;Marcenaria;Mão de Obra de Marcenaria;Saída
+Custos operacionais;Marcenaria;Marcenaria Completa;Saída
+Custos operacionais;Mármore, Granito e Arenito;Matéria Prima de Marmoraria;Saída
+Custos operacionais;Mármore, Granito e Arenito;Instalação de Marmoraria;Saída
+Custos operacionais;Mármore, Granito e Arenito;Materiais Diversos de Marmoraria;Saída
+Custos operacionais;Pinturas;Materiais de Pintura;Saída
+Custos operacionais;Pinturas;Mão de Obra de Pintura;Saída
+Custos operacionais;Vidros, Espelhos e Adesivos;Matéria Prima de Vidros, Espelhos e Adesivos;Saída
+Custos operacionais;Vidros, Espelhos e Adesivos;Instalação de Vidros, Espelhos e Adesivos;Saída
+Custos operacionais;Vidros, Espelhos e Adesivos;Vidraçaria Completa;Saída
+Custos operacionais;Serralheria Fina;Fachada - Letreiros;Saída
+Custos operacionais;Serralheria Fina;Portas Automáticas;Saída
+Custos operacionais;Serralheria Fina;Guarda Corpo em Inox;Saída
+Custos operacionais;Serralheria Fina;Sistema de Exaustão;Saída
+Custos operacionais;Serralheria Fina;Mão de Obra Serralheria Fina;Saída
+Custos operacionais;Serralheria Fina;Materiais Diversos de Serralheria Fina;Saída
+Custos operacionais;Mobiliários, Eletrodomésticos e Equipamentos;Cadeiras, Mesas, Bistrôs e Sofás;Saída
+Custos operacionais;Mobiliários, Eletrodomésticos e Equipamentos;Decorativo em geral;Saída
+Custos operacionais;Mobiliários, Eletrodomésticos e Equipamentos;Paisagismo;Saída
+Custos operacionais;Mobiliários, Eletrodomésticos e Equipamentos;Eletrodomêsticos;Saída
+Custos operacionais;Locações de Equip., Máquinas e Caçambas;Locação de caçambas;Saída
+Custos operacionais;Locações de Equip., Máquinas e Caçambas;Locação de andaimes e equipamentos;Saída
+Custos operacionais;Locações de Equip., Máquinas e Caçambas;Locação de Máquinas;Saída
+Custos operacionais;Limpezas;Equipe Limpeza Grossa e Fina;Saída
+Custos operacionais;Despesas Inidiretas e Administração;Departamento de Engenharia da Obra;Saída
+Custos operacionais;Despesas Inidiretas e Administração;Departamento de Arquitetura da Obra;Saída
+Custos operacionais;Despesas Inidiretas e Administração;Depart. Administrativo, Financeiro e Contábil;Saída
+Custos operacionais;Despesas Inidiretas e Administração;Técnico de Segurança do Trabalho;Saída
+Custos operacionais;Despesas Inidiretas e Administração;Auditor da Obra;Saída
+Custos operacionais;Despesas Inidiretas e Administração;Passagem do Auditor da Obra;Saída
+Custos operacionais;Despesas Inidiretas e Administração;Ajuda de Custo do Auditor da Obra;Saída
+Custos operacionais;Despesas Inidiretas e Administração;Coordenador da Obra;Saída
+Custos operacionais;Despesas Inidiretas e Administração;Passagem do Coordenador da Obra;Saída
+Custos operacionais;Despesas Inidiretas e Administração;Ajuda de Custo do Coordenador;Saída
+Custos operacionais;Despesas Inidiretas e Administração;Ajudante de Apoio;Saída
+Custos operacionais;Despesas Inidiretas e Administração;Ajuda de Custo do Ajudante de Apoio;Saída
+Custos operacionais;Despesas Inidiretas e Administração;Passagens, Alimenatação e Alojamentos da Obra;Saída
+Custos operacionais;Despesas Inidiretas e Administração;Programas Sociais, (PCMSO e PPRA);Saída
+Custos operacionais;Impostos retidos sobre a receita;Outras Retenções sobre a Receita;Saída
+Custos operacionais;Impostos retidos sobre a receita;IRPJ Retido sobre a Receita;Saída
+Custos operacionais;Impostos retidos sobre a receita;CSLL Retido sobre a Receita;Saída
+Custos operacionais;Impostos retidos sobre a receita;INSS Retido sobre a Receita;Saída
+Custos operacionais;Impostos retidos sobre a receita;ISS Retido sobre a Receita;Saída
+Custos operacionais;Impostos retidos sobre a receita;COFINS Retido sobre a Receita;Saída
+Custos operacionais;Impostos retidos sobre a receita;PIS Retido sobre a Receita;Saída
+Despesas operacionais e outras receitas;Despesas Comerciais;Comissões s/ vendas Projetos Arquitetônicos;Saída
+Despesas operacionais e outras receitas;Despesas Comerciais;Comissões s/ vendas Obras Civil;Saída
+Despesas operacionais e outras receitas;Despesas Comerciais;Comissões s/ vendas Montagens Comerciais;Saída
+Despesas operacionais e outras receitas;Despesas Comerciais;Impressão de material publicitário / Brindes;Saída
+Despesas operacionais e outras receitas;Despesas Comerciais;Tráfego Pago Meta (Facebook e Instagram);Saída
+Despesas operacionais e outras receitas;Despesas Comerciais;Tráfego Pago Google;Saída
+Despesas operacionais e outras receitas;Despesas Comerciais;Criação de Conteúdo Fotos e Filmagens;Saída
+Despesas operacionais e outras receitas;Despesas Comerciais;Eventos (Patrocínio e Realizações);Saída
+Despesas operacionais e outras receitas;Despesas Comerciais;Agência de Publicidades (Consultoria);Saída
+Despesas operacionais e outras receitas;Despesas Comerciais;Imposto Sobre Vendas - Simples Nacional;Saída
+Despesas operacionais e outras receitas;Despesas Comerciais;Imposto Sobre Vendas - Difal;Saída
+Despesas operacionais e outras receitas;Despesa Financeira;Juros sobre Empréstimos Realizados;Saída
+Despesas operacionais e outras receitas;Despesa Financeira;Encargos de Antecipação de Recebíveis;Saída
+Despesas operacionais e outras receitas;Despesa Financeira;Encargos Pagamentos em Atraso;Saída
+Despesas operacionais e outras receitas;Despesa Financeira;Despesas Bancárias;Saída
+Despesas operacionais e outras receitas;Despesa Financeira;Parcelas de Financiamentos;Saída
+Despesas operacionais e outras receitas;Despesa Financeira;Parcelas de Consórcios;Saída
+Despesas operacionais e outras receitas;Despesa Financeira;Pagamento de Empréstimos de Terceiros;Saída
+Despesas operacionais e outras receitas;Despesa com Pessoal;Salários;Saída
+Despesas operacionais e outras receitas;Despesa com Pessoal;Férias;Saída
+Despesas operacionais e outras receitas;Despesa com Pessoal;13º salário;Saída
+Despesas operacionais e outras receitas;Despesa com Pessoal;Aviso prévio;Saída
+Despesas operacionais e outras receitas;Despesa com Pessoal;Horas extras;Saída
+Despesas operacionais e outras receitas;Despesa com Pessoal;Prêmios e gratificações;Saída
+Despesas operacionais e outras receitas;Despesa com Pessoal;INSS sobre folha;Saída
+Despesas operacionais e outras receitas;Despesa com Pessoal;FGTS sobre folha;Saída
+Despesas operacionais e outras receitas;Despesa com Pessoal;Cestas Básicas;Saída
+Despesas operacionais e outras receitas;Despesa com Pessoal;Rescisão Contratual;Saída
+Despesas operacionais e outras receitas;Despesa com Pessoal;Processo Jurídico Trabalhista;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Aluguéis de imóveis;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Aquisição de E.P.I.;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Aquisição de equipamentos de informática;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Aquisição de ferramentas;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Aquisição Equipamentos e ferramentas;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Assessoria Contábil;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Assessoria informática;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Certificado digital;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Combustível e lubrificante;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Condomínios dos imóveis;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Consultoria Administrativa;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Consultoria de Engenharia;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Consultoria Jurídica;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Cópias e reproduções;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Deslocamentos (Uber/Táxi/Ônibus/Avião);Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Dízimos e Ofertas;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Energia Elétrica;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Exames Admissionais e Demissionais;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Fretes e carretos;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Hotelaria e hospedagens;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Impostos e taxas;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;IPTU dos imóveis;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Lanches e Refeições;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Manutenção de Veículos;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Material de copa e cozinha;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Material de expediente escritório;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Material de limpeza e higiene;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Móveis e utensílios;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Postagens nos Correios;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Registro de domínio e hospedagem;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Segurança patrimonial;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Serviço de Abastecimento de água;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Serviço de internet;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Serviços de Informática;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Serviços de reparos e conservação;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Serviços em geral;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Sistema de Informação / site;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Taxa de licença de uso de software;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Taxas cartoriais;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Taxas de associações e sindicatos;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Telefonia;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Uniformes;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Veículos;Saída
+Despesas operacionais e outras receitas;Despesa Administrativa;Limpeza do Escritório - Diaristas;Saída
+Despesas operacionais e outras receitas;;Descontos Recebidos;Entrada
+Despesas operacionais e outras receitas;;Multas Pagas;Saída
+Despesas operacionais e outras receitas;;Juros Pagos;Saída
+Despesas operacionais e outras receitas;Pagamento de impostos retidos;Pagamento de INSS Retido;Saída
+Despesas operacionais e outras receitas;Pagamento de impostos retidos;Pagamento de Cofins Retido;Saída
+Despesas operacionais e outras receitas;Pagamento de impostos retidos;Pagamento de IRPJ Retido;Saída
+Despesas operacionais e outras receitas;Pagamento de impostos retidos;Pagamento de CSLL Retido;Saída
+Despesas operacionais e outras receitas;Pagamento de impostos retidos;Pagamento de Outras retenções;Saída
+Despesas operacionais e outras receitas;Pagamento de impostos retidos;Pagamento de PIS Retido;Saída
+Despesas operacionais e outras receitas;Pagamento de impostos retidos;Pagamento de ISS Retido;Saída
+Despesas operacionais e outras receitas;Impostos retidos sobre pagamentos;ISS Retido sobre Pagamentos;Entrada
+Despesas operacionais e outras receitas;Impostos retidos sobre pagamentos;COFINS Retido sobre Pagamentos;Entrada
+Despesas operacionais e outras receitas;Impostos retidos sobre pagamentos;INSS Retido sobre Pagamentos;Entrada
+Despesas operacionais e outras receitas;Impostos retidos sobre pagamentos;CSLL Retido sobre Pagamentos;Entrada
+Despesas operacionais e outras receitas;Impostos retidos sobre pagamentos;PIS Retido sobre Pagamentos;Entrada
+Despesas operacionais e outras receitas;Impostos retidos sobre pagamentos;Outras Retenções sobre Pagamentos;Entrada
+Despesas operacionais e outras receitas;Impostos retidos sobre pagamentos;IRPJ Retido sobre Pagamentos;Entrada
+Despesas operacionais e outras receitas;;Tarifas Bancárias;Saída
+Despesas operacionais e outras receitas;;Despesa Financeira;Saída
+Atividades de investimento;Receita Financeira;Venda de ativo fixo;Entrada
+Atividades de investimento;Despesa Financeira;Compra de ativo fixo;Saída
+Atividades de financiamento;Receita Financeira;Obtenção de empréstimo;Entrada
+Atividades de financiamento;Receita Financeira;Aporte de capital;Entrada
+Atividades de financiamento;Despesa Financeira;Pagamento de empréstimo;Saída
+Atividades de financiamento;Despesa Financeira;Retirada de capital;Saída

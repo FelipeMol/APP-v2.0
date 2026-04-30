@@ -1,6 +1,7 @@
 // Cadastros → Categorias Financeiro + Centros de Custo
 // Duas abas: Categorias (com hierarquia pai/filho) e Centros de Custo
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { categoriasService, centrosCustoService } from '@/services/financeiroService'
 import {
@@ -208,7 +209,14 @@ function AbaCategorias() {
   return (
     <div>
       {/* Header da aba */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16, gap: 8 }}>
+        <Link to="/cadastros/importar-categorias" style={{
+          background: C.surface, color: C.ink2, border: `1px solid ${C.line}`, borderRadius: 8,
+          padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 500,
+          display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none',
+        }}>
+          ↑ Importar CSV
+        </Link>
         <button onClick={openNew} style={{
           background: C.navy, color: '#fff', border: 'none', borderRadius: 8,
           padding: '8px 16px', cursor: 'pointer', fontSize: 14, fontWeight: 600,
