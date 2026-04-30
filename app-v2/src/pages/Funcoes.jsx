@@ -94,14 +94,19 @@ export default function Funcoes() {
     }
 
     try {
-      console.log('🟢 Enviando para API...', formData);
+      const ativoVal = formData.ativo;
+      const payload = {
+        ...formData,
+        ativo: (ativoVal === 'Sim' || ativoVal === 1 || ativoVal === true) ? 1 : 0,
+      };
+      console.log('🟢 Enviando para API...', payload);
 
       if (editingId) {
-        const res = await funcoesService.update(editingId, formData);
+        const res = await funcoesService.update(editingId, payload);
         console.log('✅ Resposta UPDATE:', res);
         toast.success(res?.mensagem || 'Função atualizada');
       } else {
-        const res = await funcoesService.create(formData);
+        const res = await funcoesService.create(payload);
         console.log('✅ Resposta CREATE:', res);
         toast.success(res?.mensagem || 'Função criada');
       }

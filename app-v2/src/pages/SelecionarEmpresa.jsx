@@ -46,7 +46,7 @@ function TenantCard({ tenant, isSelected, disabled, onSelect }) {
 export default function SelecionarEmpresa() {
   const navigate = useNavigate();
   const { selectedTenantId, setTenant, tenants, isLoadingTenants, loadTenants, loadModulosDoTenant } = useTenantStore();
-  const { grupo, domainTenants, autoTenantId } = useGrupoStore();
+  const { grupo, domainTenants, autoTenantId, isLoadingGrupo, loaded: grupoLoaded } = useGrupoStore();
   const branding = useTenantBranding();
 
   const [entering, setEntering] = useState(false);
@@ -54,6 +54,10 @@ export default function SelecionarEmpresa() {
   const [enteringTenant, setEnteringTenant] = useState(null);
 
   useEffect(() => {
+    // Aguarda o grupoStore terminar antes de carregar tenants
+    // evita mostrar todos os tenants enquanto resolve_domain ainda está em andamento
+    if (isLoadingGrupo || !grupoLoaded) return;
+
     if (autoTenantId && domainTenants.length === 1) {
       setTenant(autoTenantId);
       loadModulosDoTenant(autoTenantId);
@@ -64,7 +68,7 @@ export default function SelecionarEmpresa() {
     const allowedTenants = authService.getAllowedTenants().map(t => t.id ?? t);
     const grupoId = grupo?.id ?? null;
     loadTenants(allowedTenants, grupoId, domainTenants, autoTenantId);
-  }, [loadTenants, grupo, domainTenants, autoTenantId, setTenant, loadModulosDoTenant, navigate]);
+  }, [loadTenants, grupo, domainTenants, autoTenantId, isLoadingGrupo, grupoLoaded, setTenant, loadModulosDoTenant, navigate]);
 
   const handleSelect = async (tenantId) => {
     const tenant = tenants.find(t => t.id === tenantId);
@@ -94,7 +98,7 @@ export default function SelecionarEmpresa() {
           </div>
 
           <div className={`grid gap-6 ${
-            isLoadingTenants
+            (isLoadingTenants || isLoadingGrupo || !grupoLoaded)
               ? 'grid-cols-1 md:grid-cols-3'
               : tenants.length === 1
                 ? 'grid-cols-1 max-w-md mx-auto'
@@ -102,7 +106,7 @@ export default function SelecionarEmpresa() {
                   ? 'grid-cols-1 md:grid-cols-2 max-w-3xl mx-auto'
                   : 'grid-cols-1 md:grid-cols-3'
           }`}>
-            {isLoadingTenants ? (
+            {(isLoadingTenants || isLoadingGrupo || !grupoLoaded) ? (
               <>
                 <TenantCardSkeleton />
                 <TenantCardSkeleton />

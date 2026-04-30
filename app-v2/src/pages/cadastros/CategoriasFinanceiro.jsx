@@ -128,15 +128,15 @@ function AbaCategorias() {
   })
 
   function openNew() {
-    setForm({ nome: '', tipo: 'despesa', cor: '#3b82f6', icone: '📁', grupo: '', parent_id: null })
+    setForm({ nome: '', tipo: 'despesa', cor: '#3b82f6', icone: '', grupo: '', parent_id: null })
     setModal({ mode: 'new' })
   }
   function openEdit(cat) {
-    setForm({ nome: cat.nome, tipo: cat.tipo, cor: cat.cor || '#3b82f6', icone: cat.icone || '📁', grupo: cat.grupo || '', parent_id: cat.parent_id })
+    setForm({ nome: cat.nome, tipo: cat.tipo, cor: cat.cor || '#3b82f6', icone: cat.icone || '', grupo: cat.grupo || '', parent_id: cat.parent_id })
     setModal({ mode: 'edit', id: cat.id })
   }
   function openSub(parent) {
-    setForm({ nome: '', tipo: parent.tipo, cor: parent.cor || '#3b82f6', icone: '📌', grupo: parent.grupo || '', parent_id: parent.id })
+    setForm({ nome: '', tipo: parent.tipo, cor: parent.cor || '#3b82f6', icone: '', grupo: parent.grupo || '', parent_id: parent.id })
     setModal({ mode: 'sub', parentNome: parent.nome })
   }
   function handleSave() {
@@ -170,7 +170,7 @@ function AbaCategorias() {
             </button>
           ) : <span style={{ width: 15 }} />}
 
-          <span style={{ fontSize: 18, lineHeight: 1 }}>{cat.icone || '📁'}</span>
+          <span style={{ width: 10, height: 10, borderRadius: '50%', background: cat.cor || '#3b82f6', flexShrink: 0 }} />
           <span style={{ flex: 1, fontSize: 14, fontWeight: isChild ? 400 : 600, color: C.ink }}>{cat.nome}</span>
 
           {cat.grupo && (
@@ -260,15 +260,10 @@ function AbaCategorias() {
           <Field label="Grupo (opcional)">
             <input style={input} value={form.grupo} onChange={e => setForm(p => ({ ...p, grupo: e.target.value }))} placeholder="Ex: Mão de obra, Materiais…" />
           </Field>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <Field label="Ícone">
-              <input style={{ ...input, width: 80 }} value={form.icone} onChange={e => setForm(p => ({ ...p, icone: e.target.value }))} placeholder="📁" />
-            </Field>
-            <Field label="Cor">
-              <input type="color" value={form.cor} onChange={e => setForm(p => ({ ...p, cor: e.target.value }))}
-                style={{ width: 48, height: 38, border: 'none', borderRadius: 8, cursor: 'pointer', padding: 2 }} />
-            </Field>
-          </div>
+          <Field label="Cor">
+            <input type="color" value={form.cor} onChange={e => setForm(p => ({ ...p, cor: e.target.value }))}
+              style={{ width: 48, height: 38, border: 'none', borderRadius: 8, cursor: 'pointer', padding: 2 }} />
+          </Field>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
             <button onClick={() => setModal(null)} style={{ padding: '8px 18px', borderRadius: 8, border: `1px solid ${C.line}`, background: C.surface, cursor: 'pointer', fontSize: 14, color: C.ink2 }}>
               Cancelar
