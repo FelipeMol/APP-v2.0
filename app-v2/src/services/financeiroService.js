@@ -207,7 +207,7 @@ export const orcamentosService = {
     let q = supabase
       .from('financeiro_orcamentos')
       .select('*, financeiro_categorias(id,nome,tipo,parent_id,grupo)')
-      .eq('ano', ano)
+      .or(`ano.eq.${ano},ano.is.null`)
     if (obraId) q = q.eq('obra_id', obraId)
     else q = q.is('obra_id', null)
     const { data, error } = await q

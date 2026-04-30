@@ -71,7 +71,7 @@ function Banner({ totalPrevisto, totalRealizado, obraNome, ano }) {
       </div>
       <div style={{ paddingLeft: 24, paddingRight: 24, borderRight: '1px solid rgba(255,255,255,.12)' }}>
         <div style={{ fontSize: 10, letterSpacing: '.15em', color: 'rgba(255,255,255,.5)', fontWeight: 600 }}>PREVISTO</div>
-        <div style={{ fontSize: 30, fontWeight: 700, color: '#fff', marginTop: 6 }}>{brlK(totalPrevisto)}</div>
+        <div style={{ fontSize: 30, fontWeight: 700, color: '#fff', marginTop: 6 }}>{brl(totalPrevisto)}</div>
         <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginTop: 4 }}>Orcamento total</div>
       </div>
       <div style={{ paddingLeft: 24, paddingRight: 24, borderRight: '1px solid rgba(255,255,255,.12)' }}>
