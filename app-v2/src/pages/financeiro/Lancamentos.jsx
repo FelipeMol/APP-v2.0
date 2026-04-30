@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { lancamentosFinService, categoriasService, contasService, centrosCustoService } from '@/services/financeiroService'
 import { contatosService } from '@/services/contatosService'
+import obrasService from '@/services/obrasService'
 import useAuthStore from '@/store/authStore'
 import supabase from '@/lib/supabase'
 
@@ -91,7 +92,7 @@ function FilterField({ label, value, onChange, children }) {
 }
 
 // Modal novo / editar lançamento
-const EMPTY_FORM = { descricao: '', valor: '', tipo: 'despesa', categoria_id: '', conta_id: '', data_vencimento: '', data_pagamento: '', status: 'pendente', numero_documento: '', observacao: '', contato_id: '', centro_custo_id: '', parcela_numero: '', parcela_total: '' }
+const EMPTY_FORM = { descricao: '', valor: '', tipo: 'despesa', categoria_id: '', conta_id: '', obra_id: '', data_vencimento: '', data_pagamento: '', status: 'pendente', numero_documento: '', observacao: '', contato_id: '', centro_custo_id: '', parcela_numero: '', parcela_total: '' }
 
 function buildCatTree(cats) {
   const raiz = cats.filter(c => !c.parent_id)
@@ -253,7 +254,7 @@ function AnexosZone({ files, onAdd, onRemove }) {
 }
 
 // ── LancamentoModal ───────────────────────────────────────────────
-function LancamentoModal({ open, onClose, onSave, form, setForm, saving, editId, categorias, contas, contatos, centrosCusto }) {
+function LancamentoModal({ open, onClose, onSave, form, setForm, saving, editId, categorias, contas, contatos, centrosCusto, obras }) {
   const [files, setFiles] = useState([])
   const catsFiltradas = categorias.filter(c => !form.tipo || c.tipo === form.tipo)
   const catTree = buildCatTree(catsFiltradas)
@@ -364,6 +365,14 @@ function LancamentoModal({ open, onClose, onSave, form, setForm, saving, editId,
               </Field>
             </div>
 
+            {/* Obra */}
+            <Field label="🏗️ Obra vinculada">
+              <select style={{ ...inp(), cursor: 'pointer' }} value={form.obra_id} onChange={e => setForm(f => ({ ...f, obra_id: e.target.value }))}>
+                <option value="">Sem obra vinculada</option>
+                {obras.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+              </select>
+            </Field>
+
             {/* Parcelas + Observação */}
             <div style={{ display: 'grid', gridTemplateColumns: '120px 120px 1fr', gap: 12 }}>
               <Field label="Parcela nº">
@@ -465,6 +474,7 @@ export default function Lancamentos() {
   const { data: contas = [] }     = useQuery({ queryKey: ['fin-contas'],     queryFn: () => contasService.list(),    staleTime: 5 * 60 * 1000 })
   const { data: contatos = [] }   = useQuery({ queryKey: ['contatos'],       queryFn: () => contatosService.list(),  staleTime: 5 * 60 * 1000 })
   const { data: centrosCusto = [] } = useQuery({ queryKey: ['fin-centros-custo'], queryFn: () => centrosCustoService.list(), staleTime: 5 * 60 * 1000 })
+  const { data: obras = [] } = useQuery({ queryKey: ['obras'], queryFn: () => obrasService.list(), staleTime: 5 * 60 * 1000 })
 
   const { data: lancamentos = [], isFetching: loading } = useQuery({
     queryKey: ['fin-lancamentos', filtros],
@@ -521,7 +531,7 @@ export default function Lancamentos() {
 
   function abrir(tipo = 'despesa', l = null) {
     if (l) {
-      setForm({ descricao: l.descricao, valor: String(l.valor), tipo: l.tipo, categoria_id: l.categoria_id || '', conta_id: l.conta_id || '', data_vencimento: l.data_vencimento || '', data_pagamento: l.data_pagamento || '', status: l.status, numero_documento: l.numero_documento || '', observacao: l.observacao || '', contato_id: l.contato_id || '', centro_custo_id: l.centro_custo_id || '', parcela_numero: l.parcela_numero ? String(l.parcela_numero) : '', parcela_total: l.parcela_total ? String(l.parcela_total) : '' })
+      setForm({ descricao: l.descricao, valor: String(l.valor), tipo: l.tipo, categoria_id: l.categoria_id || '', conta_id: l.conta_id || '', obra_id: l.obra_id ? String(l.obra_id) : '', data_vencimento: l.data_vencimento || '', data_pagamento: l.data_pagamento || '', status: l.status, numero_documento: l.numero_documento || '', observacao: l.observacao || '', contato_id: l.contato_id || '', centro_custo_id: l.centro_custo_id || '', parcela_numero: l.parcela_numero ? String(l.parcela_numero) : '', parcela_total: l.parcela_total ? String(l.parcela_total) : '' })
       setEditId(l.id)
     } else { setForm({ ...EMPTY_FORM, tipo }); setEditId(null) }
     setOpen(true)
@@ -530,7 +540,7 @@ export default function Lancamentos() {
   async function salvar(e, files = []) {
     e.preventDefault()
     if (!form.descricao || !form.valor || !form.data_vencimento) { toast.error('Descrição, valor e vencimento obrigatórios'); return }
-    const payload = { descricao: form.descricao, valor: parseFloat(form.valor), tipo: form.tipo, categoria_id: form.categoria_id || null, conta_id: form.conta_id || null, data_vencimento: form.data_vencimento, data_pagamento: form.data_pagamento || (form.status === 'pago' ? new Date().toISOString().slice(0, 10) : null), status: form.status, numero_documento: form.numero_documento || null, observacao: form.observacao || null, contato_id: form.contato_id || null, centro_custo_id: form.centro_custo_id || null, parcela_numero: form.parcela_numero ? parseInt(form.parcela_numero) : null, parcela_total: form.parcela_total ? parseInt(form.parcela_total) : null }
+    const payload = { descricao: form.descricao, valor: parseFloat(form.valor), tipo: form.tipo, categoria_id: form.categoria_id || null, conta_id: form.conta_id || null, obra_id: form.obra_id ? parseInt(form.obra_id) : null, data_vencimento: form.data_vencimento, data_pagamento: form.data_pagamento || (form.status === 'pago' ? new Date().toISOString().slice(0, 10) : null), status: form.status, numero_documento: form.numero_documento || null, observacao: form.observacao || null, contato_id: form.contato_id || null, centro_custo_id: form.centro_custo_id || null, parcela_numero: form.parcela_numero ? parseInt(form.parcela_numero) : null, parcela_total: form.parcela_total ? parseInt(form.parcela_total) : null }
     if (files?.length) {
       const uploaded = []
       for (const file of files) {
@@ -733,6 +743,7 @@ export default function Lancamentos() {
         contas={contas}
         contatos={contatos}
         centrosCusto={centrosCusto}
+        obras={obras}
       />
     </div>
   )
