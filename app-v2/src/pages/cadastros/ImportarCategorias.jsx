@@ -1,7 +1,8 @@
 // Importar Categorias via CSV
 // Formato esperado: Grupo;Subgrupo;Categoria;Tipo  (Entrada=receita / Saída=despesa)
 import { useState, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import supabase from '@/lib/supabase'
 
@@ -14,7 +15,9 @@ const C = {
 
 // ── Parse CSV ponto-e-vírgula ─────────────────────────────
 function parseCSV(text) {
-  const lines = text.trim().split('\n').filter(Boolean)
+  // normaliza quebras de linha Windows (CRLF → LF)
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  const lines = normalized.trim().split('\n').filter(Boolean)
   if (lines.length < 2) return []
   const header = lines[0].split(';').map(h => h.trim())
   return lines.slice(1).map(line => {
@@ -22,19 +25,28 @@ function parseCSV(text) {
     const row = {}
     header.forEach((h, i) => { row[h] = (cols[i] || '').trim() })
     return row
-  })
+  }).filter(r => r['Grupo']) // ignora linhas completamente vazias
+}
+
+// ── Tipo majoritário de um conjunto de linhas ─────────────
+function tipoMajoritario(linhas) {
+  const receitas = linhas.filter(r => r['Tipo']?.toLowerCase() === 'entrada').length
+  const despesas = linhas.filter(r => r['Tipo']?.toLowerCase().startsWith('sa')).length
+  return receitas > despesas ? 'receita' : 'despesa'
 }
 
 // ── Monta estrutura em árvore a partir das linhas CSV ─────
 function buildTree(rows) {
-  // grupos únicos
+  // grupos únicos (preserva ordem)
   const grupos = [...new Set(rows.map(r => r['Grupo']).filter(Boolean))]
-  // subgrupos únicos por grupo
+  // subgrupos únicos por grupo (como array, não Set, para evitar problemas de serialização)
   const subgrupos = {}
   rows.forEach(r => {
     if (!r['Grupo'] || !r['Subgrupo']) return
-    if (!subgrupos[r['Grupo']]) subgrupos[r['Grupo']] = new Set()
-    subgrupos[r['Grupo']].add(r['Subgrupo'])
+    if (!subgrupos[r['Grupo']]) subgrupos[r['Grupo']] = []
+    if (!subgrupos[r['Grupo']].includes(r['Subgrupo'])) {
+      subgrupos[r['Grupo']].push(r['Subgrupo'])
+    }
   })
   return { grupos, subgrupos, rows }
 }
@@ -42,6 +54,8 @@ function buildTree(rows) {
 // ── Componente ────────────────────────────────────────────
 export default function ImportarCategorias() {
   const fileRef = useRef(null)
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [step, setStep] = useState(0)
   const [rows, setRows] = useState([])
   const [tree, setTree] = useState(null)
@@ -49,12 +63,15 @@ export default function ImportarCategorias() {
   const [importing, setImporting] = useState(false)
   const [progress, setProgress] = useState(0)
   const [result, setResult] = useState(null)
+  const [errors, setErrors] = useState([])
 
   function handleFile(file) {
     if (!file?.name.match(/\.csv$/i)) { toast.error('Selecione um arquivo .csv'); return }
     const reader = new FileReader()
     reader.onload = e => {
-      const parsed = parseCSV(e.target.result)
+      // tenta UTF-8 primeiro; se tiver caracteres ruins, usa latin-1
+      let text = e.target.result
+      const parsed = parseCSV(text)
       if (!parsed.length) { toast.error('CSV sem dados ou formato inválido'); return }
       setRows(parsed)
       setTree(buildTree(parsed))
@@ -71,74 +88,72 @@ export default function ImportarCategorias() {
   // Conta grupos / subgrupos / categorias únicos
   const stats = tree ? {
     grupos: tree.grupos.length,
-    subgrupos: Object.values(tree.subgrupos).reduce((s, v) => s + v.size, 0),
+    subgrupos: Object.values(tree.subgrupos).reduce((s, v) => s + v.length, 0),
     categorias: rows.length,
     receitas: rows.filter(r => r['Tipo']?.toLowerCase() === 'entrada').length,
-    despesas: rows.filter(r => r['Tipo']?.toLowerCase() === 'saída' || r['Tipo']?.toLowerCase() === 'saida').length,
+    despesas: rows.filter(r => r['Tipo']?.toLowerCase().startsWith('sa')).length,
   } : null
 
   async function importar() {
     setImporting(true)
     setProgress(0)
+    setErrors([])
     try {
       // PASSO 1: inserir grupos (nível 1, sem parent_id)
-      const gruposUnicos = tree.grupos
-      const gruposPayload = gruposUnicos.map(nome => {
-        // tipo do grupo = inferido pelo conteúdo (se tem alguma receita, marca como receita; se misto, despesa)
-        const linhasDoGrupo = rows.filter(r => r['Grupo'] === nome)
-        const temReceita = linhasDoGrupo.some(r => r['Tipo']?.toLowerCase() === 'entrada')
-        const temDespesa = linhasDoGrupo.some(r => r['Tipo']?.toLowerCase().startsWith('sa'))
-        const tipo = temReceita && !temDespesa ? 'receita' : 'despesa'
-        return { nome, tipo }
-      })
+      const gruposPayload = tree.grupos.map(nome => ({
+        nome,
+        tipo: tipoMajoritario(rows.filter(r => r['Grupo'] === nome)),
+      }))
       setProgress(10)
 
       const { data: gruposInseridos, error: e1 } = await supabase
         .from('financeiro_categorias').insert(gruposPayload).select('id, nome')
-      if (e1) throw e1
+      if (e1) throw new Error('Erro ao inserir grupos: ' + e1.message)
+      if (!gruposInseridos?.length) throw new Error('Nenhum grupo foi inserido. Verifique permissões.')
 
       // mapa nome → id
       const grupoMap = Object.fromEntries(gruposInseridos.map(g => [g.nome, g.id]))
       setProgress(25)
 
-      // PASSO 2: inserir subgrupos (nível 2, parent = grupo)
+      // PASSO 2: inserir subgrupos (nível 2)
       const subgruposPayload = []
       for (const [grupoNome, subs] of Object.entries(tree.subgrupos)) {
+        const grupoId = grupoMap[grupoNome]
+        if (!grupoId) continue // grupo não encontrado — não deve acontecer
         for (const subNome of subs) {
           const linhasDoSub = rows.filter(r => r['Grupo'] === grupoNome && r['Subgrupo'] === subNome)
-          const temReceita = linhasDoSub.some(r => r['Tipo']?.toLowerCase() === 'entrada')
-          const temDespesa = linhasDoSub.some(r => r['Tipo']?.toLowerCase().startsWith('sa'))
-          const tipo = temReceita && !temDespesa ? 'receita' : 'despesa'
-          subgruposPayload.push({ nome: subNome, tipo, parent_id: grupoMap[grupoNome] })
+          subgruposPayload.push({
+            nome: subNome,
+            tipo: tipoMajoritario(linhasDoSub),
+            parent_id: grupoId,
+          })
         }
       }
 
       const { data: subgruposInseridos, error: e2 } = await supabase
         .from('financeiro_categorias').insert(subgruposPayload).select('id, nome, parent_id')
-      if (e2) throw e2
+      if (e2) throw new Error('Erro ao inserir subgrupos: ' + e2.message)
 
       // mapa "grupo_id:subNome" → id do subgrupo
       const subMap = {}
       subgruposInseridos.forEach(s => { subMap[`${s.parent_id}:${s.nome}`] = s.id })
       setProgress(50)
 
-      // PASSO 3: inserir categorias folha (nível 3 se tem subgrupo, nível 2 se não tem)
-      const catPayload = rows.map(r => {
-        const tipo = r['Tipo']?.toLowerCase() === 'entrada' ? 'receita' : 'despesa'
-        const grupoId = grupoMap[r['Grupo']]
-        let parent_id = grupoId // fallback: direto no grupo
+      // PASSO 3: inserir categorias folha
+      const catPayload = rows
+        .filter(r => r['Categoria']?.trim()) // só linhas com categoria
+        .map(r => {
+          const tipo = r['Tipo']?.toLowerCase() === 'entrada' ? 'receita' : 'despesa'
+          const grupoId = grupoMap[r['Grupo']]
+          let parent_id = grupoId ?? null
 
-        if (r['Subgrupo'] && grupoId) {
-          const subId = subMap[`${grupoId}:${r['Subgrupo']}`]
-          if (subId) parent_id = subId
-        }
+          if (r['Subgrupo'] && grupoId != null) {
+            const subId = subMap[`${grupoId}:${r['Subgrupo']}`]
+            if (subId != null) parent_id = subId
+          }
 
-        return {
-          nome: r['Categoria'] || r['Subgrupo'] || r['Grupo'],
-          tipo,
-          parent_id: parent_id || null,
-        }
-      }).filter(r => r.nome) // ignora linhas sem nome
+          return { nome: r['Categoria'].trim(), tipo, parent_id }
+        })
 
       // Insere em chunks de 100
       let done = 0
@@ -146,10 +161,14 @@ export default function ImportarCategorias() {
       for (let i = 0; i < catPayload.length; i += CHUNK) {
         const chunk = catPayload.slice(i, i + CHUNK)
         const { error: e3 } = await supabase.from('financeiro_categorias').insert(chunk)
-        if (e3) throw e3
+        if (e3) throw new Error(`Erro ao inserir categorias (lote ${i / CHUNK + 1}): ${e3.message}`)
         done += chunk.length
         setProgress(50 + Math.round((done / catPayload.length) * 50))
       }
+
+      // Invalida cache para forçar re-fetch na página de categorias
+      await queryClient.invalidateQueries(['financeiro_categorias'])
+      await queryClient.invalidateQueries(['fin-categorias'])
 
       setResult({
         grupos: gruposInseridos.length,
@@ -158,6 +177,7 @@ export default function ImportarCategorias() {
         total: gruposInseridos.length + subgruposInseridos.length + catPayload.length,
       })
       setStep(2)
+      toast.success('Categorias importadas com sucesso!')
     } catch (err) {
       toast.error('Erro na importação: ' + err.message)
     } finally {

@@ -151,20 +151,23 @@ function AbaCategorias() {
 
   const tipoInfo = (tipo) => TIPOS.find(t => t.value === tipo) || TIPOS[0]
 
-  function CatRow({ cat, isChild }) {
+  function CatRow({ cat, depth = 0 }) {
     const filhos = filhosDe(cat.id)
     const open = expanded[cat.id]
     const t = tipoInfo(cat.tipo)
+    const paddingLeft = 14 + depth * 24
+    const bgColors = [C.surface, C.surface2, '#F0EDE7']
+    const bg = bgColors[Math.min(depth, bgColors.length - 1)]
     return (
       <div>
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px',
           borderBottom: `1px solid ${C.line2}`,
-          background: isChild ? C.surface2 : C.surface,
-          paddingLeft: isChild ? 38 : 14,
+          background: bg,
+          paddingLeft,
         }}>
           {/* Expand icon */}
-          {!isChild && filhos.length > 0 ? (
+          {filhos.length > 0 ? (
             <button onClick={() => setExpanded(p => ({ ...p, [cat.id]: !p[cat.id] }))}
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: C.ink3 }}>
               {open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
@@ -172,7 +175,7 @@ function AbaCategorias() {
           ) : <span style={{ width: 15 }} />}
 
           <span style={{ width: 10, height: 10, borderRadius: '50%', background: cat.cor || '#3b82f6', flexShrink: 0 }} />
-          <span style={{ flex: 1, fontSize: 14, fontWeight: isChild ? 400 : 600, color: C.ink }}>{cat.nome}</span>
+          <span style={{ flex: 1, fontSize: 14, fontWeight: depth === 0 ? 600 : depth === 1 ? 500 : 400, color: C.ink }}>{cat.nome}</span>
 
           {cat.grupo && (
             <span style={{ fontSize: 11, color: C.ink3, background: C.surface2, border: `1px solid ${C.line}`, borderRadius: 4, padding: '2px 6px' }}>
@@ -186,12 +189,10 @@ function AbaCategorias() {
           }}>{t.label}</span>
 
           <div style={{ display: 'flex', gap: 4 }}>
-            {!isChild && (
-              <button onClick={() => openSub(cat)}
-                style={{ background: 'none', border: `1px solid ${C.line}`, borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontSize: 11, color: C.ink2 }}>
-                + Sub
-              </button>
-            )}
+            <button onClick={() => openSub(cat)}
+              style={{ background: 'none', border: `1px solid ${C.line}`, borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontSize: 11, color: C.ink2 }}>
+              + Sub
+            </button>
             <button onClick={() => openEdit(cat)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
               <Pencil size={14} color={C.ink3} />
             </button>
@@ -201,7 +202,7 @@ function AbaCategorias() {
             </button>
           </div>
         </div>
-        {open && filhos.map(f => <CatRow key={f.id} cat={f} isChild />)}
+        {open && filhos.map(f => <CatRow key={f.id} cat={f} depth={depth + 1} />)}
       </div>
     )
   }
@@ -235,7 +236,7 @@ function AbaCategorias() {
             Nenhuma categoria cadastrada ainda.
           </div>
         ) : (
-          raizes.map(cat => <CatRow key={cat.id} cat={cat} isChild={false} />)
+          raizes.map(cat => <CatRow key={cat.id} cat={cat} depth={0} />)
         )}
       </div>
 
