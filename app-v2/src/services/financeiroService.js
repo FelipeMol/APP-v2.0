@@ -6,17 +6,20 @@ const check = (error) => { if (error) throw new Error(error.message) }
 export const contasService = {
   async list() {
     const { data, error } = await supabase
-      .from('financeiro_contas').select('*').eq('ativo', true).order('nome')
+      .from('financeiro_contas')
+      .select('*, empresa:empresa_id(id, nome)')
+      .eq('ativo', true)
+      .order('nome')
     check(error); return data || []
   },
   async create(payload) {
     const { data, error } = await supabase
-      .from('financeiro_contas').insert(payload).select().single()
+      .from('financeiro_contas').insert(payload).select('*, empresa:empresa_id(id, nome)').single()
     check(error); return data
   },
   async update(id, payload) {
     const { data, error } = await supabase
-      .from('financeiro_contas').update(payload).eq('id', id).select().single()
+      .from('financeiro_contas').update(payload).eq('id', id).select('*, empresa:empresa_id(id, nome)').single()
     check(error); return data
   },
   async remove(id) {
@@ -37,6 +40,56 @@ export const contasService = {
     ;(data || []).forEach(l => {
       map[l.conta_id] = (map[l.conta_id] || 0) + (l.tipo === 'receita' ? +l.valor : -l.valor)
     })
+    return map
+  },
+  async movimentacaoMes(contaIds) {
+    if (!contaIds.length) return {}
+    const now = new Date()
+    const ini = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+    const fim = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+    const { data, error } = await supabase
+      .from('financeiro_lancamentos')
+      .select('conta_id, valor, tipo, data_pagamento')
+      .in('conta_id', contaIds)
+      .eq('status', 'pago')
+      .gte('data_pagamento', ini)
+      .lte('data_pagamento', fim)
+    check(error)
+    const map = {}
+    contaIds.forEach(id => { map[id] = 0 })
+    ;(data || []).forEach(l => {
+      map[l.conta_id] = (map[l.conta_id] || 0) + +l.valor
+    })
+    return map
+  },
+  async ultimoLancamento(contaIds) {
+    if (!contaIds.length) return {}
+    const { data, error } = await supabase
+      .from('financeiro_lancamentos')
+      .select('conta_id, data_pagamento')
+      .in('conta_id', contaIds)
+      .eq('status', 'pago')
+      .order('data_pagamento', { ascending: false })
+    check(error)
+    const map = {}
+    ;(data || []).forEach(l => {
+      if (!map[l.conta_id]) map[l.conta_id] = l.data_pagamento
+    })
+    return map
+  },
+  async pendentes(contaIds) {
+    if (!contaIds.length) return {}
+    const hoje = new Date().toISOString().split('T')[0]
+    const { data, error } = await supabase
+      .from('financeiro_lancamentos')
+      .select('conta_id')
+      .in('conta_id', contaIds)
+      .eq('status', 'pendente')
+      .lte('data_vencimento', hoje)
+    check(error)
+    const map = {}
+    contaIds.forEach(id => { map[id] = 0 })
+    ;(data || []).forEach(l => { map[l.conta_id] = (map[l.conta_id] || 0) + 1 })
     return map
   },
 }

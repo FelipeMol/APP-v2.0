@@ -381,6 +381,7 @@ export default function Usuarios() {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="Digite o e-mail"
+                  autoComplete="username"
                   required
                 />
               </div>
