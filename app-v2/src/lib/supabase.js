@@ -12,6 +12,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON)
 
 // Tables that have tenant_id column and should be filtered
 const TENANT_TABLES = new Set([
+  'usuarios',
   'empresas', 'obras', 'funcoes', 'funcionarios', 'funcionario_dados',
   'lancamentos', 'etiquetas', 'avaliacoes', 'tarefas', 'contatos',
   'tarefas_checklists', 'tarefas_comentarios', 'tarefas_atividades',
@@ -33,6 +34,11 @@ export function initTenantFilter(getter) {
 
 function tenantId() {
   return _getTenantId() || 'construtora'
+}
+
+// Exported so services can pass tenant_id to RPC functions
+export function getCurrentTenantId() {
+  return tenantId()
 }
 
 // Save original .from()

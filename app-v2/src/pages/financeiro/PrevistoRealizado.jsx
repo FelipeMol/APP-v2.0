@@ -180,7 +180,6 @@ function LinhaGrupo({ cat, isExpanded, onToggle, prevPorMes, realPorMes, obraId,
           <button onClick={onToggle} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: C.ink3, flexShrink: 0 }}>
             {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           </button>
-          <span style={{ fontSize: 16, lineHeight: 1, flexShrink: 0 }}>{cat.icone || '📁'}</span>
           <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{cat.nome}</span>
           {cat.subcategorias?.length > 0 && (
             <span style={{ fontSize: 10, color: C.ink3, background: C.line2, borderRadius: 3, padding: '1px 5px', flexShrink: 0 }}>

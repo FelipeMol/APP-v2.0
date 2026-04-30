@@ -1,4 +1,4 @@
-import supabase from '../lib/supabase.js'
+import supabase, { getCurrentTenantId } from '../lib/supabase.js'
 
 const TABLE = 'usuarios'
 const check = (error) => { if (error) throw new Error(error.message) }
@@ -16,12 +16,13 @@ const usuariosService = {
 
   async create(payload) {
     const { data, error } = await supabase.rpc('criar_usuario', {
-      p_nome:    payload.nome,
-      p_usuario: payload.usuario,
-      p_email:   payload.email || '',
-      p_senha:   payload.senha,
-      p_tipo:    payload.tipo  || 'usuario',
-      p_ativo:   payload.ativo || 'Sim',
+      p_nome:      payload.nome,
+      p_usuario:   payload.usuario,
+      p_email:     payload.email || '',
+      p_senha:     payload.senha,
+      p_tipo:      payload.tipo  || 'usuario',
+      p_ativo:     payload.ativo || 'Sim',
+      p_tenant_id: getCurrentTenantId(),
     })
     check(error)
     if (!data?.sucesso) throw new Error(data?.mensagem || 'Erro ao criar usuário')
@@ -49,21 +50,28 @@ const usuariosService = {
     return { sucesso: true }
   },
 
-  async alterarSenha(_usuarioId, senhaAtual, senhaNova) {
-    // Obtém o e-mail da sessão Supabase Auth atual
-    const { data: { user: authUser }, error: getUserError } = await supabase.auth.getUser()
-    if (getUserError || !authUser?.email) throw new Error('Sessão inválida. Faça login novamente.')
-
-    // Re-autentica para validar a senha atual (Supabase Auth é o sistema de login)
-    const { error: reAuthError } = await supabase.auth.signInWithPassword({
-      email: authUser.email,
-      password: senhaAtual,
+  async alterarSenha(usuarioId, senhaAtual, senhaNova) {
+    // Valida senha atual via RPC login (não depende de Supabase Auth session)
+    const user = JSON.parse(localStorage.getItem('user_data') || '{}')
+    const { data: loginData, error: loginError } = await supabase.rpc('login', {
+      p_usuario: user.usuario,
+      p_senha:   senhaAtual,
     })
-    if (reAuthError) return { sucesso: false, mensagem: 'Senha atual incorreta' }
+    if (loginError) throw new Error(loginError.message)
+    if (!loginData?.sucesso) return { sucesso: false, mensagem: 'Senha atual incorreta' }
 
-    // Atualiza a senha no Supabase Auth
-    const { error: updateError } = await supabase.auth.updateUser({ password: senhaNova })
-    if (updateError) throw new Error(updateError.message)
+    // Atualiza via atualizar_usuario (sincroniza public.usuarios + auth.users)
+    const { data, error } = await supabase.rpc('atualizar_usuario', {
+      p_id:      usuarioId,
+      p_nome:    user.nome,
+      p_usuario: user.usuario,
+      p_email:   user.email || '',
+      p_tipo:    user.tipo  || 'usuario',
+      p_ativo:   user.ativo || 'Sim',
+      p_senha:   senhaNova,
+    })
+    if (error) throw new Error(error.message)
+    if (!data?.sucesso) return { sucesso: false, mensagem: data?.mensagem || 'Erro ao alterar senha' }
 
     return { sucesso: true, mensagem: 'Senha alterada com sucesso' }
   },
