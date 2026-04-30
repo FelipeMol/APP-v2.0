@@ -377,16 +377,22 @@ export default function ImportarCSV() {
                         style={{ padding: '7px 10px', border: `1px solid ${C.line}`, borderRadius: 7, fontSize: 12, color: C.ink, background: C.surface, fontFamily: 'inherit', minWidth: 240 }}
                       >
                         <option value="">— sem categoria —</option>
-                        {catFlat.filter(c => !c.parent_id).map(pai => {
-                          const filhos = catFlat.filter(f => f.parent_id === pai.id)
-                          if (filhos.length > 0) {
+                        {catFlat.filter(c => !c.parent_id).map(grupo => {
+                          const subgrupos = catFlat.filter(f => f.parent_id === grupo.id)
+                          if (subgrupos.length === 0) {
+                            return <option key={grupo.id} value={grupo.id}>{grupo.nome}</option>
+                          }
+                          return subgrupos.map(sub => {
+                            const folhas = catFlat.filter(f => f.parent_id === sub.id)
+                            if (folhas.length === 0) {
+                              return <option key={sub.id} value={sub.id}>{grupo.nome} › {sub.nome}</option>
+                            }
                             return (
-                              <optgroup key={pai.id} label={pai.nome}>
-                                {filhos.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                              <optgroup key={sub.id} label={`${grupo.nome} › ${sub.nome}`}>
+                                {folhas.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
                               </optgroup>
                             )
-                          }
-                          return <option key={pai.id} value={pai.id}>{pai.nome}</option>
+                          })
                         })}
                       </select>
                     </div>
