@@ -84,67 +84,95 @@ function guessCCouObra(ccStr, centrosCusto, obras) {
 }
 
 // ── Mapeamento de categoria por palavras-chave ────────────────────
-// IDs baseados na importação: Grupo(117-121) → Subgrupo(122-157) → Categoria(158-341)
+// IDs sincronizados com a importação atual (IDs 585-818)
 const CAT_KEYWORDS = [
-  // Mão de obra de obra
-  { keys: ['ajudante de apoio', 'ajudante de custo'], id: 238 },         // Ajudante de Apoio
-  { keys: ['coordenador da obra', 'encarregado de obra', 'encarregado'], id: 235 }, // Coordenador da Obra
-  { keys: ['mão de obra de pintura', 'm.o. pintura', 'pintor'], id: 210 }, // Mão de Obra de Pintura
-  { keys: ['mão de obra para estrutura', 'mão de obra estrutura', 'pedreiro'], id: 176 }, // Mão de Obra para Estrutura e Alvenaria
-  { keys: ['mão de obra elétrica', 'empreite de elétrica'], id: 186 },   // Mão de Obra Elétrica
-  { keys: ['mão de obra hidráulica'], id: 190 },                          // Mão de Obra Hidráulica
-  { keys: ['mão de obra de gesso', 'm.o. gesso'], id: 197 },             // Mão de Obra de Gesso
-  // Materiais de obra
-  { keys: ['materiais de gesso', 'material de gesso', 'guia', 'montante', 'placa ru', 'gesso lento'], id: 196 }, // Materiais de Gesso
-  { keys: ['materiais de pintura', 'tintas', 'tinta '], id: 209 },       // Materiais de Pintura
-  { keys: ['materiais diversos elétric', 'material elétric', 'elétrica div'], id: 189 }, // Materiais Diversos de Elétrica
-  { keys: ['materiais diversos hidráulic', 'colas', 'veda rosca', 'registros', 'joelhos', 'material hidráulic'], id: 191 }, // Materiais Diversos de Hidráulica
-  { keys: ['materiais para execução', 'materiais execução', 'tijolo', 'areia', 'cimento', 'argamassa', 'graute'], id: 177 }, // Materiais para Execução - Estrutura e Alvenaria
-  { keys: ['materiais diversos pisos', 'pisos e revestimentos', 'rejuntes', 'argamassa pisos', 'munari', 'artefato'], id: 195 }, // Materiais Diversos Pisos e Revestimentos
-  { keys: ['matéria prima de marmoraria', 'pedra do'], id: 206 },        // Matéria Prima de Marmoraria
-  // Serviços / acabamentos
-  { keys: ['marcenaria completa', 'marcenaria', 'gavetas', 'móveis garçom'], id: 205 }, // Marcenaria Completa
-  { keys: ['fachada - letreiros', 'fachada', 'acm fachada', 'letreiro'], id: 214 }, // Fachada - Letreiros
-  { keys: ['decorativo em geral', 'decorativo', 'cortina'], id: 221 },   // Decorativo em geral
-  { keys: ['vasos sanitários', 'sanitário', 'vaso sanit'], id: 191 },    // Materiais Diversos de Hidráulica
-  { keys: ['art e fiscalização', 'pagamento da art', 'art - '], id: 170 }, // ART e Fiscalização de Execução de Obra Civil
-  { keys: ['plotagens e cópias', 'plotagem', 'impressão planta', 'envelope'], id: 168 }, // Plotagens e cópias
-  { keys: ['aquisição equipamentos', 'aquisição de ferramentas', 'ferramentas', 'escada articulad', 'broca', 'lixadeira', 'kit nivelador', 'vibrador', 'misturador', 'alicate'], id: 282 }, // Aquisição Equipamentos e ferramentas
-  // Locações
-  { keys: ['locação de caçamba', 'caçamba'], id: 224 },                  // Locação de caçambas
-  { keys: ['locação de andaime', 'andaimes', 'locação de martelete', 'locação de equipamento'], id: 225 }, // Locação de andaimes e equipamentos
-  { keys: ['fretes e carretos', 'frete e carreto'], id: 296 },            // Fretes e carretos
-  // Despesas indiretas da obra
-  { keys: ['passagens, alim', 'alojamento da obra', 'alimentação da obra'], id: 240 }, // Passagens, Alimenatação e Alojamentos da Obra
-  { keys: ['passagem do coordenador', 'ajuda de custo do coordenador'], id: 236 }, // Passagem do Coordenador da Obra
-  { keys: ['passagem do auditor', 'ajuda de custo do auditor'], id: 233 }, // Passagem do Auditor da Obra
-  // Administrativo / financeiro
-  { keys: ['limpeza do escritório', 'faxina', 'faxineira', 'diarista'], id: 321 }, // Limpeza do Escritório - Diaristas
-  { keys: ['equipe limpeza', 'limpeza grossa', 'limpeza fina'], id: 227 }, // Equipe Limpeza Grossa e Fina
-  { keys: ['aluguel escritório', 'aluguel de imóvel', 'aluguéis de imóveis', 'aluguel'], id: 278 }, // Aluguéis de imóveis
-  { keys: ['iptu dos imóveis', 'iptu'], id: 299 },                        // IPTU dos imóveis
-  { keys: ['impostos e taxas', 'inss sobre folha', 'fgts sobre folha', 'darf', 'tributo'], id: 298 }, // Impostos e taxas
-  { keys: ['despesas bancárias', 'tarifa bancária', 'tarifas bancárias', 'tar pix', 'tar conta', 'tarifa pix', 'pacote serviços', 'tarifa conta'], id: 263 }, // Despesas Bancárias
-  { keys: ['retirada de capital', 'retirada dos sócios'], id: 341 },     // Retirada de capital
-  { keys: ['dízimos e ofertas', 'dízimo', 'oferta'], id: 293 },          // Dízimos e Ofertas
-  { keys: ['tráfego pago meta', 'tráfego pago google', 'google ads', 'facebook ads', 'instagram ads'], id: 253 }, // Tráfego Pago Meta
-  { keys: ['agência de publicidad', 'impressão de material publicitário', 'brindes', 'bolsas de juta'], id: 252 }, // Impressão material publicitário
-  { keys: ['sistema de informação', 'site', 'nibo', 'alterdata', 'software', 'taxa de licença'], id: 314 }, // Sistema de Informação / site
-  { keys: ['assessoria contábil', 'consultoria administrativa', 'honorários contábeis', 'contabilidade'], id: 283 }, // Assessoria Contábil
-  { keys: ['salário', 'bolsa estágio', 'assistente administrativa', 'assistente admin'], id: 267 }, // Salários
-  { keys: ['condomínios dos imóveis', 'condomínio'], id: 287 },          // Condomínios dos imóveis
-  { keys: ['deslocamentos', 'uber', 'taxi', 'táxi', 'bolsa transporte', 'bolsa transp'], id: 292 }, // Deslocamentos
-  { keys: ['hotelaria', 'hospedagem'], id: 297 },                         // Hotelaria e hospedagens
-  { keys: ['combustível', 'lubrificante'], id: 286 },                     // Combustível e lubrificante
-  { keys: ['telefonia', 'internet', 'serviço de internet', 'claro', 'tim', 'vivo'], id: 318 }, // Telefonia
-  { keys: ['comissões s/ vendas', 'comissão sobre venda'], id: 249 },    // Comissões s/ vendas
-  { keys: ['departamento de arquitetura', 'arquitetura da obra', 'projeto arquitetônico', 'alc duarte'], id: 229 }, // Departamento de Arquitetura da Obra
-  { keys: ['departamento de engenharia', 'engenharia da obra'], id: 228 }, // Departamento de Engenharia da Obra
-  { keys: ['depart. administrativo', 'adm. financeiro', 'contábil', 'financeiro e contábil'], id: 230 }, // Depart. Administrativo, Financeiro e Contábil
-  { keys: ['material de copa', 'garrafa térmica', 'copa e cozinha'], id: 302 }, // Material de copa e cozinha
-  { keys: ['inss sobre folha'], id: 273 },                                // INSS sobre folha (pessoal)
-  { keys: ['fgts sobre folha'], id: 274 },                                // FGTS sobre folha
-  { keys: ['passagens, alimentação', 'passagens e alojamento'], id: 240 }, // Passagens, Alimenatação e Alojamentos da Obra
+  // ── Mão de obra de obra ───────────────────────────────────────
+  { keys: ['ajudante de apoio', 'ajudante de custo'], id: 710 },          // Ajudante de Apoio
+  { keys: ['coordenador da obra', 'encarregado de obra', 'encarregado'], id: 707 }, // Coordenador da Obra
+  { keys: ['auditor da obra'], id: 704 },                                  // Auditor da Obra
+  { keys: ['mão de obra de pintura', 'm.o. pintura', 'pintor'], id: 682 }, // Mão de Obra de Pintura
+  { keys: ['mão de obra para estrutura', 'mão de obra estrutura', 'pedreiro'], id: 648 }, // Mão de Obra para Estrutura e Alvenaria
+  { keys: ['mão de obra elétrica', 'empreite de elétrica'], id: 658 },    // Mão de Obra Elétrica
+  { keys: ['mão de obra hidráulica'], id: 662 },                           // Mão de Obra Hidráulica
+  { keys: ['mão de obra de gesso', 'm.o. gesso'], id: 669 },              // Mão de Obra de Gesso
+  { keys: ['mão de obra piso', 'm.o. piso', 'mão de obra revestimento'], id: 664 }, // Mão de Obra Piso e Revest.
+  { keys: ['mão de obra impermeabilização', 'm.o. impermeab'], id: 671 }, // Mão de Obra para Impermeabilização
+  { keys: ['mão de obra marcenaria', 'm.o. marcenaria'], id: 676 },       // Mão de Obra de Marcenaria
+  { keys: ['mão de obra serralheria', 'm.o. serralheria'], id: 690 },     // Mão de Obra Serralheria Fina
+  { keys: ['mão de obra ar condicionado', 'm.o. ar condicionado'], id: 655 }, // Mão de Obra - Ar Condicionado
+  { keys: ['mão de obra aquecimento', 'mão de obra gás'], id: 656 },      // Mão de Obra Aquecimento Água/Gás
+  { keys: ['mão de obra demolição', 'm.o. demolição'], id: 646 },         // Mão de Obra para Execução da Demolição
+  { keys: ['mão de obra incêndio', 'mão de obra combate'], id: 650 },     // Mão de Obra Prevenção e Combate a Incêndio
+  // ── Materiais de obra ─────────────────────────────────────────
+  { keys: ['materiais de gesso', 'material de gesso', 'guia', 'montante', 'placa ru', 'gesso lento'], id: 668 }, // Materiais de Gesso
+  { keys: ['materiais de pintura', 'tintas', 'tinta '], id: 681 },        // Materiais de Pintura
+  { keys: ['materiais diversos elétric', 'material elétric', 'elétrica div', 'luminotécnico'], id: 661 }, // Materiais Diversos de Elétrica
+  { keys: ['materiais diversos hidráulic', 'colas', 'veda rosca', 'registros', 'joelhos', 'material hidráulic', 'vasos sanitários', 'sanitário', 'vaso sanit'], id: 663 }, // Materiais Diversos de Hidráulica
+  { keys: ['materiais para execução', 'materiais execução', 'tijolo', 'areia', 'cimento', 'argamassa', 'graute'], id: 649 }, // Materiais para Execução - Estrutura e Alvenaria
+  { keys: ['materiais diversos pisos', 'rejuntes', 'argamassa pisos', 'munari', 'artefato'], id: 667 }, // Materiais Diversos Pisos e Revestimentos
+  { keys: ['pisos e revestimentos', 'piso ceramico', 'revestimento ceramico'], id: 665 }, // Pisos
+  { keys: ['matéria prima de marmoraria', 'pedra do', 'mármore', 'granito'], id: 678 }, // Matéria Prima de Marmoraria
+  { keys: ['materiais de impermeabilização', 'material impermeab'], id: 670 }, // Materiais de Impermeabilização
+  { keys: ['materiais de marcenaria', 'material marcenaria'], id: 675 },  // Materiais de Marcenaria
+  { keys: ['material para ar condicionado', 'dutos para ar', 'aparelho de ar'], id: 652 }, // Material para Ar Condicionado
+  { keys: ['materiais para aquecimento', 'material gás', 'aquecedor'], id: 657 }, // Materiais para Aquecimento de Água e Gás
+  // ── Serviços / acabamentos ────────────────────────────────────
+  { keys: ['marcenaria completa', 'marcenaria', 'gavetas', 'móveis garçom'], id: 677 }, // Marcenaria Completa
+  { keys: ['fachada', 'acm fachada', 'letreiro'], id: 686 },              // Fachada - Letreiros
+  { keys: ['decorativo em geral', 'decorativo', 'cortina'], id: 693 },    // Decorativo em geral
+  { keys: ['art e fiscalização', 'pagamento da art', 'art - '], id: 642 }, // ART e Fiscalização de Execução de Obra Civil
+  { keys: ['plotagens e cópias', 'plotagem', 'impressão planta', 'envelope'], id: 640 }, // Plotagens e cópias
+  { keys: ['aquisição equipamentos', 'aquisição de ferramentas', 'ferramentas', 'escada articulad', 'broca', 'lixadeira', 'kit nivelador', 'vibrador', 'misturador', 'alicate'], id: 754 }, // Aquisição Equipamentos e ferramentas
+  { keys: ['instalação de vidro', 'vidro', 'espelho', 'adesivo'], id: 684 }, // Instalação de Vidros, Espelhos e Adesivos
+  { keys: ['montagem comercial', 'rofril', 'cofap'], id: 672 },            // Montagem Comercial em Geral
+  // ── Locações ─────────────────────────────────────────────────
+  { keys: ['locação de caçamba', 'caçamba'], id: 696 },                   // Locação de caçambas
+  { keys: ['locação de andaime', 'andaimes', 'locação de martelete', 'locação de equipamento'], id: 697 }, // Locação de andaimes e equipamentos
+  { keys: ['locação de máquina'], id: 698 },                               // Locação de Máquinas
+  { keys: ['fretes e carretos', 'frete e carreto'], id: 768 },             // Fretes e carretos
+  // ── Despesas indiretas da obra ────────────────────────────────
+  { keys: ['passagens, alim', 'alojamento da obra', 'alimentação da obra', 'passagens, alimentação', 'passagens e alojamento'], id: 712 }, // Passagens, Alimenatação e Alojamentos da Obra
+  { keys: ['passagem do coordenador', 'ajuda de custo do coordenador'], id: 708 }, // Passagem do Coordenador da Obra
+  { keys: ['passagem do auditor', 'ajuda de custo do auditor'], id: 705 }, // Passagem do Auditor da Obra
+  { keys: ['ajuda de custo do ajudante'], id: 711 },                       // Ajuda de Custo do Ajudante de Apoio
+  { keys: ['equipe limpeza', 'limpeza grossa', 'limpeza fina'], id: 699 }, // Equipe Limpeza Grossa e Fina
+  { keys: ['departamento de arquitetura', 'arquitetura da obra', 'projeto arquitetônico', 'alc duarte'], id: 701 }, // Departamento de Arquitetura da Obra
+  { keys: ['departamento de engenharia', 'engenharia da obra'], id: 700 }, // Departamento de Engenharia da Obra
+  { keys: ['depart. administrativo', 'adm. financeiro', 'financeiro e contábil'], id: 702 }, // Depart. Administrativo, Financeiro e Contábil
+  // ── Administrativo / financeiro ───────────────────────────────
+  { keys: ['limpeza do escritório', 'faxina', 'faxineira', 'diarista'], id: 793 }, // Limpeza do Escritório - Diaristas
+  { keys: ['aluguel escritório', 'aluguel de imóvel', 'aluguéis de imóveis', 'aluguel'], id: 750 }, // Aluguéis de imóveis
+  { keys: ['iptu dos imóveis', 'iptu'], id: 771 },                         // IPTU dos imóveis
+  { keys: ['impostos e taxas', 'darf', 'tributo'], id: 770 },              // Impostos e taxas
+  { keys: ['despesas bancárias', 'tarifa bancária', 'tarifas bancárias', 'tar pix', 'tar conta', 'tarifa pix', 'pacote serviços', 'tarifa conta'], id: 735 }, // Despesas Bancárias
+  { keys: ['retirada de capital', 'retirada dos sócios'], id: 818 },      // Retirada de capital
+  { keys: ['dízimos e ofertas', 'dízimo', 'oferta'], id: 765 },            // Dízimos e Ofertas
+  { keys: ['tráfego pago meta', 'facebook ads', 'instagram ads'], id: 725 }, // Tráfego Pago Meta
+  { keys: ['tráfego pago google', 'google ads'], id: 726 },                // Tráfego Pago Google
+  { keys: ['agência de publicidad', 'impressão de material publicitário', 'brindes', 'bolsas de juta'], id: 724 }, // Impressão material publicitário
+  { keys: ['sistema de informação', 'nibo', 'alterdata', 'software', 'taxa de licença'], id: 786 }, // Sistema de Informação / site
+  { keys: ['registro de domínio', 'hospedagem de site'], id: 779 },        // Registro de domínio e hospedagem
+  { keys: ['assessoria contábil', 'honorários contábeis', 'contabilidade'], id: 755 }, // Assessoria Contábil
+  { keys: ['consultoria administrativa'], id: 760 },                        // Consultoria Administrativa
+  { keys: ['salário', 'bolsa estágio', 'assistente administrativa', 'assistente admin'], id: 739 }, // Salários
+  { keys: ['inss sobre folha'], id: 745 },                                  // INSS sobre folha
+  { keys: ['fgts sobre folha'], id: 746 },                                  // FGTS sobre folha
+  { keys: ['férias'], id: 740 },                                            // Férias
+  { keys: ['13º salário', 'décimo terceiro'], id: 741 },                    // 13º salário
+  { keys: ['rescisão'], id: 748 },                                          // Rescisão Contratual
+  { keys: ['condomínios dos imóveis', 'condomínio'], id: 759 },             // Condomínios dos imóveis
+  { keys: ['deslocamentos', 'uber', 'taxi', 'táxi', 'bolsa transporte', 'bolsa transp'], id: 764 }, // Deslocamentos
+  { keys: ['hotelaria', 'hospedagem'], id: 769 },                           // Hotelaria e hospedagens
+  { keys: ['combustível', 'lubrificante'], id: 758 },                       // Combustível e lubrificante
+  { keys: ['telefonia', 'serviço de internet', 'claro', 'tim', 'vivo'], id: 790 }, // Telefonia
+  { keys: ['internet', 'serviço de internet'], id: 782 },                   // Serviço de internet
+  { keys: ['comissões s/ vendas', 'comissão sobre venda'], id: 722 },      // Comissões s/ vendas Obras Civil
+  { keys: ['material de copa', 'garrafa térmica', 'copa e cozinha'], id: 774 }, // Material de copa e cozinha
+  { keys: ['energia elétrica', 'conta de luz', 'celesc', 'light ', 'enel '], id: 766 }, // Energia Elétrica
+  { keys: ['encargo antecipação', 'antecipação de recebível'], id: 733 },   // Encargos de Antecipação de Recebíveis
+  { keys: ['juros empréstimo', 'encargos empréstimo'], id: 732 },           // Juros sobre Empréstimos Realizados
+  { keys: ['parcela consórcio'], id: 737 },                                  // Parcelas de Consórcios
+  { keys: ['parcela financiamento'], id: 736 },                              // Parcelas de Financiamentos
 ]
 
 function guessCategoria(detalhe, catNome, categorias) {
