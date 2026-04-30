@@ -92,9 +92,19 @@ function FilterField({ label, value, onChange, children }) {
 // Modal novo / editar lançamento
 const EMPTY_FORM = { descricao: '', valor: '', tipo: 'despesa', categoria_id: '', conta_id: '', data_vencimento: '', data_pagamento: '', status: 'pendente', numero_documento: '', observacao: '', contato_id: '', centro_custo_id: '', parcela_numero: '', parcela_total: '' }
 
+function buildCatTree(cats) {
+  const raiz = cats.filter(c => !c.parent_id)
+  const filhos = cats.filter(c => c.parent_id)
+  return raiz.map(p => ({
+    ...p,
+    filhos: filhos.filter(f => f.parent_id === p.id).sort((a, b) => a.nome.localeCompare(b.nome)),
+  })).sort((a, b) => a.nome.localeCompare(b.nome))
+}
+
 function LancamentoModal({ open, onClose, onSave, form, setForm, saving, editId, categorias, contas, contatos, centrosCusto }) {
   if (!open) return null
   const catsFiltradas = categorias.filter(c => !form.tipo || c.tipo === form.tipo)
+  const catTree = buildCatTree(catsFiltradas)
   const hoje = new Date().toISOString().slice(0, 10)
 
   return (
@@ -155,7 +165,17 @@ function LancamentoModal({ open, onClose, onSave, form, setForm, saving, editId,
               <Field label="Categoria">
                 <select style={{ ...inp(), cursor: 'pointer' }} value={form.categoria_id} onChange={e => setForm(f => ({ ...f, categoria_id: e.target.value }))}>
                   <option value="">Sem categoria</option>
-                  {catsFiltradas.map(c => <option key={c.id} value={c.id}>{c.icone} {c.nome}</option>)}
+                  {catTree.map(pai => (
+                    pai.filhos.length > 0 ? (
+                      <optgroup key={pai.id} label={pai.nome}>
+                        {pai.filhos.map(f => (
+                          <option key={f.id} value={f.id}>{f.nome}</option>
+                        ))}
+                      </optgroup>
+                    ) : (
+                      <option key={pai.id} value={pai.id}>{pai.nome}</option>
+                    )
+                  ))}
                 </select>
               </Field>
               <Field label="Conta">
