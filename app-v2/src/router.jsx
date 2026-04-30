@@ -29,6 +29,7 @@ import SuperAdminRoute from './components/auth/SuperAdminRoute';
 import SuperAdmin from './pages/super-admin/SuperAdmin';
 import Configuracoes from './pages/financeiro/Configuracoes';
 import PrevistoRealizado from './pages/financeiro/PrevistoRealizado';
+import ImportarCSV from './pages/financeiro/ImportarCSV';
 import ContatosCadastros from './pages/cadastros/Contatos';
 import CategoriasFinanceiro from './pages/cadastros/CategoriasFinanceiro';
 
@@ -207,6 +208,14 @@ const router = createHashRouter([
         element: (
           <ModuleGuard moduleId="financeiro">
             <PrevistoRealizado />
+          </ModuleGuard>
+        ),
+      },
+      {
+        path: 'financeiro/importar-csv',
+        element: (
+          <ModuleGuard moduleId="financeiro">
+            <ImportarCSV />
           </ModuleGuard>
         ),
       },
