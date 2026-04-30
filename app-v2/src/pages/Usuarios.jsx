@@ -393,6 +393,7 @@ export default function Usuarios() {
                     value={formData.senha}
                     onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
                     placeholder="Digite a senha"
+                    autoComplete="new-password"
                     required={!editingId}
                   />
                   <button
@@ -414,6 +415,7 @@ export default function Usuarios() {
                     value={formData.confirmar_senha}
                     onChange={(e) => setFormData({ ...formData, confirmar_senha: e.target.value })}
                     placeholder="Confirme a senha"
+                    autoComplete="new-password"
                     required={!editingId || !!formData.senha}
                   />
                   <button
