@@ -27,6 +27,10 @@ import {
   PieChart,
   BookUser,
   Settings,
+  TrendingUp,
+  ClipboardList,
+  Tag,
+  Landmark,
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -35,7 +39,7 @@ export default function Sidebar() {
   const queryClient = useQueryClient();
   const branding = useTenantBranding();
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [openSubmenus, setOpenSubmenus] = useState({ Cadastros: true, Financeiro: true });
+  const [openSubmenus, setOpenSubmenus] = useState({ Financeiro: true, Equipe: false, 'Relatórios': false, Cadastros: false });
 
   function toggleSubmenu(name) {
     setOpenSubmenus(prev => ({ ...prev, [name]: !prev[name] }));
@@ -63,37 +67,53 @@ export default function Sidebar() {
   }
 
   const menuItems = [
-    { name: 'Dashboard',        path: '/dashboard',              icon: LayoutDashboard, permission: 'dashboard' },
-    { name: 'Lancamentos',      path: '/lancamentos',            icon: FileText,        permission: 'lancamentos' },
-    {
-      name: 'Cadastros', icon: Layers, isSubmenu: true,
-      submenuItems: [
-        { name: 'Contatos',     path: '/cadastros/contatos',    icon: BookUser,  permission: 'base' },
-        { name: 'Fin. Categorias', path: '/cadastros/financeiro', icon: Settings,  permission: 'financeiro' },
-        { name: 'Funcionarios', path: '/funcionarios',        icon: Users,     permission: 'funcionarios' },
-        { name: 'Funcoes',      path: '/funcoes',             icon: Briefcase, permission: 'base' },
-        { name: 'Obras',        path: '/obras',               icon: Building2, permission: 'obras' },
-        { name: 'Empresas',     path: '/empresas',            icon: HardHat,   permission: 'empresas' },
-      ],
-    },
-    { name: 'Tarefas',          path: '/tarefas',                icon: CheckSquare,     permission: 'tarefas',  disabled: true },
+    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, permission: 'dashboard' },
+
     {
       name: 'Financeiro', icon: Wallet, isSubmenu: true,
       submenuItems: [
-        { name: 'Painel',         path: '/financeiro/painel',          icon: PieChart,        permission: 'financeiro' },
-        { name: 'Contas',         path: '/financeiro/contas',          icon: Wallet,          permission: 'financeiro' },
-        { name: 'Lancamentos',    path: '/financeiro/lancamentos',     icon: CreditCard,      permission: 'financeiro' },
-        { name: 'Extrato',          path: '/financeiro/extrato',              icon: FileSpreadsheet, permission: 'financeiro' },
-        { name: 'Previsto x Real',   path: '/financeiro/previsto-realizado',   icon: BarChart3,       permission: 'financeiro' },
-        { name: 'Configuracoes',     path: '/financeiro/configuracoes',        icon: Settings,        permission: 'financeiro' },
+        { name: 'Painel',           path: '/financeiro/painel',             icon: PieChart,        permission: 'financeiro' },
+        { name: 'Lançamentos',      path: '/financeiro/lancamentos',        icon: CreditCard,      permission: 'financeiro' },
+        { name: 'Contas',           path: '/financeiro/contas',             icon: Landmark,        permission: 'financeiro' },
+        { name: 'Extrato',          path: '/financeiro/extrato',            icon: FileSpreadsheet, permission: 'financeiro' },
+        { name: 'Previsto x Real',  path: '/financeiro/previsto-realizado', icon: TrendingUp,      permission: 'financeiro' },
+        { name: 'Configurações',    path: '/financeiro/configuracoes',      icon: Settings,        permission: 'financeiro' },
       ],
     },
-    { name: 'Relatorios',       path: '/relatorios-visao-geral', icon: BarChart3,       permission: 'relatorios' },
-    { name: 'Analise',          path: '/relatorios',             icon: BarChart3,       permission: 'relatorios' },
-    { name: 'Relatorio PDF',    path: '/relatorios/equipe-pdf',  icon: FileDown,        permission: 'relatorios' },
-    { name: 'RH',               path: '/rh',                     icon: UserCheck,       permission: 'rh' },
-    { name: 'Usuarios',         path: '/usuarios',               icon: UserCog,         permission: 'usuarios',  adminOnly: true },
-    { name: 'Permissoes',       path: '/permissoes',             icon: Shield,          permission: 'permissoes', adminOnly: true },
+
+    {
+      name: 'Equipe', icon: Users, isSubmenu: true,
+      submenuItems: [
+        { name: 'Funcionários', path: '/funcionarios', icon: Users,         permission: 'funcionarios' },
+        { name: 'Funções',      path: '/funcoes',       icon: Briefcase,    permission: 'base' },
+        { name: 'Registros',    path: '/lancamentos',   icon: ClipboardList, permission: 'lancamentos' },
+        { name: 'RH',           path: '/rh',            icon: UserCheck,    permission: 'rh' },
+      ],
+    },
+
+    {
+      name: 'Relatórios', icon: BarChart3, isSubmenu: true,
+      submenuItems: [
+        { name: 'Visão Geral', path: '/relatorios-visao-geral', icon: BarChart3, permission: 'relatorios' },
+        { name: 'Análise',     path: '/relatorios',             icon: TrendingUp, permission: 'relatorios' },
+        { name: 'Equipe PDF',  path: '/relatorios/equipe-pdf',  icon: FileDown,  permission: 'relatorios' },
+      ],
+    },
+
+    {
+      name: 'Cadastros', icon: Layers, isSubmenu: true,
+      submenuItems: [
+        { name: 'Obras',       path: '/obras',                  icon: Building2,  permission: 'obras' },
+        { name: 'Empresas',    path: '/empresas',               icon: HardHat,    permission: 'empresas' },
+        { name: 'Contatos',    path: '/cadastros/contatos',     icon: BookUser,   permission: 'base' },
+        { name: 'Categorias',  path: '/cadastros/financeiro',   icon: Tag,        permission: 'financeiro' },
+      ],
+    },
+
+    { name: 'Tarefas', path: '/tarefas', icon: CheckSquare, permission: 'tarefas', disabled: true },
+
+    { name: 'Usuários',   path: '/usuarios',   icon: UserCog, permission: 'usuarios',   adminOnly: true },
+    { name: 'Permissões', path: '/permissoes', icon: Shield,  permission: 'permissoes', adminOnly: true },
   ];
 
   const visibleMenuItems = menuItems.filter((item) => {

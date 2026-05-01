@@ -1,17 +1,16 @@
 import supabase, { getCurrentTenantId } from '../lib/supabase.js'
 
-const TABLE = 'usuarios'
 const check = (error) => { if (error) throw new Error(error.message) }
 
 const usuariosService = {
   async list() {
-    // Não retorna a senha
-    const { data, error } = await supabase
-      .from(TABLE)
-      .select('id, nome, usuario, email, avatar, tipo, ativo, primeiro_acesso, ultimo_login, criado_em')
-      .order('nome')
+    const tenantId = getCurrentTenantId()
+    // Lista apenas usuários do tenant atual via RPC (isolamento por empresa)
+    const { data, error } = await supabase.rpc('listar_usuarios_tenant', {
+      p_tenant_id: tenantId,
+    })
     check(error)
-    return data || []
+    return Array.isArray(data) ? data : []
   },
 
   async create(payload) {
@@ -45,9 +44,15 @@ const usuariosService = {
   },
 
   async remove(id) {
-    const { error } = await supabase.from(TABLE).delete().eq('id', id)
+    const tenantId = getCurrentTenantId()
+    // Desvincula o usuário do tenant (soft delete) em vez de deletar globalmente
+    const { data, error } = await supabase.rpc('remover_usuario_tenant', {
+      p_usuario_id: id,
+      p_tenant_id:  tenantId,
+    })
     check(error)
-    return { sucesso: true }
+    if (!data?.sucesso) throw new Error(data?.mensagem || 'Erro ao remover usuário')
+    return data
   },
 
   async alterarSenha(usuarioId, senhaAtual, senhaNova) {

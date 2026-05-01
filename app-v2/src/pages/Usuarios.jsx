@@ -189,8 +189,7 @@ export default function Usuarios() {
       closeModal();
       loadData();
     } catch (error) {
-      const message = error.response?.data?.mensagem || 'Erro ao salvar';
-      toast.error(message);
+      toast.error(error.message || 'Erro ao salvar');
     }
   }
 
@@ -203,16 +202,15 @@ export default function Usuarios() {
       return;
     }
 
-    const confirmed = window.confirm('Excluir este usuário? Esta ação não pode ser desfeita.');
+    const confirmed = window.confirm('Remover este usuário da empresa?');
     if (!confirmed) return;
 
     try {
       const res = await usuariosService.remove(id);
-      toast.success(res?.mensagem || 'Usuário excluído');
+      toast.success(res?.mensagem || 'Usuário removido');
       loadData();
     } catch (error) {
-      const message = error.response?.data?.mensagem || 'Erro ao excluir';
-      toast.error(message);
+      toast.error(error.message || 'Erro ao remover');
     }
   }
 
