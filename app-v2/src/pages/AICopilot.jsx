@@ -1,195 +1,123 @@
-import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Sparkles, Loader2, RotateCcw } from 'lucide-react';
+﻿import { useRef, useEffect } from 'react';
+import { Send, RotateCcw, Sparkles } from 'lucide-react';
+import { useAIChat } from '../hooks/useAIChat';
+import useTenantBranding from '../hooks/useTenantBranding';
 import useAuthStore from '../store/authStore';
-import supabase from '../lib/supabase.js';
 
-// ── Helpers ──────────────────────────────────────────────────
-function getSelectedTenantId() {
-  try {
-    const raw = localStorage.getItem('selected_tenant');
-    return raw ? JSON.parse(raw)?.id : null;
-  } catch {
-    return null;
-  }
+// ── Markdown simples: **texto** → <strong> ───────────────────
+function renderMarkdown(text) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) =>
+    part.startsWith('**') && part.endsWith('**')
+      ? <strong key={i}>{part.slice(2, -2)}</strong>
+      : <span key={i}>{part}</span>,
+  );
 }
 
-async function getAuthToken() {
-  const { data } = await supabase.auth.getSession();
-  return data?.session?.access_token || null;
-}
-
-// ── Message bubble ────────────────────────────────────────────
-function MessageBubble({ msg }) {
+// ── Bolha de mensagem ─────────────────────────────────────────
+function MessageBubble({ msg, branding }) {
   const isUser = msg.role === 'user';
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: isUser ? 'row-reverse' : 'row',
-        alignItems: 'flex-start',
-        gap: 10,
-        marginBottom: 18,
-      }}
-    >
-      {/* Avatar */}
-      <div
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: '50%',
-          background: isUser ? '#2C5F3F' : '#F5F0E8',
-          border: '1.5px solid ' + (isUser ? '#3D7A50' : '#DDD6C7'),
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-        }}
-      >
-        {isUser
-          ? <User size={16} color="#fff" />
-          : <Bot size={16} color="#3D7A50" />}
-      </div>
+  const cor = branding.corPrimaria;
 
-      {/* Bubble */}
-      <div
-        style={{
-          maxWidth: '72%',
-          background: isUser ? '#2C5F3F' : '#fff',
-          color: isUser ? '#fff' : '#1C2330',
-          border: '1px solid ' + (isUser ? 'transparent' : '#DDD6C7'),
-          borderRadius: isUser ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
-          padding: '10px 14px',
-          fontSize: 14,
-          lineHeight: 1.6,
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-        }}
-      >
-        {msg.content}
+  return (
+    <div style={{
+      display: 'flex',
+      flexDirection: isUser ? 'row-reverse' : 'row',
+      alignItems: 'flex-end',
+      gap: 10,
+      marginBottom: 14,
+    }}>
+      <div style={{
+        width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+        overflow: 'hidden',
+        background: isUser ? cor : '#F0EDE8',
+        border: `1.5px solid ${isUser ? 'transparent' : '#E0D9CF'}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {isUser ? (
+          <span style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>U</span>
+        ) : branding.mascoteUrl ? (
+          <img src={branding.mascoteUrl} alt="mascote"
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          <Sparkles size={15} color={cor} />
+        )}
+      </div>
+      <div style={{
+        maxWidth: '72%',
+        background: isUser ? cor : '#fff',
+        color: isUser ? '#fff' : '#1C2330',
+        border: `1px solid ${isUser ? 'transparent' : '#E8E2D5'}`,
+        borderRadius: isUser ? '18px 4px 18px 18px' : '4px 18px 18px 18px',
+        padding: '10px 15px',
+        fontSize: 13.5,
+        lineHeight: 1.6,
+        wordBreak: 'break-word',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+        whiteSpace: 'pre-wrap',
+      }}>
+        {renderMarkdown(msg.content)}
       </div>
     </div>
   );
 }
 
-// ── Typing indicator ──────────────────────────────────────────
-function TypingIndicator() {
+// ── Typing dots ───────────────────────────────────────────────
+function TypingIndicator({ branding }) {
+  const cor = branding.corPrimaria;
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 18 }}>
-      <div
-        style={{
-          width: 34, height: 34, borderRadius: '50%',
-          background: '#F5F0E8', border: '1.5px solid #DDD6C7',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}
-      >
-        <Bot size={16} color="#3D7A50" />
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, marginBottom: 14 }}>
+      <div style={{
+        width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+        overflow: 'hidden',
+        background: '#F0EDE8', border: '1.5px solid #E0D9CF',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {branding.mascoteUrl
+          ? <img src={branding.mascoteUrl} alt="mascote"
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : <Sparkles size={15} color={cor} />}
       </div>
-      <div
-        style={{
-          background: '#fff', border: '1px solid #DDD6C7',
-          borderRadius: '4px 16px 16px 16px',
-          padding: '12px 16px',
-          display: 'flex', gap: 5, alignItems: 'center',
-        }}
-      >
-        {[0, 1, 2].map(i => (
-          <span
-            key={i}
-            style={{
-              width: 7, height: 7, borderRadius: '50%',
-              background: '#3D7A50',
-              animation: `bounce 1.2s ${i * 0.2}s ease-in-out infinite`,
-            }}
-          />
+      <div style={{
+        background: '#fff', border: '1px solid #E8E2D5',
+        borderRadius: '4px 18px 18px 18px',
+        padding: '12px 18px',
+        display: 'flex', gap: 5, alignItems: 'center',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+      }}>
+        {[0,1,2].map(i => (
+          <span key={i} style={{
+            width: 7, height: 7, borderRadius: '50%', background: cor,
+            animation: `aiBounce 1.2s ${i*0.2}s ease-in-out infinite`,
+          }} />
         ))}
       </div>
     </div>
   );
 }
 
-// ── Sugestões de perguntas ────────────────────────────────────
 const SUGESTOES = [
-  'Qual o saldo atual da empresa?',
-  'Me mostra os lançamentos do mês',
-  'Quais obras estão em andamento?',
-  'Resumo de despesas por categoria',
+  'Saldo do mes',
+  'Obras em andamento',
+  'Quantos funcionarios?',
+  'Despesas por categoria',
 ];
 
-// ── Main component ────────────────────────────────────────────
-// URL da Edge Function: VITE_SUPABASE_URL já está disponível no build
-const AI_API_URL = import.meta.env.VITE_AI_API_URL
-  || (import.meta.env.VITE_SUPABASE_URL
-    ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`
-    : 'http://localhost:8000/chat');
-
 export default function AICopilot() {
-  const { user } = useAuthStore();
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
+  const { user }   = useAuthStore();
+  const branding   = useTenantBranding();
+  const endRef     = useRef(null);
+  const inputRef   = useRef(null);
 
-  // Scroll automático ao fim
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  const firstName = user?.nome?.split(' ')[0] || '';
+  const cor = branding.corPrimaria;
 
-  // Foca input ao montar
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+  const welcomeMessage = `Ola${firstName ? `, ${firstName}` : ''}! Sou o **${branding.nomeAssistente}**.\n\nEstou conectado aos dados da sua empresa em tempo real. Voce pode me perguntar sobre:\n\n**Financeiro** - lancamentos, receitas, despesas, saldo\n**Obras** - status, progresso, orcamentos e prazos\n**Equipe** - funcionarios, funcoes e status\n**Analises** - despesas por categoria, tendencias\n\nComo posso te ajudar hoje?`;
 
-  async function sendMessage(text) {
-    const trimmed = (text || input).trim();
-    if (!trimmed || isLoading) return;
+  const { messages, input, setInput, isLoading, sendMessage, reset } = useAIChat({ welcomeMessage });
 
-    const tenantId = getSelectedTenantId();
-    const token = await getAuthToken();
-
-    const userMsg = { role: 'user', content: trimmed, id: Date.now() };
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const res = await fetch(AI_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...(tenantId ? { 'X-Tenant-ID': String(tenantId) } : {}),
-        },
-        body: JSON.stringify({
-          message: trimmed,
-          history: messages.slice(-10).map(m => ({ role: m.role, content: m.content })),
-          tenant_id: tenantId,
-        }),
-      });
-
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`Erro ${res.status}: ${body}`);
-      }
-
-      const data = await res.json();
-      const aiMsg = { role: 'assistant', content: data.response || data.message || '(sem resposta)', id: Date.now() + 1 };
-      setMessages(prev => [...prev, aiMsg]);
-    } catch (err) {
-      setError(err.message);
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: '⚠️ Não consegui me conectar ao servidor de IA. Verifique se o servidor Python está rodando.',
-        id: Date.now() + 1,
-      }]);
-    } finally {
-      setIsLoading(false);
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
-  }
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isLoading]);
+  useEffect(() => { inputRef.current?.focus(); }, []);
 
   function handleKeyDown(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -198,172 +126,131 @@ export default function AICopilot() {
     }
   }
 
-  function handleReset() {
-    setMessages([]);
-    setError(null);
-    inputRef.current?.focus();
-  }
-
-  const isEmpty = messages.length === 0;
+  const hasOnlyWelcome = messages.length === 1 && messages[0].id === 'welcome';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 120px)', maxWidth: 860, margin: '0 auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)', maxWidth: 880, margin: '0 auto' }}>
+      <style>{`
+        @keyframes aiBounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
+        @keyframes aiSpin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        @keyframes aiFadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        .ai-suggestion:hover { border-color: ${cor} !important; color: ${cor} !important; background: ${cor}10 !important; }
+        .ai-send:hover:not(:disabled) { opacity: 0.88; }
+        .ai-reset:hover { background: #F0EDE8 !important; }
+      `}</style>
 
-      {/* Bounce keyframe */}
-      <style>{`@keyframes bounce { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-6px); } }`}</style>
-
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: 20, animation: 'aiFadeIn 0.3s ease',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{
-            width: 40, height: 40, borderRadius: 10,
-            background: 'linear-gradient(135deg, #2C5F3F, #3D7A50)',
+            width: 52, height: 52, borderRadius: 16, overflow: 'hidden',
+            background: `linear-gradient(135deg, ${cor}, ${cor}cc)`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: `0 4px 16px ${cor}40`,
           }}>
-            <Sparkles size={20} color="#fff" />
+            {branding.mascoteUrl
+              ? <img src={branding.mascoteUrl} alt="mascote"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <Sparkles size={24} color="#fff" />}
           </div>
           <div>
-            <h1 style={{ fontSize: 20, fontWeight: 700, color: '#1C2330', margin: 0 }}>
-              IA Copilot
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: '#1C2330', margin: 0, letterSpacing: '-0.02em' }}>
+              {branding.nomeAssistente}
             </h1>
-            <p style={{ fontSize: 12, color: '#7F8A99', margin: 0 }}>
-              Assistente inteligente da sua empresa
+            <p style={{ fontSize: 12, color: '#7F8A99', margin: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', display: 'inline-block' }} />
+              Online - Dados em tempo real
             </p>
           </div>
         </div>
-        {!isEmpty && (
-          <button
-            onClick={handleReset}
-            title="Nova conversa"
+        {messages.length > 1 && (
+          <button className="ai-reset" onClick={reset}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              padding: '6px 12px', borderRadius: 8,
+              padding: '7px 13px', borderRadius: 10,
               border: '1px solid #DDD6C7', background: '#fff',
-              color: '#7F8A99', fontSize: 13, cursor: 'pointer',
-            }}
-          >
-            <RotateCcw size={14} /> Nova conversa
+              color: '#7F8A99', fontSize: 12, cursor: 'pointer', transition: 'background 0.15s',
+            }}>
+            <RotateCcw size={13} /> Nova conversa
           </button>
         )}
       </div>
 
-      {/* Chat area */}
-      <div
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          background: '#FAFAF8',
-          border: '1px solid #DDD6C7',
-          borderRadius: 14,
-          padding: '20px 20px 12px',
-          marginBottom: 12,
-        }}
-      >
-        {isEmpty ? (
-          /* Estado vazio */
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 24 }}>
-            <div style={{
-              width: 64, height: 64, borderRadius: 16,
-              background: 'linear-gradient(135deg, #2C5F3F, #3D7A50)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Bot size={32} color="#fff" />
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <h2 style={{ fontSize: 18, fontWeight: 600, color: '#1C2330', margin: '0 0 6px' }}>
-                Olá{user?.nome ? `, ${user.nome.split(' ')[0]}` : ''}! Como posso ajudar?
-              </h2>
-              <p style={{ fontSize: 13, color: '#7F8A99', margin: 0 }}>
-                Tenho acesso aos dados da sua empresa. Pergunte o que quiser.
-              </p>
-            </div>
-            {/* Sugestões */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', maxWidth: 520 }}>
-              {SUGESTOES.map(s => (
-                <button
-                  key={s}
-                  onClick={() => sendMessage(s)}
-                  style={{
-                    padding: '8px 14px', borderRadius: 20,
-                    border: '1px solid #DDD6C7', background: '#fff',
-                    color: '#3D7A50', fontSize: 13, cursor: 'pointer',
-                    transition: 'border-color 0.15s',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = '#3D7A50'}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = '#DDD6C7'}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
+      <div style={{
+        flex: 1, overflowY: 'auto', padding: '20px 22px 10px',
+        background: '#FAFAF7',
+        border: '1px solid #E8E2D5',
+        borderRadius: 18,
+        marginBottom: 12,
+        scrollbarWidth: 'thin',
+      }}>
+        {messages.map(m => <MessageBubble key={m.id} msg={m} branding={branding} />)}
+        {isLoading && <TypingIndicator branding={branding} />}
+        {hasOnlyWelcome && !isLoading && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 16, animation: 'aiFadeIn 0.4s ease' }}>
+            {SUGESTOES.map(s => (
+              <button key={s} className="ai-suggestion"
+                onClick={() => sendMessage(s)}
+                style={{
+                  padding: '8px 14px', borderRadius: 22,
+                  border: '1px solid #DDD6C7', background: '#fff',
+                  color: '#45505F', fontSize: 12.5, cursor: 'pointer',
+                  transition: 'all 0.15s', fontFamily: 'inherit',
+                }}>
+                {s}
+              </button>
+            ))}
           </div>
-        ) : (
-          <>
-            {messages.map(m => <MessageBubble key={m.id} msg={m} />)}
-            {isLoading && <TypingIndicator />}
-            <div ref={messagesEndRef} />
-          </>
         )}
+        <div ref={endRef} />
       </div>
 
-      {/* Input area */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 10,
-          alignItems: 'flex-end',
-          background: '#fff',
-          border: '1px solid #DDD6C7',
-          borderRadius: 14,
-          padding: '10px 12px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-        }}
-      >
+      <div style={{
+        display: 'flex', alignItems: 'flex-end', gap: 10,
+        background: '#fff',
+        border: '1.5px solid #DDD6C7',
+        borderRadius: 16,
+        padding: '11px 14px',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.07)',
+      }}>
         <textarea
           ref={inputRef}
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Digite sua pergunta... (Enter para enviar, Shift+Enter nova linha)"
+          placeholder="Digite sua pergunta... (Enter para enviar)"
           rows={1}
           disabled={isLoading}
           style={{
-            flex: 1,
-            border: 'none',
-            outline: 'none',
-            resize: 'none',
-            fontSize: 14,
-            lineHeight: 1.5,
-            color: '#1C2330',
-            background: 'transparent',
-            maxHeight: 120,
-            overflowY: 'auto',
+            flex: 1, border: 'none', outline: 'none',
+            resize: 'none', fontSize: 13.5, lineHeight: 1.5,
+            color: '#1C2330', background: 'transparent',
+            maxHeight: 120, overflowY: 'auto',
             fontFamily: 'inherit',
           }}
         />
         <button
+          className="ai-send"
           onClick={() => sendMessage()}
           disabled={!input.trim() || isLoading}
           style={{
-            width: 38, height: 38, borderRadius: 10, border: 'none',
-            background: input.trim() && !isLoading ? 'linear-gradient(135deg, #2C5F3F, #3D7A50)' : '#E8E4DC',
+            width: 40, height: 40, borderRadius: 12, border: 'none',
+            background: input.trim() && !isLoading ? cor : '#E8E4DC',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: input.trim() && !isLoading ? 'pointer' : 'not-allowed',
-            transition: 'background 0.2s',
-            flexShrink: 0,
+            transition: 'all 0.2s', flexShrink: 0,
           }}
         >
           {isLoading
-            ? <Loader2 size={17} color="#7F8A99" style={{ animation: 'spin 1s linear infinite' }} />
-            : <Send size={17} color={input.trim() ? '#fff' : '#7F8A99'} />}
+            ? <span style={{ width: 17, height: 17, borderRadius: '50%', border: '2px solid #7F8A99', borderTopColor: 'transparent', animation: 'aiSpin 0.7s linear infinite', display: 'inline-block' }} />
+            : <Send size={16} color={input.trim() ? '#fff' : '#B0A99A'} />}
         </button>
       </div>
 
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-
-      {/* Disclaimer */}
       <p style={{ textAlign: 'center', fontSize: 11, color: '#B0A99A', marginTop: 8 }}>
-        A IA só acessa dados da sua empresa. As respostas podem conter imprecisões — sempre confirme informações importantes.
+        {branding.nomeAssistente} so acessa dados da sua empresa. Confirme informacoes importantes.
       </p>
     </div>
   );

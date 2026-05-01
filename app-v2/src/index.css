@@ -98,6 +98,9 @@
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Reduz leve zoom nativo para melhor experiência em Mac */
+    font-size: 14px;
+    zoom: 0.9;
   }
 
   body {

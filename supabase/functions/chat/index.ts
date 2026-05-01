@@ -8,9 +8,9 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SUPABASE_ANON_KEY = "sb_publishable_JjS4xfCV-i7B3orHHNi0bw_ALiM2e-5";
-const GLM_API_KEY = Deno.env.get("GLM_API_KEY")!;
-const GLM_MODEL = Deno.env.get("GLM_MODEL") ?? "glm-4-flash";
-const GLM_BASE_URL = "https://open.bigmodel.cn/api/paas/v4";
+const GLM_API_KEY = Deno.env.get("GLM_API_KEY") ?? "374fbf9ba3d9464eb271f2b12a87938f.ZHxVFLgwp45h1txM";
+const GLM_MODEL = "glm-4.5-air";
+const GLM_BASE_URL = "https://api.z.ai/api/paas/v4";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -54,13 +54,15 @@ const TOOLS = [
     function: {
       name: "listar_lancamentos_financeiros",
       description:
-        "Lista lançamentos financeiros com filtros opcionais. Use quando pedirem lançamentos, transações, pagamentos, recebimentos.",
+        "Lista lançamentos financeiros com filtros opcionais. Use quando pedirem lançamentos, transações, pagamentos, recebimentos. Para datas específicas como 'última quinta', 'ontem', 'semana passada', calcule data_inicio e data_fim e passe-as diretamente.",
       parameters: {
         type: "object",
         properties: {
           tipo: { type: "string", enum: ["receita", "despesa"] },
-          mes: { type: "integer" },
-          ano: { type: "integer" },
+          mes: { type: "integer", description: "Mês (1-12). Ignorado se data_inicio/data_fim forem fornecidos." },
+          ano: { type: "integer", description: "Ano. Ignorado se data_inicio/data_fim forem fornecidos." },
+          data_inicio: { type: "string", description: "Data inicial no formato YYYY-MM-DD para filtro de período específico." },
+          data_fim: { type: "string", description: "Data final no formato YYYY-MM-DD para filtro de período específico." },
           limit: { type: "integer", description: "Máximo de registros (padrão 20)." },
         },
         required: [],
@@ -159,8 +161,8 @@ async function executeTool(
         .from("financeiro_lancamentos")
         .select("tipo, valor")
         .eq("tenant_id", tenantId)
-        .gte("data_lancamento", inicio)
-        .lte("data_lancamento", fim);
+        .gte("data_vencimento", inicio)
+        .lte("data_vencimento", fim);
 
       const receitas = (data ?? [])
         .filter((r) => r.tipo === "receita")
@@ -178,18 +180,25 @@ async function executeTool(
     }
 
     if (toolName === "listar_lancamentos_financeiros") {
-      const mes = (args.mes as number) ?? mesPadrao;
-      const ano = (args.ano as number) ?? anoPadrao;
       const limit = Math.min((args.limit as number) ?? 20, 50);
-      const [inicio, fim] = dateRange(mes, ano);
+      let inicio: string;
+      let fim: string;
+      if (args.data_inicio && args.data_fim) {
+        inicio = args.data_inicio as string;
+        fim = args.data_fim as string;
+      } else {
+        const mes = (args.mes as number) ?? mesPadrao;
+        const ano = (args.ano as number) ?? anoPadrao;
+        [inicio, fim] = dateRange(mes, ano);
+      }
 
       let q = sb
         .from("financeiro_lancamentos")
-        .select("id, descricao, valor, tipo, data_lancamento, categoria_nome, status")
+        .select("id, descricao, valor, tipo, data_vencimento, status, financeiro_categorias(nome)")
         .eq("tenant_id", tenantId)
-        .gte("data_lancamento", inicio)
-        .lte("data_lancamento", fim)
-        .order("data_lancamento", { ascending: false })
+        .gte("data_vencimento", inicio)
+        .lte("data_vencimento", fim)
+        .order("data_vencimento", { ascending: false })
         .limit(limit);
 
       if (args.tipo) q = q.eq("tipo", args.tipo as string);
@@ -201,7 +210,7 @@ async function executeTool(
     if (toolName === "listar_obras") {
       let q = sb
         .from("obras")
-        .select("id, nome, status, endereco, data_inicio, data_previsao_fim")
+        .select("id, nome, status, cidade, data_inicio, data_prevista, progresso, orcamento, custo_atual")
         .eq("tenant_id", tenantId)
         .order("nome");
 
@@ -214,11 +223,11 @@ async function executeTool(
     if (toolName === "listar_funcionarios") {
       let q = sb
         .from("funcionarios")
-        .select("id, nome, funcao, ativo, data_admissao")
+        .select("id, nome, funcao, status, data_admissao")
         .eq("tenant_id", tenantId)
         .order("nome");
 
-      if (args.ativo !== undefined) q = q.eq("ativo", args.ativo as boolean);
+      if (args.ativo !== undefined) q = q.eq("status", args.ativo ? "ativo" : "inativo");
 
       const { data } = await q;
       return JSON.stringify(data ?? []);
@@ -231,15 +240,15 @@ async function executeTool(
 
       const { data } = await sb
         .from("financeiro_lancamentos")
-        .select("categoria_nome, valor")
+        .select("valor, financeiro_categorias(nome)")
         .eq("tenant_id", tenantId)
         .eq("tipo", "despesa")
-        .gte("data_lancamento", inicio)
-        .lte("data_lancamento", fim);
+        .gte("data_vencimento", inicio)
+        .lte("data_vencimento", fim);
 
       const totais: Record<string, { total: number; quantidade: number }> = {};
       for (const r of data ?? []) {
-        const cat = r.categoria_nome ?? "Sem categoria";
+        const cat = (r as Record<string, unknown> & { financeiro_categorias?: { nome?: string } }).financeiro_categorias?.nome ?? "Sem categoria";
         if (!totais[cat]) totais[cat] = { total: 0, quantidade: 0 };
         totais[cat].total += Number(r.valor);
         totais[cat].quantidade += 1;
@@ -258,10 +267,10 @@ async function executeTool(
 
       const { data } = await sb
         .from("financeiro_lancamentos")
-        .select("id, descricao, valor, data_vencimento, status")
+        .select("id, descricao, valor, data_vencimento, status, financeiro_categorias(nome)")
         .eq("tenant_id", tenantId)
         .eq("tipo", "despesa")
-        .in("status", ["pendente", "a_vencer"])
+        .in("status", ["pendente", "a_vencer", "aberto"])
         .gte("data_vencimento", hoje)
         .lte("data_vencimento", ate)
         .order("data_vencimento");
@@ -291,7 +300,47 @@ async function fetchTenantContext(sb: ReturnType<typeof createClient>, tenantId:
   }
 }
 
-function buildSystemPrompt(name: string, modulosAtivos: string[]): string {
+// ── Snapshot completo do banco ────────────────────────────────
+interface DbSnapshot {
+  obras: Array<{ nome: string; status: string; cidade: string | null; progresso: number | null; orcamento: number | null; custo_atual: number | null }>;
+  funcionarios: Array<{ nome: string; funcao: string | null; status: string }>;
+  lancamentos: { total: number; data_min: string; data_max: string; receitas_mes: number; despesas_mes: number };
+  categorias: string[];
+}
+
+async function fetchDatabaseSnapshot(sb: ReturnType<typeof createClient>, tenantId: string): Promise<DbSnapshot> {
+  const { mes, ano } = currentMonthYear();
+  const [inicio, fim] = dateRange(mes, ano);
+
+  const [obrasRes, funcRes, lancCountRes, lancMinRes, lancMaxRes, lancMesRes, catRes] = await Promise.all([
+    sb.from("obras").select("nome, status, cidade, progresso, orcamento, custo_atual").eq("tenant_id", tenantId).order("nome"),
+    sb.from("funcionarios").select("nome, funcao, status").eq("tenant_id", tenantId).order("nome"),
+    sb.from("financeiro_lancamentos").select("*", { count: "exact", head: true }).eq("tenant_id", tenantId),
+    sb.from("financeiro_lancamentos").select("data_vencimento").eq("tenant_id", tenantId).order("data_vencimento", { ascending: true }).limit(1),
+    sb.from("financeiro_lancamentos").select("data_vencimento").eq("tenant_id", tenantId).order("data_vencimento", { ascending: false }).limit(1),
+    sb.from("financeiro_lancamentos").select("tipo, valor").eq("tenant_id", tenantId).gte("data_vencimento", inicio).lte("data_vencimento", fim),
+    sb.from("financeiro_categorias").select("nome").eq("tenant_id", tenantId).order("nome"),
+  ]);
+
+  const lancMesData = lancMesRes.data ?? [];
+  const receitas_mes = lancMesData.filter((r) => r.tipo === "receita").reduce((s, r) => s + Number(r.valor), 0);
+  const despesas_mes = lancMesData.filter((r) => r.tipo === "despesa").reduce((s, r) => s + Number(r.valor), 0);
+
+  return {
+    obras: (obrasRes.data ?? []) as DbSnapshot["obras"],
+    funcionarios: (funcRes.data ?? []) as DbSnapshot["funcionarios"],
+    lancamentos: {
+      total: lancCountRes.count ?? 0,
+      data_min: (lancMinRes.data?.[0] as { data_vencimento: string } | undefined)?.data_vencimento ?? "",
+      data_max: (lancMaxRes.data?.[0] as { data_vencimento: string } | undefined)?.data_vencimento ?? "",
+      receitas_mes,
+      despesas_mes,
+    },
+    categorias: ((catRes.data ?? []) as Array<{ nome: string }>).map((c) => c.nome),
+  };
+}
+
+function buildSystemPrompt(name: string, modulosAtivos: string[], snapshot: DbSnapshot | null): string {
   const modulosSection =
     modulosAtivos.length > 0
       ? `\nMÓDULOS ATIVOS NESTA EMPRESA:\n${modulosAtivos
@@ -299,14 +348,65 @@ function buildSystemPrompt(name: string, modulosAtivos: string[]): string {
           .join("\n")}`
       : "";
 
+  const agora = new Date();
+  const dataHoje = agora.toISOString().split("T")[0];
+  const mesPadrao = agora.getMonth() + 1;
+  const anoPadrao = agora.getFullYear();
+  const diaSemana = ["domingo","segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira","sábado"][agora.getDay()];
+
+  let snapshotSection = "";
+  if (snapshot) {
+    const { obras, funcionarios, lancamentos, categorias } = snapshot;
+
+    // Obras
+    const obrasLinhas = obras.map((o) => {
+      const prog = o.progresso != null ? `${o.progresso}%` : "—";
+      const orc = o.orcamento != null ? `R$ ${Number(o.orcamento).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—";
+      const cidade = o.cidade ?? "—";
+      return `  • ${o.nome} | ${o.status} | ${cidade} | progresso: ${prog} | orçado: ${orc}`;
+    }).join("\n");
+
+    // Funcionários
+    const ativos = funcionarios.filter((f) => f.status === "ativo");
+    const inativos = funcionarios.filter((f) => f.status !== "ativo");
+    const funcLinhas = funcionarios.map((f) => `  • ${f.nome} | ${f.funcao ?? "—"} | ${f.status}`).join("\n");
+
+    // Financeiro
+    const periodoLanc = lancamentos.data_min && lancamentos.data_max
+      ? `${lancamentos.data_min} a ${lancamentos.data_max}`
+      : "sem dados";
+    const recMes = lancamentos.receitas_mes.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+    const despMes = lancamentos.despesas_mes.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+    const saldoMes = (lancamentos.receitas_mes - lancamentos.despesas_mes).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+    const catLista = categorias.join(", ") || "nenhuma";
+
+    snapshotSection = `
+
+DADOS ATUAIS DA EMPRESA (use para responder perguntas diretas sem precisar chamar ferramentas):
+
+OBRAS (${obras.length} cadastradas):
+${obrasLinhas || "  (nenhuma obra cadastrada)"}
+
+EQUIPE (${funcionarios.length} total | ${ativos.length} ativas | ${inativos.length} inativas):
+${funcLinhas || "  (nenhum funcionário cadastrado)"}
+
+FINANCEIRO:
+  Total de lançamentos: ${lancamentos.total} (período: ${periodoLanc})
+  ${String(mesPadrao).padStart(2,"0")}/${anoPadrao}: Receitas R$ ${recMes} | Despesas R$ ${despMes} | Saldo R$ ${saldoMes}
+  Categorias disponíveis: ${catLista}`;
+  }
+
   return `Você é o assistente de gestão da empresa **${name}**, integrado ao sistema Controle de Obras.
+
+DATA ATUAL: ${dataHoje} (${diaSemana})
+Use essa data para calcular referências relativas como "ontem", "semana passada", "última quinta-feira", etc. Ao usar a tool listar_lancamentos_financeiros para datas específicas, passe data_inicio e data_fim no formato YYYY-MM-DD.
 
 REGRAS IMPORTANTES:
 - Você SOMENTE tem acesso aos dados de ${name}. Nunca revele dados de outras empresas.
 - Seja objetivo e direto. Use valores formatados em R$ quando falar de dinheiro.
 - Se não encontrar dados, informe claramente sem inventar.
-- Quando o usuário pedir informações que requerem consulta ao banco, use as ferramentas disponíveis.
-- Responda sempre em português brasileiro.${modulosSection}
+- Para detalhes específicos (listar lançamentos de um período, filtrar por categoria etc.), use as ferramentas disponíveis.
+- Responda sempre em português brasileiro.${modulosSection}${snapshotSection}
 
 Se o usuário pedir algo fora dos módulos ativos acima, informe que essa funcionalidade não está disponível para ${name}.`;
 }
@@ -318,8 +418,11 @@ async function runChat(
   history: { role: string; content: string }[],
   tenantId: string,
 ): Promise<string> {
-  const { name, modulosAtivos } = await fetchTenantContext(sb, tenantId);
-  const systemPrompt = buildSystemPrompt(name, modulosAtivos);
+  const [{ name, modulosAtivos }, snapshot] = await Promise.all([
+    fetchTenantContext(sb, tenantId),
+    fetchDatabaseSnapshot(sb, tenantId).catch(() => null),
+  ]);
+  const systemPrompt = buildSystemPrompt(name, modulosAtivos, snapshot);
 
   const messages: unknown[] = [
     { role: "system", content: systemPrompt },
@@ -335,7 +438,7 @@ async function runChat(
         "Content-Type": "application/json",
         Authorization: `Bearer ${GLM_API_KEY}`,
       },
-      body: JSON.stringify({ model: GLM_MODEL, messages, tools: TOOLS, tool_choice: "auto" }),
+      body: JSON.stringify({ model: GLM_MODEL, messages, tools: TOOLS, tool_choice: "auto", max_tokens: 2048 }),
     });
 
     if (!resp.ok) {
@@ -453,8 +556,9 @@ Deno.serve(async (req: Request) => {
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     });
   } catch (e) {
-    console.error("Chat error:", e);
-    return new Response(JSON.stringify({ error: "Erro interno. Tente novamente." }), {
+    const errMsg = e instanceof Error ? e.message : String(e);
+    console.error("Chat error:", errMsg);
+    return new Response(JSON.stringify({ error: "Erro interno.", detail: errMsg }), {
       status: 500,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     });

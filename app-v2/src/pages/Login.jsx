@@ -54,10 +54,16 @@ export default function Login() {
       <div className="relative z-10 w-full max-w-sm mx-4 animate-scale-in">
 
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-2xl shadow-glow-primary flex items-center justify-center mb-4"
-            style={{ background: branding.corPrimaria }}>
-            <HardHat className="w-6 h-6 text-white" />
-          </div>
+          {branding.logoLocalUrl ? (
+            <img src={branding.logoLocalUrl} alt={branding.nomeExibicao}
+              className="h-14 object-contain mb-1"
+              onError={e => { e.currentTarget.style.display = 'none'; }} />
+          ) : (
+            <div className="w-12 h-12 rounded-2xl shadow-glow-primary flex items-center justify-center mb-4"
+              style={{ background: branding.corPrimaria }}>
+              <HardHat className="w-6 h-6 text-white" />
+            </div>
+          )}
           <h1 className="text-xl font-semibold text-foreground tracking-tight">{branding.nomeExibicao}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{branding.subtitulo}</p>
         </div>
