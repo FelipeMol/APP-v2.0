@@ -163,6 +163,117 @@ function StatusPills({ value, onChange }) {
   )
 }
 
+// ── ContatoCombobox: pesquisa por nome com criação rápida ─────────
+function ContatoCombobox({ value, onChange, contatos, queryClient }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [newNome, setNewNome] = useState('')
+  const ref = useRef(null)
+  const inputRef = useRef(null)
+  const selected = contatos.find(c => c.id === value)
+
+  useEffect(() => {
+    function handleClick(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return contatos.slice(0, 60)
+    return contatos.filter(c => c.nome.toLowerCase().includes(q)).slice(0, 60)
+  }, [contatos, query])
+
+  function handleSelect(c) {
+    onChange(c.id)
+    setQuery('')
+    setOpen(false)
+  }
+
+  function handleClear(e) {
+    e.stopPropagation()
+    onChange('')
+    setQuery('')
+  }
+
+  async function handleCreate() {
+    const nome = newNome.trim()
+    if (!nome) return
+    try {
+      const novo = await contatosService.create({ nome, tipo: 'fornecedor', documento: 'nome:' + nome.toLowerCase(), ativo: true })
+      if (queryClient) queryClient.invalidateQueries({ queryKey: ['contatos'] })
+      onChange(novo.id)
+      setNewNome('')
+      setCreating(false)
+      setOpen(false)
+    } catch (err) {
+      toast.error('Erro ao criar contato: ' + (err.message || err))
+    }
+  }
+
+  const inpStyle = {
+    width: '100%', padding: '9px 12px', border: `1px solid ${C.line}`,
+    borderRadius: 8, fontSize: 13, background: C.surface, color: C.ink,
+    fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+  }
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <div style={{ ...inpStyle, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', padding: '0 10px' }}
+        onClick={() => { setOpen(o => !o); setTimeout(() => inputRef.current?.focus(), 50) }}>
+        <span style={{ fontSize: 13, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: selected ? C.ink : C.ink3, padding: '9px 0' }}>
+          {selected ? selected.nome : 'Nenhum'}
+        </span>
+        {selected
+          ? <button type="button" onClick={handleClear} style={{ background: 'none', border: 'none', color: C.ink3, cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '2px 0', flexShrink: 0 }}>×</button>
+          : <span style={{ color: C.ink3, fontSize: 11, flexShrink: 0 }}>▾</span>
+        }
+      </div>
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: C.surface, border: `1px solid ${C.line}`, borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 999, maxHeight: 280, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '8px 10px', borderBottom: `1px solid ${C.line2}` }}>
+            <input ref={inputRef} type="text" placeholder="Pesquisar fornecedor..." value={query} onChange={e => setQuery(e.target.value)}
+              style={{ ...inpStyle, padding: '6px 10px', fontSize: 12 }} autoComplete="off" />
+          </div>
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            <div style={{ padding: '6px 10px', fontSize: 12, color: C.ink3, cursor: 'pointer', fontStyle: 'italic' }}
+              onClick={() => handleSelect({ id: '', nome: 'Nenhum' })}>Nenhum</div>
+            {filtered.map(c => (
+              <div key={c.id} onClick={() => handleSelect(c)}
+                style={{ padding: '7px 10px', fontSize: 12, color: C.ink, cursor: 'pointer', background: c.id === value ? '#F0EDE7' : 'transparent' }}
+                onMouseEnter={e => { if (c.id !== value) e.currentTarget.style.background = C.surface2 }}
+                onMouseLeave={e => { if (c.id !== value) e.currentTarget.style.background = 'transparent' }}>
+                {c.nome}
+              </div>
+            ))}
+            {filtered.length === 0 && (
+              <div style={{ padding: '10px', fontSize: 12, color: C.ink3, textAlign: 'center' }}>Nenhum resultado</div>
+            )}
+          </div>
+          <div style={{ borderTop: `1px solid ${C.line2}`, padding: '6px 10px' }}>
+            {creating ? (
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input type="text" placeholder="Nome do novo contato" value={newNome} onChange={e => setNewNome(e.target.value)}
+                  style={{ ...inpStyle, padding: '6px 10px', fontSize: 12, flex: 1 }}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreate() } if (e.key === 'Escape') setCreating(false) }}
+                  autoFocus />
+                <button type="button" onClick={handleCreate} style={{ padding: '6px 12px', background: C.navy, color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>Criar</button>
+                <button type="button" onClick={() => setCreating(false)} style={{ padding: '6px 10px', background: C.surface2, color: C.ink2, border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>✕</button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => { setCreating(true); setNewNome(query) }}
+                style={{ width: '100%', padding: '6px 10px', background: 'transparent', border: `1px dashed ${C.line}`, borderRadius: 6, fontSize: 12, color: C.ink2, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+                + Criar novo contato{query ? ` "${query}"` : ''}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── ContaDropdown: dropdown com badge do banco ────────────────────
 function ContaDropdown({ value, onChange, contas }) {
   const [open, setOpen] = useState(false)
@@ -255,7 +366,7 @@ function AnexosZone({ files, onAdd, onRemove }) {
 }
 
 // ── LancamentoModal ───────────────────────────────────────────────
-function LancamentoModal({ open, onClose, onSave, form, setForm, saving, editId, categorias, contas, contatos, centrosCusto, obras }) {
+function LancamentoModal({ open, onClose, onSave, form, setForm, saving, editId, categorias, contas, contatos, centrosCusto, obras, queryClient }) {
   const [files, setFiles] = useState([])
   const catsFiltradas = categorias.filter(c => !form.tipo || c.tipo === form.tipo)
   const catTree = buildCatTree(catsFiltradas)
@@ -358,11 +469,13 @@ function LancamentoModal({ open, onClose, onSave, form, setForm, saving, editId,
 
             {/* Contato + Centro Custo + Nº Doc */}
             <div style={{ display: 'grid', gridTemplateColumns: itens.length > 0 ? '1fr 1fr' : '1fr 1fr 1fr', gap: 12 }}>
-              <Field label="Contato">
-                <select style={{ ...inp(), cursor: 'pointer' }} value={form.contato_id} onChange={e => setForm(f => ({ ...f, contato_id: e.target.value }))}>
-                  <option value="">Nenhum</option>
-                  {contatos.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                </select>
+              <Field label="Contato / Fornecedor">
+                <ContatoCombobox
+                  value={form.contato_id}
+                  onChange={v => setForm(f => ({ ...f, contato_id: v }))}
+                  contatos={contatos}
+                  queryClient={queryClient}
+                />
               </Field>
               {itens.length === 0 && (
                 <Field label="Centro de Custo">
@@ -856,6 +969,7 @@ export default function Lancamentos() {
         contatos={contatos}
         centrosCusto={centrosCusto}
         obras={obras}
+        queryClient={queryClient}
       />
     </div>
   )

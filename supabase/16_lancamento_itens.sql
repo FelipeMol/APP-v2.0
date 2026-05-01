@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS financeiro_lancamento_itens (
   tenant_id       VARCHAR(50) NOT NULL DEFAULT 'transformar',
   descricao       TEXT,
   categoria_id    BIGINT REFERENCES financeiro_categorias(id) ON DELETE SET NULL,
-  centro_custo_id BIGINT REFERENCES financeiro_centros_custo(id) ON DELETE SET NULL,
+  centro_custo_id UUID REFERENCES financeiro_centros_custo(id) ON DELETE SET NULL,
   valor           NUMERIC(15,2) NOT NULL,
   criado_em       TIMESTAMPTZ DEFAULT NOW()
 );
