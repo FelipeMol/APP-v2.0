@@ -2,11 +2,12 @@
 MCP Database Tools
 Funções que a IA pode chamar para consultar o banco de dados.
 Cada função recebe o tenant_id e só acessa dados daquele tenant.
+Usa supabase-py (PostgREST) — não requer conexão direta ao Postgres.
 """
 
 import json
 from typing import Optional
-from db import get_db_connection
+from db import get_supabase
 
 
 # ── Definição das tools para o LLM ───────────────────────────
@@ -127,7 +128,7 @@ TOOLS = [
 
 # ── Implementação das tools ───────────────────────────────────
 
-async def execute_tool(tool_name: str, args: dict, tenant_id: int) -> str:
+async def execute_tool(tool_name: str, args: dict, tenant_id: str) -> str:
     """
     Executa a tool solicitada pela IA e retorna o resultado como string JSON.
     tenant_id garante isolamento: cada empresa só vê seus próprios dados.
@@ -153,29 +154,32 @@ async def execute_tool(tool_name: str, args: dict, tenant_id: int) -> str:
 
 # ── Implementações individuais ────────────────────────────────
 
-async def _get_resumo_financeiro(tenant_id: int, mes: Optional[int] = None, ano: Optional[int] = None) -> str:
+def _date_range(mes: int, ano: int):
+    """Retorna (data_inicio, data_fim) para o mês/ano informado."""
+    import calendar
+    last_day = calendar.monthrange(ano, mes)[1]
+    return f"{ano}-{mes:02d}-01", f"{ano}-{mes:02d}-{last_day}"
+
+
+async def _get_resumo_financeiro(tenant_id: str, mes: Optional[int] = None, ano: Optional[int] = None) -> str:
     from datetime import date
     hoje = date.today()
     mes = mes or hoje.month
     ano = ano or hoje.year
+    inicio, fim = _date_range(mes, ano)
 
-    async with get_db_connection() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT
-                tipo,
-                COALESCE(SUM(valor), 0) AS total
-            FROM financeiro_lancamentos
-            WHERE tenant_id = $1
-              AND EXTRACT(MONTH FROM data_lancamento) = $2
-              AND EXTRACT(YEAR  FROM data_lancamento) = $3
-            GROUP BY tipo
-            """,
-            tenant_id, mes, ano,
-        )
-    result = {r["tipo"]: float(r["total"]) for r in rows}
-    receitas = result.get("receita", 0)
-    despesas = result.get("despesa", 0)
+    sb = get_supabase()
+    resp = (
+        sb.table("financeiro_lancamentos")
+        .select("tipo, valor")
+        .eq("tenant_id", tenant_id)
+        .gte("data_lancamento", inicio)
+        .lte("data_lancamento", fim)
+        .execute()
+    )
+
+    receitas = sum(float(r["valor"]) for r in resp.data if r.get("tipo") == "receita")
+    despesas = sum(float(r["valor"]) for r in resp.data if r.get("tipo") == "despesa")
     return json.dumps({
         "periodo": f"{mes:02d}/{ano}",
         "receitas": receitas,
@@ -185,7 +189,7 @@ async def _get_resumo_financeiro(tenant_id: int, mes: Optional[int] = None, ano:
 
 
 async def _listar_lancamentos_financeiros(
-    tenant_id: int,
+    tenant_id: str,
     tipo: Optional[str] = None,
     mes: Optional[int] = None,
     ano: Optional[int] = None,
@@ -196,141 +200,110 @@ async def _listar_lancamentos_financeiros(
     mes = mes or hoje.month
     ano = ano or hoje.year
     limit = min(limit or 20, 50)
+    inicio, fim = _date_range(mes, ano)
 
-    conditions = [
-        "tenant_id = $1",
-        "EXTRACT(MONTH FROM data_lancamento) = $2",
-        "EXTRACT(YEAR  FROM data_lancamento) = $3",
-    ]
-    params = [tenant_id, mes, ano]
-
+    sb = get_supabase()
+    q = (
+        sb.table("financeiro_lancamentos")
+        .select("id, descricao, valor, tipo, data_lancamento, categoria_nome, status")
+        .eq("tenant_id", tenant_id)
+        .gte("data_lancamento", inicio)
+        .lte("data_lancamento", fim)
+        .order("data_lancamento", desc=True)
+        .limit(limit)
+    )
     if tipo:
-        conditions.append(f"tipo = ${len(params) + 1}")
-        params.append(tipo)
+        q = q.eq("tipo", tipo)
 
-    sql = f"""
-        SELECT
-            id, descricao, valor, tipo, data_lancamento,
-            categoria_nome, status
-        FROM financeiro_lancamentos
-        WHERE {' AND '.join(conditions)}
-        ORDER BY data_lancamento DESC
-        LIMIT {limit}
-    """
-
-    async with get_db_connection() as conn:
-        rows = await conn.fetch(sql, *params)
-
-    data = [dict(r) for r in rows]
+    resp = q.execute()
+    data = resp.data or []
     for item in data:
-        if item.get("data_lancamento"):
-            item["data_lancamento"] = item["data_lancamento"].isoformat()
-        item["valor"] = float(item["valor"])
-
+        if item.get("valor") is not None:
+            item["valor"] = float(item["valor"])
     return json.dumps(data, ensure_ascii=False, default=str)
 
 
-async def _listar_obras(tenant_id: int, status: Optional[str] = None) -> str:
-    conditions = ["tenant_id = $1"]
-    params = [tenant_id]
-
+async def _listar_obras(tenant_id: str, status: Optional[str] = None) -> str:
+    sb = get_supabase()
+    q = (
+        sb.table("obras")
+        .select("id, nome, status, endereco, data_inicio, data_previsao_fim")
+        .eq("tenant_id", tenant_id)
+        .order("nome")
+    )
     if status:
-        conditions.append(f"status = ${len(params) + 1}")
-        params.append(status)
-
-    sql = f"""
-        SELECT id, nome, status, endereco, data_inicio, data_previsao_fim
-        FROM obras
-        WHERE {' AND '.join(conditions)}
-        ORDER BY nome
-    """
-
-    async with get_db_connection() as conn:
-        rows = await conn.fetch(sql, *params)
-
-    data = [dict(r) for r in rows]
-    for item in data:
-        for k in ["data_inicio", "data_previsao_fim"]:
-            if item.get(k):
-                item[k] = item[k].isoformat()
-
-    return json.dumps(data, ensure_ascii=False, default=str)
+        q = q.eq("status", status)
+    resp = q.execute()
+    return json.dumps(resp.data or [], ensure_ascii=False, default=str)
 
 
-async def _listar_funcionarios(tenant_id: int, ativo: Optional[bool] = None) -> str:
-    conditions = ["tenant_id = $1"]
-    params = [tenant_id]
-
+async def _listar_funcionarios(tenant_id: str, ativo: Optional[bool] = None) -> str:
+    sb = get_supabase()
+    q = (
+        sb.table("funcionarios")
+        .select("id, nome, funcao, ativo, data_admissao")
+        .eq("tenant_id", tenant_id)
+        .order("nome")
+    )
     if ativo is not None:
-        conditions.append(f"ativo = ${len(params) + 1}")
-        params.append(ativo)
-
-    sql = f"""
-        SELECT id, nome, funcao, ativo, data_admissao
-        FROM funcionarios
-        WHERE {' AND '.join(conditions)}
-        ORDER BY nome
-    """
-
-    async with get_db_connection() as conn:
-        rows = await conn.fetch(sql, *params)
-
-    data = [dict(r) for r in rows]
-    for item in data:
-        if item.get("data_admissao"):
-            item["data_admissao"] = item["data_admissao"].isoformat()
-
-    return json.dumps(data, ensure_ascii=False, default=str)
+        q = q.eq("ativo", ativo)
+    resp = q.execute()
+    return json.dumps(resp.data or [], ensure_ascii=False, default=str)
 
 
-async def _despesas_por_categoria(tenant_id: int, mes: Optional[int] = None, ano: Optional[int] = None) -> str:
+async def _despesas_por_categoria(tenant_id: str, mes: Optional[int] = None, ano: Optional[int] = None) -> str:
     from datetime import date
     hoje = date.today()
     mes = mes or hoje.month
     ano = ano or hoje.year
+    inicio, fim = _date_range(mes, ano)
 
-    async with get_db_connection() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT
-                COALESCE(categoria_nome, 'Sem categoria') AS categoria,
-                SUM(valor) AS total,
-                COUNT(*) AS quantidade
-            FROM financeiro_lancamentos
-            WHERE tenant_id = $1
-              AND tipo = 'despesa'
-              AND EXTRACT(MONTH FROM data_lancamento) = $2
-              AND EXTRACT(YEAR  FROM data_lancamento) = $3
-            GROUP BY categoria_nome
-            ORDER BY total DESC
-            """,
-            tenant_id, mes, ano,
-        )
+    sb = get_supabase()
+    resp = (
+        sb.table("financeiro_lancamentos")
+        .select("categoria_nome, valor")
+        .eq("tenant_id", tenant_id)
+        .eq("tipo", "despesa")
+        .gte("data_lancamento", inicio)
+        .lte("data_lancamento", fim)
+        .execute()
+    )
 
-    data = [{"categoria": r["categoria"], "total": float(r["total"]), "quantidade": r["quantidade"]} for r in rows]
-    return json.dumps({"periodo": f"{mes:02d}/{ano}", "categorias": data}, ensure_ascii=False)
+    totais: dict = {}
+    contagens: dict = {}
+    for r in (resp.data or []):
+        cat = r.get("categoria_nome") or "Sem categoria"
+        totais[cat] = totais.get(cat, 0.0) + float(r.get("valor", 0))
+        contagens[cat] = contagens.get(cat, 0) + 1
+
+    categorias = sorted(
+        [{"categoria": k, "total": totais[k], "quantidade": contagens[k]} for k in totais],
+        key=lambda x: x["total"],
+        reverse=True,
+    )
+    return json.dumps({"periodo": f"{mes:02d}/{ano}", "categorias": categorias}, ensure_ascii=False)
 
 
-async def _contas_a_pagar(tenant_id: int, dias: int = 30) -> str:
-    async with get_db_connection() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT
-                id, descricao, valor, data_vencimento, status
-            FROM financeiro_lancamentos
-            WHERE tenant_id = $1
-              AND tipo = 'despesa'
-              AND status IN ('pendente', 'a_vencer')
-              AND data_vencimento BETWEEN CURRENT_DATE AND CURRENT_DATE + $2::integer
-            ORDER BY data_vencimento
-            """,
-            tenant_id, dias,
-        )
+async def _contas_a_pagar(tenant_id: str, dias: int = 30) -> str:
+    from datetime import date, timedelta
+    hoje = date.today()
+    ate = hoje + timedelta(days=dias)
 
-    data = [dict(r) for r in rows]
+    sb = get_supabase()
+    resp = (
+        sb.table("financeiro_lancamentos")
+        .select("id, descricao, valor, data_vencimento, status")
+        .eq("tenant_id", tenant_id)
+        .eq("tipo", "despesa")
+        .in_("status", ["pendente", "a_vencer"])
+        .gte("data_vencimento", str(hoje))
+        .lte("data_vencimento", str(ate))
+        .order("data_vencimento")
+        .execute()
+    )
+
+    data = resp.data or []
     for item in data:
-        if item.get("data_vencimento"):
-            item["data_vencimento"] = item["data_vencimento"].isoformat()
-        item["valor"] = float(item["valor"])
-
+        if item.get("valor") is not None:
+            item["valor"] = float(item["valor"])
     return json.dumps(data, ensure_ascii=False, default=str)

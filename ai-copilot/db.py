@@ -1,41 +1,34 @@
 """
-Conexão com o banco de dados (asyncpg).
-Suporta Supabase (pooler) ou PostgreSQL direto via DATABASE_URL.
+Conexão com o Supabase via supabase-py (PostgREST + service_role).
+Requer no .env:
+  SUPABASE_URL=https://xyz.supabase.co
+  SUPABASE_SERVICE_ROLE_KEY=eyJ...
 """
 
-from contextlib import asynccontextmanager
-import asyncpg
+from supabase import create_client, Client
 from config import settings
 
-_pool: asyncpg.Pool | None = None
+_client: Client | None = None
+
+
+def get_supabase() -> Client:
+    """Retorna o cliente Supabase (singleton)."""
+    global _client
+    if _client is None:
+        if not settings.supabase_url or not settings.supabase_service_role_key:
+            raise ValueError(
+                "Preencha SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no .env\n"
+                "(Settings → API no Supabase Dashboard)"
+            )
+        _client = create_client(settings.supabase_url, settings.supabase_service_role_key)
+    return _client
 
 
 async def init_pool():
-    global _pool
-    db_url = settings.database_url or _build_supabase_url()
-    _pool = await asyncpg.create_pool(dsn=db_url, min_size=2, max_size=10)
-
-
-def _build_supabase_url() -> str:
-    """Monta URL de conexão a partir das variáveis do Supabase."""
-    # Supabase pooler: postgresql://postgres.[ref]:[senha]@aws-0-xx.pooler.supabase.com:6543/postgres
-    # Para isso o usuário deve preencher DATABASE_URL diretamente.
-    raise ValueError(
-        "Configure DATABASE_URL ou SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY no .env"
-    )
+    """Inicializa conexão (valida credenciais na startup)."""
+    get_supabase()
 
 
 async def close_pool():
-    global _pool
-    if _pool:
-        await _pool.close()
-        _pool = None
-
-
-@asynccontextmanager
-async def get_db_connection():
-    """Context manager para obter uma conexão do pool."""
-    if _pool is None:
-        raise RuntimeError("Pool de banco de dados não inicializado. Chame init_pool() primeiro.")
-    async with _pool.acquire() as conn:
-        yield conn
+    """Sem pool para fechar no supabase-py."""
+    pass

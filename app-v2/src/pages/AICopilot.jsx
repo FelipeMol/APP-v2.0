@@ -115,7 +115,11 @@ const SUGESTOES = [
 ];
 
 // ── Main component ────────────────────────────────────────────
-const AI_API_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:8000';
+// URL da Edge Function: VITE_SUPABASE_URL já está disponível no build
+const AI_API_URL = import.meta.env.VITE_AI_API_URL
+  || (import.meta.env.VITE_SUPABASE_URL
+    ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`
+    : 'http://localhost:8000/chat');
 
 export default function AICopilot() {
   const { user } = useAuthStore();
@@ -150,7 +154,7 @@ export default function AICopilot() {
     setError(null);
 
     try {
-      const res = await fetch(`${AI_API_URL}/chat`, {
+      const res = await fetch(AI_API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

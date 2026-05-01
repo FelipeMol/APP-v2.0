@@ -1,5 +1,9 @@
 from pydantic_settings import BaseSettings
 from typing import List
+from pathlib import Path
+
+# Caminho absoluto para o .env na mesma pasta do config.py
+_ENV_FILE = Path(__file__).parent / ".env"
 
 
 class Settings(BaseSettings):
@@ -29,7 +33,7 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     class Config:
-        env_file = ".env"
+        env_file = str(_ENV_FILE)
         extra = "ignore"
 
 

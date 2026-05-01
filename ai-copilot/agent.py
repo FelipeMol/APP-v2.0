@@ -8,7 +8,7 @@ from typing import List
 from openai import AsyncOpenAI
 from config import settings
 from mcp_tools import TOOLS, execute_tool
-from db import get_db_connection
+from db import get_supabase
 
 # Mapa de descrições amigáveis dos módulos
 _MODULE_LABELS = {
@@ -30,18 +30,24 @@ async def fetch_tenant_context(tenant_id: str) -> dict:
     Retorna dict: {name, short_name, modulos_ativos}
     """
     try:
-        async with get_db_connection() as conn:
-            tenant = await conn.fetchrow(
-                "SELECT name, short_name FROM tenants WHERE id = $1",
-                tenant_id,
-            )
-            modules = await conn.fetch(
-                "SELECT module_id FROM tenant_modules WHERE tenant_id = $1 AND enabled = true",
-                tenant_id,
-            )
-        name = tenant["name"] if tenant else tenant_id
-        short_name = tenant["short_name"] if tenant else tenant_id
-        modulos_ativos = [r["module_id"] for r in modules]
+        sb = get_supabase()
+        tenant_resp = (
+            sb.table("tenants")
+            .select("name, short_name")
+            .eq("id", tenant_id)
+            .single()
+            .execute()
+        )
+        modules_resp = (
+            sb.table("tenant_modules")
+            .select("module_id")
+            .eq("tenant_id", tenant_id)
+            .eq("enabled", True)
+            .execute()
+        )
+        name = tenant_resp.data["name"] if tenant_resp.data else tenant_id
+        short_name = tenant_resp.data["short_name"] if tenant_resp.data else tenant_id
+        modulos_ativos = [r["module_id"] for r in (modules_resp.data or [])]
         return {"name": name, "short_name": short_name, "modulos_ativos": modulos_ativos}
     except Exception:
         # Se o banco falhar, usa fallback mínimo sem travar o chat
