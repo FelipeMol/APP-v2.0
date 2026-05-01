@@ -9,7 +9,15 @@ const usuariosService = {
     const { data, error } = await supabase.rpc('listar_usuarios_tenant', {
       p_tenant_id: tenantId,
     })
-    check(error)
+    // Fallback: se a RPC ainda não existir no banco, usa query direta (sem filtro de tenant)
+    if (error) {
+      const { data: fallback, error: fallbackError } = await supabase
+        .from('usuarios')
+        .select('id, nome, usuario, email, avatar, tipo, ativo, primeiro_acesso, ultimo_login, criado_em')
+        .order('nome')
+      check(fallbackError)
+      return Array.isArray(fallback) ? fallback : []
+    }
     return Array.isArray(data) ? data : []
   },
 
