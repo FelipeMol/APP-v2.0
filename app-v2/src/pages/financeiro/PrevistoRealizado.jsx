@@ -76,7 +76,7 @@ function Banner({ totalPrevisto, totalRealizado, obraNome, ano }) {
       </div>
       <div style={{ paddingLeft: 24, paddingRight: 24, borderRight: '1px solid rgba(255,255,255,.12)' }}>
         <div style={{ fontSize: 10, letterSpacing: '.15em', color: 'rgba(255,255,255,.5)', fontWeight: 600 }}>REALIZADO</div>
-        <div style={{ fontSize: 30, fontWeight: 700, color: '#F4B19C', marginTop: 6 }}>{brlK(totalRealizado)}</div>
+        <div style={{ fontSize: 30, fontWeight: 700, color: '#F4B19C', marginTop: 6 }}>{brl(totalRealizado)}</div>
         <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginTop: 4 }}>Despesas pagas</div>
       </div>
       <div style={{ paddingLeft: 24 }}>
@@ -262,8 +262,18 @@ export default function PrevistoRealizado() {
   const qc = useQueryClient()
   const [obraId, setObraId] = useState(null)
   const [ano, setAno]       = useState(ANO_ATUAL)
+  const [periodoTipo, setPeriodoTipo] = useState('ano') // 'ano' | 'custom'
+  const [dataInicio, setDataInicio] = useState(`${ANO_ATUAL}-01-01`)
+  const [dataFim, setDataFim]       = useState(`${ANO_ATUAL}-12-31`)
   const [expanded, setExpanded] = useState({})
   const [toast, setToast]   = useState(null)
+
+  function selecionarAno(a) {
+    setAno(a)
+    setDataInicio(`${a}-01-01`)
+    setDataFim(`${a}-12-31`)
+    setPeriodoTipo('ano')
+  }
 
   const { data: obras = [] } = useQuery({
     queryKey: ['obras'],
@@ -280,12 +290,15 @@ export default function PrevistoRealizado() {
     queryFn: () => orcamentosService.listByObraAno(obraId, ano),
   })
 
+  const inicioEfetivo = periodoTipo === 'ano' ? `${ano}-01-01` : dataInicio
+  const fimEfetivo    = periodoTipo === 'ano' ? `${ano}-12-31` : dataFim
+
   const { data: lancamentos = [], isLoading } = useQuery({
-    queryKey: ['financeiro_lancamentos_pxr', obraId, ano],
+    queryKey: ['financeiro_lancamentos_pxr', obraId, ano, inicioEfetivo, fimEfetivo],
     queryFn: () => lancamentosFinService.list({
       status: 'pago',
-      inicio: `${ano}-01-01`,
-      fim:    `${ano}-12-31`,
+      inicio: inicioEfetivo,
+      fim:    fimEfetivo,
       ...(obraId ? { obra_id: obraId } : {}),
     }),
   })
@@ -403,7 +416,8 @@ export default function PrevistoRealizado() {
   return (
     <div style={{ paddingBottom: 40 }}>
       {/* Filtros */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+        {/* Obra */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Building2 size={15} color={C.ink3} />
           <select value={obraId ?? ''} onChange={e => setObraId(e.target.value ? Number(e.target.value) : null)}
@@ -422,11 +436,48 @@ export default function PrevistoRealizado() {
             )}
           </select>
         </div>
-        <select value={ano} onChange={e => setAno(Number(e.target.value))}
+
+        {/* Tipo de período */}
+        <select value={periodoTipo} onChange={e => setPeriodoTipo(e.target.value)}
           style={{ padding: '7px 12px', borderRadius: 8, border: `1px solid ${C.line}`,
             fontSize: 13, color: C.ink, background: C.surface, cursor: 'pointer', outline: 'none' }}>
-          {ANOS.map(a => <option key={a} value={a}>{a}</option>)}
+          <option value="ano">Ano inteiro</option>
+          <option value="custom">Período personalizado</option>
         </select>
+
+        {/* Se modo 'ano': seletor de ano + atalhos */}
+        {periodoTipo === 'ano' && (
+          <>
+            <select value={ano} onChange={e => selecionarAno(Number(e.target.value))}
+              style={{ padding: '7px 12px', borderRadius: 8, border: `1px solid ${C.line}`,
+                fontSize: 13, color: C.ink, background: C.surface, cursor: 'pointer', outline: 'none' }}>
+              {ANOS.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {[ANO_ATUAL - 1, ANO_ATUAL, ANO_ATUAL + 1].map(a => (
+                <button key={a} onClick={() => selecionarAno(a)}
+                  style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                    border: `1px solid ${ano === a ? C.navy : C.line}`,
+                    background: ano === a ? C.navy : C.surface,
+                    color: ano === a ? '#fff' : C.ink2 }}>
+                  {a === ANO_ATUAL - 1 ? '← ' + a : a === ANO_ATUAL + 1 ? a + ' →' : String(a)}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Se modo 'custom': inputs de data */}
+        {periodoTipo === 'custom' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)}
+              style={{ padding: '7px 10px', borderRadius: 8, border: `1px solid ${C.line}`, fontSize: 13, color: C.ink, background: C.surface, outline: 'none', fontFamily: 'inherit' }} />
+            <span style={{ fontSize: 12, color: C.ink3 }}>até</span>
+            <input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)}
+              style={{ padding: '7px 10px', borderRadius: 8, border: `1px solid ${C.line}`, fontSize: 13, color: C.ink, background: C.surface, outline: 'none', fontFamily: 'inherit' }} />
+          </div>
+        )}
+
         {!obraId && (
           <span style={{ fontSize: 11, color: C.warn, background: '#FDF3DF',
             border: `1px solid ${C.warn}`, borderRadius: 6, padding: '4px 10px' }}>

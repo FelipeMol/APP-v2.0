@@ -35,7 +35,11 @@ export default function Sidebar() {
   const queryClient = useQueryClient();
   const branding = useTenantBranding();
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isSubmenuOpen, setIsSubmenuOpen] = useState(true);
+  const [openSubmenus, setOpenSubmenus] = useState({ Cadastros: true, Financeiro: true });
+
+  function toggleSubmenu(name) {
+    setOpenSubmenus(prev => ({ ...prev, [name]: !prev[name] }));
+  }
 
   const isAdminOrSuper = () => isAdmin() || isSuperAdmin();
 
@@ -72,7 +76,7 @@ export default function Sidebar() {
         { name: 'Empresas',     path: '/empresas',            icon: HardHat,   permission: 'empresas' },
       ],
     },
-    { name: 'Tarefas',          path: '/tarefas',                icon: CheckSquare,     permission: 'tarefas' },
+    { name: 'Tarefas',          path: '/tarefas',                icon: CheckSquare,     permission: 'tarefas',  disabled: true },
     {
       name: 'Financeiro', icon: Wallet, isSubmenu: true,
       submenuItems: [
@@ -109,10 +113,11 @@ export default function Sidebar() {
 
     if (item.isSubmenu) {
       const subs = item.submenuItems.filter((s) => !s.adminOnly || isAdminOrSuper());
+      const isOpen = openSubmenus[item.name] ?? true;
       return (
         <div key={item.name}>
           <button
-            onClick={() => setIsSubmenuOpen(!isSubmenuOpen)}
+            onClick={() => toggleSubmenu(item.name)}
             className={`sidebar-nav-item w-full ${isCollapsed ? 'justify-center px-2' : ''}`}
           >
             <Icon className="w-4 h-4 flex-shrink-0 opacity-70" />
@@ -121,14 +126,14 @@ export default function Sidebar() {
                 <span className="flex-1 text-left" style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'rgba(255,255,255,0.38)' }}>
                   {item.name}
                 </span>
-                {isSubmenuOpen
+                {isOpen
                   ? <ChevronDown className="w-3.5 h-3.5 opacity-50" />
                   : <ChevronRight className="w-3.5 h-3.5 opacity-50" />}
               </>
             )}
           </button>
 
-          {isSubmenuOpen && !isCollapsed && (
+          {isOpen && !isCollapsed && (
             <div className="mt-0.5 space-y-0.5 pl-2">
               {subs.map((sub) => {
                 const SubIcon = sub.icon;
@@ -148,6 +153,20 @@ export default function Sidebar() {
               })}
             </div>
           )}
+        </div>
+      );
+    }
+
+    if (item.disabled) {
+      return (
+        <div key={item.path}
+          className={`sidebar-nav-item ${isCollapsed ? 'justify-center px-2' : ''}`}
+          style={{ opacity: 0.35, cursor: 'not-allowed', pointerEvents: 'none' }}
+          title={isCollapsed ? item.name : undefined}
+        >
+          <Icon className="w-4 h-4 flex-shrink-0" />
+          {!isCollapsed && <span>{item.name}</span>}
+          {!isCollapsed && <span style={{ fontSize: 9, marginLeft: 'auto', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.4)' }}>EM BREVE</span>}
         </div>
       );
     }

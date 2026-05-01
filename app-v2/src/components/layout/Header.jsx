@@ -47,7 +47,7 @@ function getInitials(name) {
 export default function Header() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout, isAdmin } = useAuthStore();
+  const { user, logout, isAdmin, isSuperAdmin } = useAuthStore();
   const branding = useTenantBranding();
   const [isDark, setIsDark] = useState(false);
 
@@ -75,8 +75,12 @@ export default function Header() {
           {branding.nomeExibicao?.substring(0, 2).toUpperCase() || 'AP'}
         </div>
         <div className="hidden sm:flex flex-col text-left">
-          <span className="text-xs font-semibold text-foreground leading-tight">{branding.nomeExibicao}</span>
-          <span className="text-xs leading-tight" style={{ color: '#7F8A99', letterSpacing: '0.08em', fontSize: 10 }}>EMPRESA</span>
+          <span className="text-xs font-semibold text-foreground leading-tight">
+            {isSuperAdmin() ? 'Super Admin' : branding.nomeExibicao}
+          </span>
+          <span className="text-xs leading-tight" style={{ color: '#7F8A99', letterSpacing: '0.08em', fontSize: 10 }}>
+            {isSuperAdmin() ? 'PLATAFORMA' : 'EMPRESA'}
+          </span>
         </div>
         <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#7F8A99" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
       </button>
@@ -127,7 +131,7 @@ export default function Header() {
                   {user?.nome?.split(' ')[0] ?? 'Usuário'}
                 </p>
                 <p className="text-xs leading-tight" style={{ color: '#7F8A99', letterSpacing: '0.08em', fontSize: 10 }}>
-                  {isAdmin() ? 'ACESSO TOTAL' : 'USUÁRIO'}
+                  {isSuperAdmin() ? 'SUPER ADMIN' : isAdmin() ? 'ACESSO TOTAL' : 'USUÁRIO'}
                 </p>
               </div>
               <div className="w-[34px] h-[34px] rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0"

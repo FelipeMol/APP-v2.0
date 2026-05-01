@@ -28,7 +28,7 @@ const MES_LABEL  = _today.toLocaleDateString('pt-BR', { month: 'short', year: '2
 // ── Helpers ───────────────────────────────────────────────────────
 function brl(n) {
   const abs = Math.abs(n)
-  return (n < 0 ? '−' : '') + 'R$ ' + abs.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+  return (n < 0 ? '−' : '') + 'R$ ' + abs.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 function brlK(n) {
   const abs = Math.abs(n)

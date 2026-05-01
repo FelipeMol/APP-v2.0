@@ -425,21 +425,38 @@ function Field({ label, children }) {
 function inp() { return { width: '100%', padding: '9px 12px', border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 13, background: C.surface, color: C.ink, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' } }
 function ghostBtnS() { return { background: C.surface, border: `1px solid ${C.line}`, color: C.ink2, fontSize: 12, fontWeight: 500, padding: '9px 18px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' } }
 function amberBtnS() { return { background: '#E8A628', border: 'none', color: C.navy, fontSize: 12, fontWeight: 700, padding: '9px 18px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' } }
-// Paginação simples
-function Pager({ page, total, perPage, onPage }) {
+// Paginação com janela deslizante
+function Pager({ page, total, perPage, onPage, onPerPage }) {
   const pages = Math.ceil(total / perPage)
-  if (pages <= 1) return null
+  if (total === 0) return null
+
+  // Janela de no máximo 5 botões centrada na página atual
+  const half = 2
+  let start = Math.max(1, page - half)
+  let end   = Math.min(pages, start + 4)
+  if (end - start < 4) start = Math.max(1, end - 4)
+
   return (
-    <div style={{ padding: '14px 18px', borderTop: `1px solid ${C.line}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: C.surface2 }}>
-      <div style={{ fontSize: 11, color: C.ink3 }}>
-        Mostrando {Math.min((page - 1) * perPage + 1, total)}–{Math.min(page * perPage, total)} de {total} lançamentos
+    <div style={{ padding: '14px 18px', borderTop: `1px solid ${C.line}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: C.surface2, flexWrap: 'wrap', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ fontSize: 11, color: C.ink3 }}>
+          Mostrando {Math.min((page - 1) * perPage + 1, total)}–{Math.min(page * perPage, total)} de {total} lançamentos
+        </div>
+        <select value={perPage} onChange={e => { onPerPage(Number(e.target.value)); onPage(1) }}
+          style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, border: `1px solid ${C.line}`, background: C.surface, color: C.ink2, cursor: 'pointer', fontFamily: 'inherit' }}>
+          {[15, 25, 50, 100].map(n => <option key={n} value={n}>{n} por página</option>)}
+        </select>
       </div>
-      <div style={{ display: 'flex', gap: 4 }}>
+      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+        <PBtn active={false} onClick={() => onPage(1)} disabled={page === 1} title="Primeira">«</PBtn>
         <PBtn active={false} onClick={() => onPage(page - 1)} disabled={page === 1}>‹</PBtn>
-        {Array.from({ length: Math.min(pages, 5) }, (_, i) => i + 1).map(p => (
+        {start > 1 && <span style={{ padding: '0 4px', color: C.ink3, fontSize: 11 }}>…</span>}
+        {Array.from({ length: end - start + 1 }, (_, i) => start + i).map(p => (
           <PBtn key={p} active={p === page} onClick={() => onPage(p)}>{p}</PBtn>
         ))}
+        {end < pages && <span style={{ padding: '0 4px', color: C.ink3, fontSize: 11 }}>…</span>}
         <PBtn active={false} onClick={() => onPage(page + 1)} disabled={page === pages}>›</PBtn>
+        <PBtn active={false} onClick={() => onPage(pages)} disabled={page === pages} title="Última">»</PBtn>
       </div>
     </div>
   )
@@ -453,7 +470,7 @@ function PBtn({ children, active, onClick, disabled }) {
   )
 }
 
-const PER_PAGE = 15
+const DEFAULT_PER_PAGE = 15
 
 // ── Main page ──────────────────────────────────────────────────────
 export default function Lancamentos() {
@@ -467,6 +484,7 @@ export default function Lancamentos() {
   const [form, setForm]     = useState(EMPTY_FORM)
   const [editId, setEditId] = useState(null)
   const [page, setPage]     = useState(1)
+  const [perPage, setPerPage] = useState(DEFAULT_PER_PAGE)
   const [filtros, setFiltros] = useState({ tipo: '', status: '', conta_id: '', inicio: '', fim: '' })
 
   // ── Queries (com cache) ──────────────────────────────────────────
@@ -527,7 +545,7 @@ export default function Lancamentos() {
     return acc
   }, { receitas: 0, despesas: 0, aReceber: 0, aPagar: 0 }), [lancamentos])
 
-  const paged = useMemo(() => lancamentos.slice((page - 1) * PER_PAGE, page * PER_PAGE), [lancamentos, page])
+  const paged = useMemo(() => lancamentos.slice((page - 1) * perPage, page * perPage), [lancamentos, page, perPage])
 
   function abrir(tipo = 'despesa', l = null) {
     if (l) {
@@ -566,7 +584,7 @@ export default function Lancamentos() {
     excluirMutation.mutate(id)
   }
 
-  function limpar() { setFiltros({ tipo: '', status: '', conta_id: '', inicio: '', fim: '' }); setPage(1) }
+  function limpar() { setFiltros({ tipo: '', status: '', conta_id: '', inicio: '', fim: '' }); setPage(1); setPerPage(DEFAULT_PER_PAGE) }
   const saving = saveMutation.isPending
   const hoje = new Date().toISOString().slice(0, 10)
   const saldo = totais.receitas - totais.despesas
@@ -662,6 +680,7 @@ export default function Lancamentos() {
                   <th style={TH()}>Data</th>
                   <th style={TH()}>Descrição</th>
                   <th style={TH()}>Categoria</th>
+                  <th style={TH()}>Centro de Custo</th>
                   <th style={TH()}>Conta</th>
                   <th style={TH()}>Doc.</th>
                   <th style={{ ...TH(), textAlign: 'right' }}>Valor</th>
@@ -696,12 +715,10 @@ export default function Lancamentos() {
                       </td>
                       <td style={TD()}>
                         {cat ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-                            <span style={{ width: 8, height: 8, borderRadius: 2, background: cat.cor || C.ink3, flexShrink: 0 }} />
-                            <span style={{ color: C.ink2 }}>{cat.icone} {cat.nome}</span>
-                          </span>
+                          <span style={{ fontSize: 11, color: C.ink2 }}>{cat.nome}</span>
                         ) : <span style={{ color: C.ink3, fontSize: 11 }}>—</span>}
                       </td>
+                      <td style={TD()}><span style={{ fontSize: 11, color: C.ink2 }}>{l.financeiro_centros_custo?.nome || '—'}</span></td>
                       <td style={TD()}><span style={{ fontSize: 11, color: C.ink2 }}>{l.financeiro_contas?.nome || '—'}</span></td>
                       <td style={TD()}><span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: C.ink3 }}>{l.numero_documento || '—'}</span></td>
                       <td style={{ ...TD(), textAlign: 'right' }}>
@@ -728,7 +745,7 @@ export default function Lancamentos() {
                 })}
               </tbody>
             </table>
-            <Pager page={page} total={lancamentos.length} perPage={PER_PAGE} onPage={setPage} />
+            <Pager page={page} total={lancamentos.length} perPage={perPage} onPage={setPage} onPerPage={setPerPage} />
           </>
         )}
       </div>
