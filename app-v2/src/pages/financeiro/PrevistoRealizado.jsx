@@ -200,15 +200,27 @@ function LinhaGrupo({ cat, isExpanded, onToggle, prevPorMes, realPorMes, obraId,
   )
 }
 
-function LinhaSubcat({ cat, prevPorMes, realPorMes, obraId, onSave }) {
+function LinhaSubcat({ cat, isExpanded, onToggle, prevPorMes, realPorMes, obraId, onSave }) {
   const totalPrev = Object.values(prevPorMes).reduce((s, v) => s + v, 0)
   const totalReal = Object.values(realPorMes).reduce((s, v) => s + v, 0)
+  const hasChildren = cat.subcategorias?.length > 0
   return (
     <tr style={{ background: C.surface, borderBottom: `1px solid ${C.line2}` }}>
-      <td style={{ padding: '7px 12px 7px 38px', position: 'sticky', left: 0, zIndex: 2, background: C.surface, minWidth: 200, maxWidth: 200, borderRight: `1px solid ${C.line2}` }}>
+      <td style={{ padding: '7px 12px 7px 30px', position: 'sticky', left: 0, zIndex: 2, background: C.surface, minWidth: 200, maxWidth: 200, borderRight: `1px solid ${C.line2}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 2, background: cat.cor || C.ink3, flexShrink: 0 }} />
+          {hasChildren ? (
+            <button onClick={onToggle} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: C.ink3, flexShrink: 0 }}>
+              {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            </button>
+          ) : (
+            <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 2, background: cat.cor || C.ink3, flexShrink: 0 }} />
+          )}
           <span style={{ fontSize: 12, color: C.ink2 }}>{cat.nome}</span>
+          {hasChildren && (
+            <span style={{ fontSize: 10, color: C.ink3, background: C.line2, borderRadius: 3, padding: '1px 5px', flexShrink: 0 }}>
+              {cat.subcategorias.length}
+            </span>
+          )}
         </div>
       </td>
       {MESES.map((_, i) => (
@@ -218,6 +230,29 @@ function LinhaSubcat({ cat, prevPorMes, realPorMes, obraId, onSave }) {
       <td style={{ padding: '5px 10px', borderLeft: `2px solid ${C.line}`, minWidth: 90, textAlign: 'right' }}>
         <div style={{ fontSize: 10, color: C.ink3 }}>{brlK(totalPrev)}</div>
         <div style={{ fontSize: 12, fontWeight: 700, color: C.ink }}>{brlK(totalReal)}</div>
+      </td>
+    </tr>
+  )
+}
+
+function LinhaCategoria({ cat, prevPorMes, realPorMes, obraId, onSave }) {
+  const totalPrev = Object.values(prevPorMes).reduce((s, v) => s + v, 0)
+  const totalReal = Object.values(realPorMes).reduce((s, v) => s + v, 0)
+  return (
+    <tr style={{ background: '#FAFAF8', borderBottom: `1px solid ${C.line2}` }}>
+      <td style={{ padding: '6px 12px 6px 56px', position: 'sticky', left: 0, zIndex: 2, background: '#FAFAF8', minWidth: 200, maxWidth: 200, borderRight: `1px solid ${C.line2}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ display: 'inline-block', width: 5, height: 5, borderRadius: '50%', background: cat.cor || C.ink3, flexShrink: 0 }} />
+          <span style={{ fontSize: 11, color: C.ink3 }}>{cat.nome}</span>
+        </div>
+      </td>
+      {MESES.map((_, i) => (
+        <CelulaTriple key={i} previsto={prevPorMes[i+1]||0} realizado={realPorMes[i+1]||0}
+          obraId={obraId} onSavePrevisto={(val) => onSave(cat.id, i+1, val)} />
+      ))}
+      <td style={{ padding: '5px 10px', borderLeft: `2px solid ${C.line}`, background: '#FAFAF8', minWidth: 90, textAlign: 'right' }}>
+        <div style={{ fontSize: 10, color: C.ink3 }}>{brlK(totalPrev)}</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.ink2 }}>{brlK(totalReal)}</div>
       </td>
     </tr>
   )
@@ -296,12 +331,12 @@ export default function PrevistoRealizado() {
     return { totalPrevisto: tp, totalRealizado: tr }
   }, [orcamentos, lancamentos])
 
-  function getConsolidado(cat) {
-    const filhos = cat.subcategorias || []
-    if (filhos.length === 0) return { prev: prevMap[cat.id] || {}, real: realMap[cat.id] || {} }
+  function getConsolidadoNode(node) {
+    const filhos = node.subcategorias || []
+    if (filhos.length === 0) return { prev: prevMap[node.id] || {}, real: realMap[node.id] || {} }
     const prev = {}, real = {}
     filhos.forEach(f => {
-      const pf = prevMap[f.id] || {}, rf = realMap[f.id] || {}
+      const { prev: pf, real: rf } = getConsolidadoNode(f)
       MESES.forEach((_, i) => {
         const m = i + 1
         prev[m] = (prev[m] || 0) + (pf[m] || 0)
@@ -309,6 +344,10 @@ export default function PrevistoRealizado() {
       })
     })
     return { prev, real }
+  }
+
+  function getConsolidado(cat) {
+    return getConsolidadoNode(cat)
   }
 
   function toggleExpand(id) { setExpanded(p => ({ ...p, [id]: !p[id] })) }
@@ -336,12 +375,24 @@ export default function PrevistoRealizado() {
               <LinhaGrupo cat={cat} isExpanded={isExp} onToggle={() => toggleExpand(cat.id)}
                 prevPorMes={prev} realPorMes={real} obraId={obraId}
                 onSave={(catId, mes, val) => mutSave.mutate({ catId, mes, valor: val })} />
-              {isExp && (cat.subcategorias || []).map(sub => (
-                <LinhaSubcat key={sub.id} cat={sub}
-                  prevPorMes={prevMap[sub.id] || {}} realPorMes={realMap[sub.id] || {}}
-                  obraId={obraId}
-                  onSave={(catId, mes, val) => mutSave.mutate({ catId, mes, valor: val })} />
-              ))}
+              {isExp && (cat.subcategorias || []).map(sub => {
+                const isExpSub = expanded[sub.id] !== undefined ? expanded[sub.id] : (sub.subcategorias?.length > 0)
+                const { prev: sp, real: sr } = getConsolidado(sub)
+                return (
+                  <React.Fragment key={sub.id}>
+                    <LinhaSubcat cat={sub} isExpanded={isExpSub} onToggle={() => toggleExpand(sub.id)}
+                      prevPorMes={sp} realPorMes={sr}
+                      obraId={obraId}
+                      onSave={(catId, mes, val) => mutSave.mutate({ catId, mes, valor: val })} />
+                    {isExpSub && (sub.subcategorias || []).map(leaf => (
+                      <LinhaCategoria key={leaf.id} cat={leaf}
+                        prevPorMes={prevMap[leaf.id] || {}} realPorMes={realMap[leaf.id] || {}}
+                        obraId={obraId}
+                        onSave={(catId, mes, val) => mutSave.mutate({ catId, mes, valor: val })} />
+                    ))}
+                  </React.Fragment>
+                )
+              })}
             </React.Fragment>
           )
         })}
