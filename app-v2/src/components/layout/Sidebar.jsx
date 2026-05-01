@@ -31,6 +31,7 @@ import {
   ClipboardList,
   Tag,
   Landmark,
+  Bot,
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -111,6 +112,8 @@ export default function Sidebar() {
     },
 
     { name: 'Tarefas', path: '/tarefas', icon: CheckSquare, permission: 'tarefas', disabled: true },
+
+    { name: 'IA Copilot', path: '/ai-copilot', icon: Bot, permission: 'dashboard' },
 
     { name: 'Usuários',   path: '/usuarios',   icon: UserCog, permission: 'usuarios',   adminOnly: true },
     { name: 'Permissões', path: '/permissoes', icon: Shield,  permission: 'permissoes', adminOnly: true },

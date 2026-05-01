@@ -33,6 +33,7 @@ import ImportarCSV from './pages/financeiro/ImportarCSV';
 import ContatosCadastros from './pages/cadastros/Contatos';
 import CategoriasFinanceiro from './pages/cadastros/CategoriasFinanceiro';
 import ImportarCategorias from './pages/cadastros/ImportarCategorias';
+import AICopilot from './pages/AICopilot';
 
 // Usando HashRouter para compatibilidade com hospedagem compartilhada
 // URLs ficam: /#/dashboard, /#/login, etc.
@@ -231,6 +232,12 @@ const router = createHashRouter([
       {
         path: 'cadastros/importar-categorias',
         element: <ImportarCategorias />,
+      },
+
+      // IA Copilot
+      {
+        path: 'ai-copilot',
+        element: <AICopilot />,
       },
     ],
   },
