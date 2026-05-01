@@ -161,8 +161,8 @@ export default function FloatingChat() {
       {/* Chat window */}
       {isOpen && (
         <div style={{
-          position: 'fixed', bottom: 90, right: 24, zIndex: 9999,
-          width: 360, height: 520,
+          position: 'fixed', bottom: 88, right: 28, zIndex: 9999,
+          width: 360, height: 'min(520px, calc(100vh - 110px))',
           background: '#FAFAF8',
           border: '1px solid #E0D9CF',
           borderRadius: 18,
@@ -290,7 +290,7 @@ export default function FloatingChat() {
         className="ai-bubble-btn"
         onClick={isOpen ? close : open}
         style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
+          position: 'fixed', bottom: 28, right: 28, zIndex: 9999,
           width: 56, height: 56, borderRadius: '50%', border: 'none',
           background: `linear-gradient(135deg, ${cor}, ${cor}cc)`,
           cursor: 'pointer', transition: 'transform 0.2s',
@@ -301,7 +301,7 @@ export default function FloatingChat() {
       >
         {branding.mascoteUrl && !isOpen ? (
           <img src={branding.mascoteUrl} alt="chat"
-            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+            style={{ width: '115%', height: '115%', objectFit: 'cover', objectPosition: 'top center', borderRadius: '50%' }} />
         ) : (
           <Sparkles size={22} color="#fff" style={{ transition: 'transform 0.2s' }} />
         )}

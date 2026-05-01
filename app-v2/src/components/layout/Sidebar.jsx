@@ -227,8 +227,14 @@ export default function Sidebar() {
             className="flex items-center gap-2.5 flex-1 min-w-0 text-left group"
             title="Trocar empresa"
           >
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${branding.corPrimaria}30` }}>
-              <HardHat className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-lg flex-shrink-0 overflow-hidden" style={{ background: `${branding.corPrimaria}30` }}>
+              {branding.logoLocalUrl
+                ? <img src={branding.logoLocalUrl} alt={branding.nomeExibicao}
+                    className="w-full h-full object-contain p-0.5"
+                    onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
+                  />
+                : null}
+              <HardHat className="w-4 h-4 text-white m-auto" style={{ display: branding.logoLocalUrl ? 'none' : 'block' }} />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold leading-tight truncate text-white">
@@ -242,8 +248,10 @@ export default function Sidebar() {
         )}
 
         {isCollapsed && (
-          <div className="w-8 h-8 mx-auto rounded-lg flex items-center justify-center" style={{ background: `${branding.corPrimaria}30` }}>
-            <HardHat className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 mx-auto rounded-lg overflow-hidden flex items-center justify-center" style={{ background: `${branding.corPrimaria}30` }}>
+            {branding.logoLocalUrl
+              ? <img src={branding.logoLocalUrl} alt={branding.nomeExibicao} className="w-full h-full object-contain p-0.5" />
+              : <HardHat className="w-4 h-4 text-white" />}
           </div>
         )}
 
