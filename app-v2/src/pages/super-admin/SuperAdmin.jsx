@@ -335,6 +335,7 @@ function SATabs({ active, onChange, counts }) {
     { id: 'grupos',   label: 'Grupos',   count: counts.grupos },
     { id: 'empresas', label: 'Empresas', count: counts.tenants },
     { id: 'modulos',  label: 'Módulos',  count: null },
+    { id: 'usuarios', label: 'Usuários', count: counts.users },
   ];
   return (
     <div style={{ display: 'flex', gap: 4, padding: 4, background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 10, width: 'fit-content', marginBottom: 16 }}>
@@ -482,11 +483,12 @@ export default function SuperAdmin() {
                   <div style={{ fontFamily: 'Georgia, serif', fontSize: 22, fontWeight: 500, color: C.tx1 }}>Gestão Central</div>
                   <div style={{ fontSize: 12, color: C.tx3, marginTop: 4 }}>Configure grupos, filiais e módulos.</div>
                 </div>
-                <SATabs active={tab} onChange={setTab} counts={{ grupos: grupos.length, tenants: tenantCount }} />
+                <SATabs active={tab} onChange={setTab} counts={{ grupos: grupos.length, tenants: tenantCount, users: userCount }} />
                 <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden' }}>
                   {tab === 'grupos'   && <div style={{ padding: 24 }}><GruposAdmin /></div>}
                   {tab === 'empresas' && <div style={{ padding: 24 }}><TenantsAdmin /></div>}
                   {tab === 'modulos'  && <div style={{ padding: 24 }}><ModulosAdmin /></div>}
+                  {tab === 'usuarios' && <div style={{ padding: 24 }}><UsuariosAdmin /></div>}
                 </div>
               </div>
             </>

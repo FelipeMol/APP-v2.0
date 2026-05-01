@@ -37,7 +37,7 @@ CREATE OR REPLACE FUNCTION public.criar_usuario(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth
+SET search_path = public, auth, extensions
 AS $$
 DECLARE
   v_caller_auth_id  UUID;
@@ -194,7 +194,7 @@ CREATE OR REPLACE FUNCTION public.atualizar_usuario(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth
+SET search_path = public, auth, extensions
 AS $$
 DECLARE
   v_caller_auth_id UUID;
@@ -358,7 +358,7 @@ CREATE OR REPLACE FUNCTION public.remover_usuario_tenant(p_usuario_id BIGINT, p_
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth
+SET search_path = public, auth, extensions
 AS $$
 DECLARE
   v_caller_auth_id UUID;
