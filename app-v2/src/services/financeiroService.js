@@ -153,12 +153,37 @@ export function buildCategoriasTree(flat) {
   return roots
 }
 
+// ── Lançamento Itens (Rateios) ──────────────────────────────────
+export const lancamentoItensService = {
+  async saveItens(lancamentoId, itens) {
+    // Deleta todos os itens existentes e reinsere
+    const { error: delErr } = await supabase
+      .from('financeiro_lancamento_itens')
+      .delete()
+      .eq('lancamento_id', lancamentoId)
+    check(delErr)
+    if (!itens.length) return []
+    const rows = itens.map(item => ({
+      lancamento_id: lancamentoId,
+      descricao: item.descricao || null,
+      categoria_id: item.categoria_id ? parseInt(item.categoria_id) : null,
+      centro_custo_id: item.centro_custo_id ? parseInt(item.centro_custo_id) : null,
+      valor: parseFloat(item.valor) || 0,
+    }))
+    const { data, error } = await supabase
+      .from('financeiro_lancamento_itens')
+      .insert(rows)
+      .select('*, financeiro_categorias(nome), financeiro_centros_custo(nome)')
+    check(error); return data || []
+  },
+}
+
 // ── Lançamentos ──────────────────────────────────────────
 export const lancamentosFinService = {
   async list(filtros = {}) {
     let q = supabase
       .from('financeiro_lancamentos')
-      .select('*, financeiro_categorias(nome,cor,icone), financeiro_contas(nome), contatos(nome,documento,tipo), financeiro_centros_custo(nome)')
+      .select('*, financeiro_categorias(nome,cor,icone), financeiro_contas(nome), contatos(nome,documento,tipo), financeiro_centros_custo(nome), financeiro_lancamento_itens(id,descricao,valor,categoria_id,centro_custo_id,financeiro_categorias(nome),financeiro_centros_custo(nome))')
       .order('data_vencimento', { ascending: true })
     if (filtros.tipo)      q = q.eq('tipo', filtros.tipo)
     if (filtros.status)    q = q.eq('status', filtros.status)
@@ -169,15 +194,19 @@ export const lancamentosFinService = {
     const { data, error } = await q
     check(error); return data || []
   },
-  async create(payload) {
+  async create(payload, itens = []) {
     const { data, error } = await supabase
       .from('financeiro_lancamentos').insert(payload).select().single()
-    check(error); return data
+    check(error)
+    if (itens.length > 0) await lancamentoItensService.saveItens(data.id, itens)
+    return data
   },
-  async update(id, payload) {
+  async update(id, payload, itens = null) {
     const { data, error } = await supabase
       .from('financeiro_lancamentos').update(payload).eq('id', id).select().single()
-    check(error); return data
+    check(error)
+    if (itens !== null) await lancamentoItensService.saveItens(id, itens)
+    return data
   },
   async marcarPago(id) {
     const { data, error } = await supabase

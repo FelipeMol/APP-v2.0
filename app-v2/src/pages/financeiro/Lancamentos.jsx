@@ -92,7 +92,8 @@ function FilterField({ label, value, onChange, children }) {
 }
 
 // Modal novo / editar lançamento
-const EMPTY_FORM = { descricao: '', valor: '', tipo: 'despesa', categoria_id: '', conta_id: '', obra_id: '', data_vencimento: '', data_pagamento: '', status: 'pendente', numero_documento: '', observacao: '', contato_id: '', centro_custo_id: '', parcela_numero: '', parcela_total: '' }
+const EMPTY_ITEM = { descricao: '', categoria_id: '', centro_custo_id: '', valor: '' }
+const EMPTY_FORM = { descricao: '', valor: '', tipo: 'despesa', categoria_id: '', conta_id: '', obra_id: '', data_vencimento: '', data_pagamento: '', status: 'pendente', numero_documento: '', observacao: '', contato_id: '', centro_custo_id: '', parcela_numero: '', parcela_total: '', itens: [] }
 
 function buildCatTree(cats) {
   const raiz = cats.filter(c => !c.parent_id)
@@ -261,6 +262,13 @@ function LancamentoModal({ open, onClose, onSave, form, setForm, saving, editId,
   const isReceita = form.tipo === 'receita'
   const accentCor = isReceita ? '#2D7A4A' : '#B84A33'
 
+  const itens       = form.itens || []
+  const addItem     = () => setForm(f => ({ ...f, itens: [...(f.itens || []), { ...EMPTY_ITEM }] }))
+  const removeItem  = (idx) => setForm(f => ({ ...f, itens: (f.itens || []).filter((_, i) => i !== idx) }))
+  const updateItem  = (idx, field, val) => setForm(f => ({ ...f, itens: (f.itens || []).map((it, i) => i === idx ? { ...it, [field]: val } : it) }))
+  const itemsSubtotal = itens.reduce((s, it) => s + (parseFloat(it.valor) || 0), 0)
+  const subtotalOk    = !form.valor || Math.abs(itemsSubtotal - parseFloat(form.valor || 0)) < 0.01
+
   useEffect(() => { if (!open) setFiles([]) }, [open])
   if (!open) return null
 
@@ -326,40 +334,44 @@ function LancamentoModal({ open, onClose, onSave, form, setForm, saving, editId,
             <div style={{ height: 1, background: C.line2 }} />
 
             {/* Categoria + Conta */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Field label="Categoria">
-                <select style={{ ...inp(), cursor: 'pointer' }} value={form.categoria_id} onChange={e => setForm(f => ({ ...f, categoria_id: e.target.value }))}>
-                  <option value="">Sem categoria</option>
-                  {catTree.map(pai => (
-                    pai.filhos.length > 0 ? (
-                      <optgroup key={pai.id} label={pai.nome}>
-                        {pai.filhos.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
-                      </optgroup>
-                    ) : (
-                      <option key={pai.id} value={pai.id}>{pai.nome}</option>
-                    )
-                  ))}
-                </select>
-              </Field>
+            <div style={{ display: 'grid', gridTemplateColumns: itens.length > 0 ? '1fr' : '1fr 1fr', gap: 12 }}>
+              {itens.length === 0 && (
+                <Field label="Categoria">
+                  <select style={{ ...inp(), cursor: 'pointer' }} value={form.categoria_id} onChange={e => setForm(f => ({ ...f, categoria_id: e.target.value }))}>
+                    <option value="">Sem categoria</option>
+                    {catTree.map(pai => (
+                      pai.filhos.length > 0 ? (
+                        <optgroup key={pai.id} label={pai.nome}>
+                          {pai.filhos.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                        </optgroup>
+                      ) : (
+                        <option key={pai.id} value={pai.id}>{pai.nome}</option>
+                      )
+                    ))}
+                  </select>
+                </Field>
+              )}
               <Field label="🏦 Conta bancária">
                 <ContaDropdown value={form.conta_id} onChange={v => setForm(f => ({ ...f, conta_id: v }))} contas={contas} />
               </Field>
             </div>
 
             {/* Contato + Centro Custo + Nº Doc */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: itens.length > 0 ? '1fr 1fr' : '1fr 1fr 1fr', gap: 12 }}>
               <Field label="Contato">
                 <select style={{ ...inp(), cursor: 'pointer' }} value={form.contato_id} onChange={e => setForm(f => ({ ...f, contato_id: e.target.value }))}>
                   <option value="">Nenhum</option>
                   {contatos.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                 </select>
               </Field>
-              <Field label="Centro de Custo">
-                <select style={{ ...inp(), cursor: 'pointer' }} value={form.centro_custo_id} onChange={e => setForm(f => ({ ...f, centro_custo_id: e.target.value }))}>
-                  <option value="">Nenhum</option>
-                  {centrosCusto.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                </select>
-              </Field>
+              {itens.length === 0 && (
+                <Field label="Centro de Custo">
+                  <select style={{ ...inp(), cursor: 'pointer' }} value={form.centro_custo_id} onChange={e => setForm(f => ({ ...f, centro_custo_id: e.target.value }))}>
+                    <option value="">Nenhum</option>
+                    {centrosCusto.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                  </select>
+                </Field>
+              )}
               <Field label="Nº Documento">
                 <input style={inp()} placeholder="NF, Boleto, TED..." value={form.numero_documento} onChange={e => setForm(f => ({ ...f, numero_documento: e.target.value }))} />
               </Field>
@@ -372,6 +384,73 @@ function LancamentoModal({ open, onClose, onSave, form, setForm, saving, editId,
                 {obras.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
               </select>
             </Field>
+
+            {/* Rateio de categorias / centros de custo */}
+            <div style={{ border: `1px solid ${C.line}`, borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ background: C.surface2, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 10, letterSpacing: '0.14em', color: C.ink2, fontWeight: 700, textTransform: 'uppercase' }}>Rateio de Categorias / Centros de Custo</div>
+                  <div style={{ fontSize: 11, color: C.ink3, marginTop: 1 }}>
+                    {itens.length === 0
+                      ? 'Divida este lançamento entre múltiplas categorias ou centros de custo'
+                      : `${itens.length} item${itens.length > 1 ? 's' : ''} · subtotal ${brl(itemsSubtotal)}`}
+                  </div>
+                </div>
+                <button type="button" onClick={addItem}
+                  style={{ fontSize: 11, padding: '5px 12px', background: C.surface, border: `1px solid ${C.line}`, borderRadius: 6, cursor: 'pointer', color: C.ink2, fontFamily: 'inherit', fontWeight: 600 }}>
+                  + Adicionar item
+                </button>
+              </div>
+              {itens.length > 0 && (
+                <div style={{ padding: 12 }}>
+                  {/* Column headers */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 90px 28px', gap: 6, marginBottom: 6, padding: '0 2px' }}>
+                    {['Descrição do item', 'Categoria', 'Centro de Custo', 'Valor', ''].map((h, i) => (
+                      <div key={i} style={{ fontSize: 9, letterSpacing: '0.1em', color: C.ink3, fontWeight: 600, textTransform: 'uppercase' }}>{h}</div>
+                    ))}
+                  </div>
+                  {/* Item rows */}
+                  {itens.map((item, idx) => (
+                    <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 90px 28px', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+                      <input placeholder="Ex: Materiais, Mão de obra..." value={item.descricao} onChange={e => updateItem(idx, 'descricao', e.target.value)} style={{ ...inp(), fontSize: 12 }} />
+                      <select value={item.categoria_id} onChange={e => updateItem(idx, 'categoria_id', e.target.value)} style={{ ...inp(), cursor: 'pointer', fontSize: 12 }}>
+                        <option value="">Categoria</option>
+                        {catTree.map(pai => (
+                          pai.filhos.length > 0 ? (
+                            <optgroup key={pai.id} label={pai.nome}>
+                              {pai.filhos.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                            </optgroup>
+                          ) : (
+                            <option key={pai.id} value={pai.id}>{pai.nome}</option>
+                          )
+                        ))}
+                      </select>
+                      <select value={item.centro_custo_id} onChange={e => updateItem(idx, 'centro_custo_id', e.target.value)} style={{ ...inp(), cursor: 'pointer', fontSize: 12 }}>
+                        <option value="">Centro de Custo</option>
+                        {centrosCusto.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                      </select>
+                      <input type="number" step="0.01" min="0" placeholder="0,00" value={item.valor} onChange={e => updateItem(idx, 'valor', e.target.value)} style={{ ...inp(), fontSize: 12 }} />
+                      <button type="button" onClick={() => removeItem(idx)}
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: C.ink3, fontSize: 18, padding: 0, lineHeight: 1, display: 'grid', placeItems: 'center', height: 28, width: 28 }}>
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  {/* Subtotal */}
+                  <div style={{ borderTop: `1px solid ${C.line2}`, paddingTop: 8, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 11, color: C.ink3 }}>Subtotal dos rateios:</span>
+                    <span style={{ fontWeight: 700, fontSize: 13, color: subtotalOk ? C.ok : C.bad, fontVariantNumeric: 'tabular-nums' }}>
+                      {brl(itemsSubtotal)}
+                    </span>
+                    {!subtotalOk && (
+                      <span style={{ fontSize: 10, color: C.bad, background: '#FDF1EE', padding: '2px 8px', borderRadius: 4 }}>
+                        total: {brl(parseFloat(form.valor || 0))} · diferença: {brl(Math.abs(parseFloat(form.valor || 0) - itemsSubtotal))}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Parcelas + Observação */}
             <div style={{ display: 'grid', gridTemplateColumns: '120px 120px 1fr', gap: 12 }}>
@@ -503,7 +582,7 @@ export default function Lancamentos() {
   const invalidateLanc = () => queryClient.invalidateQueries({ queryKey: ['fin-lancamentos'] })
 
   const saveMutation = useMutation({
-    mutationFn: ({ id, payload }) => id ? lancamentosFinService.update(id, payload) : lancamentosFinService.create(payload),
+    mutationFn: ({ id, payload, itens = [] }) => id ? lancamentosFinService.update(id, payload, itens) : lancamentosFinService.create(payload, itens),
     onSuccess: (_, { id }) => { toast.success(id ? 'Atualizado!' : 'Criado!'); setOpen(false); invalidateLanc() },
     onError: (err) => toast.error(err.message),
   })
@@ -549,7 +628,7 @@ export default function Lancamentos() {
 
   function abrir(tipo = 'despesa', l = null) {
     if (l) {
-      setForm({ descricao: l.descricao, valor: String(l.valor), tipo: l.tipo, categoria_id: l.categoria_id || '', conta_id: l.conta_id || '', obra_id: l.obra_id ? String(l.obra_id) : '', data_vencimento: l.data_vencimento || '', data_pagamento: l.data_pagamento || '', status: l.status, numero_documento: l.numero_documento || '', observacao: l.observacao || '', contato_id: l.contato_id || '', centro_custo_id: l.centro_custo_id || '', parcela_numero: l.parcela_numero ? String(l.parcela_numero) : '', parcela_total: l.parcela_total ? String(l.parcela_total) : '' })
+      setForm({ descricao: l.descricao, valor: String(l.valor), tipo: l.tipo, categoria_id: l.categoria_id || '', conta_id: l.conta_id || '', obra_id: l.obra_id ? String(l.obra_id) : '', data_vencimento: l.data_vencimento || '', data_pagamento: l.data_pagamento || '', status: l.status, numero_documento: l.numero_documento || '', observacao: l.observacao || '', contato_id: l.contato_id || '', centro_custo_id: l.centro_custo_id || '', parcela_numero: l.parcela_numero ? String(l.parcela_numero) : '', parcela_total: l.parcela_total ? String(l.parcela_total) : '', itens: (l.financeiro_lancamento_itens || []).map(it => ({ id: it.id, descricao: it.descricao || '', categoria_id: it.categoria_id ? String(it.categoria_id) : '', centro_custo_id: it.centro_custo_id ? String(it.centro_custo_id) : '', valor: String(it.valor) })) })
       setEditId(l.id)
     } else { setForm({ ...EMPTY_FORM, tipo }); setEditId(null) }
     setOpen(true)
@@ -558,7 +637,8 @@ export default function Lancamentos() {
   async function salvar(e, files = []) {
     e.preventDefault()
     if (!form.descricao || !form.valor || !form.data_vencimento) { toast.error('Descrição, valor e vencimento obrigatórios'); return }
-    const payload = { descricao: form.descricao, valor: parseFloat(form.valor), tipo: form.tipo, categoria_id: form.categoria_id || null, conta_id: form.conta_id || null, obra_id: form.obra_id ? parseInt(form.obra_id) : null, data_vencimento: form.data_vencimento, data_pagamento: form.data_pagamento || (form.status === 'pago' ? new Date().toISOString().slice(0, 10) : null), status: form.status, numero_documento: form.numero_documento || null, observacao: form.observacao || null, contato_id: form.contato_id || null, centro_custo_id: form.centro_custo_id || null, parcela_numero: form.parcela_numero ? parseInt(form.parcela_numero) : null, parcela_total: form.parcela_total ? parseInt(form.parcela_total) : null }
+    const itensValidos = (form.itens || []).filter(it => it.valor && parseFloat(it.valor) > 0)
+    const payload = { descricao: form.descricao, valor: parseFloat(form.valor), tipo: form.tipo, categoria_id: itensValidos.length > 0 ? null : (form.categoria_id || null), conta_id: form.conta_id || null, obra_id: form.obra_id ? parseInt(form.obra_id) : null, data_vencimento: form.data_vencimento, data_pagamento: form.data_pagamento || (form.status === 'pago' ? new Date().toISOString().slice(0, 10) : null), status: form.status, numero_documento: form.numero_documento || null, observacao: form.observacao || null, contato_id: form.contato_id || null, centro_custo_id: itensValidos.length > 0 ? null : (form.centro_custo_id || null), parcela_numero: form.parcela_numero ? parseInt(form.parcela_numero) : null, parcela_total: form.parcela_total ? parseInt(form.parcela_total) : null }
     if (files?.length) {
       const uploaded = []
       for (const file of files) {
@@ -574,7 +654,7 @@ export default function Lancamentos() {
       }
       if (uploaded.length) payload.anexos = uploaded
     }
-    saveMutation.mutate({ id: editId, payload })
+    saveMutation.mutate({ id: editId, payload, itens: itensValidos })
   }
 
   function marcarPago(id) { pagarMutation.mutate(id) }
@@ -714,11 +794,23 @@ export default function Lancamentos() {
                         </div>
                       </td>
                       <td style={TD()}>
-                        {cat ? (
+                        {l.financeiro_lancamento_itens?.length > 0 ? (
+                          <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, background: '#E8F4EC', color: '#3D7A50', fontWeight: 600 }}>
+                            {l.financeiro_lancamento_itens.length} rateio{l.financeiro_lancamento_itens.length > 1 ? 's' : ''}
+                          </span>
+                        ) : cat ? (
                           <span style={{ fontSize: 11, color: C.ink2 }}>{cat.nome}</span>
                         ) : <span style={{ color: C.ink3, fontSize: 11 }}>—</span>}
                       </td>
-                      <td style={TD()}><span style={{ fontSize: 11, color: C.ink2 }}>{l.financeiro_centros_custo?.nome || '—'}</span></td>
+                      <td style={TD()}>
+                        {l.financeiro_lancamento_itens?.length > 0 ? (
+                          <span style={{ fontSize: 10, color: C.ink3 }}>
+                            {[...new Set((l.financeiro_lancamento_itens || []).filter(it => it.financeiro_centros_custo).map(it => it.financeiro_centros_custo.nome))].slice(0, 2).join(', ') || '—'}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 11, color: C.ink2 }}>{l.financeiro_centros_custo?.nome || '—'}</span>
+                        )}
+                      </td>
                       <td style={TD()}><span style={{ fontSize: 11, color: C.ink2 }}>{l.financeiro_contas?.nome || '—'}</span></td>
                       <td style={TD()}><span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: C.ink3 }}>{l.numero_documento || '—'}</span></td>
                       <td style={{ ...TD(), textAlign: 'right' }}>
