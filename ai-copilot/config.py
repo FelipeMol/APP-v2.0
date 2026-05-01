@@ -4,11 +4,13 @@ from typing import List
 
 class Settings(BaseSettings):
     # LLM
-    llm_provider: str = "openai"
+    llm_provider: str = "glm"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-3-5-haiku-20241022"
+    glm_api_key: str = ""
+    glm_model: str = "glm-4-flash"
 
     # Supabase
     supabase_url: str = ""
