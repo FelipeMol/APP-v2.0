@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Sparkles, Loader2, RotateCcw } from 'lucide-react';
 import useAuthStore from '../store/authStore';
+import supabase from '../lib/supabase.js';
 
 // ── Helpers ──────────────────────────────────────────────────
 function getSelectedTenantId() {
@@ -12,8 +13,9 @@ function getSelectedTenantId() {
   }
 }
 
-function getAuthToken() {
-  return localStorage.getItem('auth_token') || null;
+async function getAuthToken() {
+  const { data } = await supabase.auth.getSession();
+  return data?.session?.access_token || null;
 }
 
 // ── Message bubble ────────────────────────────────────────────
@@ -145,7 +147,7 @@ export default function AICopilot() {
     if (!trimmed || isLoading) return;
 
     const tenantId = getSelectedTenantId();
-    const token = getAuthToken();
+    const token = await getAuthToken();
 
     const userMsg = { role: 'user', content: trimmed, id: Date.now() };
     setMessages(prev => [...prev, userMsg]);

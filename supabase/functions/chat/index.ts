@@ -4,14 +4,13 @@
 //   GLM_API_KEY, JWT_SECRET
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { decode as jwtDecode } from "https://deno.land/x/djwt@v3.0.2/mod.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_ANON_KEY = "sb_publishable_JjS4xfCV-i7B3orHHNi0bw_ALiM2e-5";
 const GLM_API_KEY = Deno.env.get("GLM_API_KEY")!;
 const GLM_MODEL = Deno.env.get("GLM_MODEL") ?? "glm-4-flash";
 const GLM_BASE_URL = "https://open.bigmodel.cn/api/paas/v4";
-const JWT_SECRET = Deno.env.get("JWT_SECRET")!;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -370,30 +369,13 @@ async function runChat(
   return "Não consegui processar sua solicitação. Tente novamente.";
 }
 
-// ── JWT validation ────────────────────────────────────────────
-async function verifyJwt(token: string): Promise<{ userId: string; tenantId: string } | null> {
+// ── JWT validation via Supabase Auth ─────────────────────────
+async function verifyJwt(token: string): Promise<{ userId: string } | null> {
   try {
-    const key = await crypto.subtle.importKey(
-      "raw",
-      new TextEncoder().encode(JWT_SECRET),
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["verify"],
-    );
-    const [_header, payload] = jwtDecode(token);
-    const p = payload as Record<string, unknown>;
-    const userId = String(p.sub ?? p.user_id ?? "");
-    const tenantId = String(p.tenant_id ?? "");
-    if (!userId || !tenantId) return null;
-
-    // Verifica assinatura
-    const parts = token.split(".");
-    const data = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
-    const sig = Uint8Array.from(atob(parts[2].replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
-    const valid = await crypto.subtle.verify("HMAC", key, sig, data);
-    if (!valid) return null;
-
-    return { userId, tenantId };
+    const sbAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data: { user }, error } = await sbAuth.auth.getUser(token);
+    if (error || !user) return null;
+    return { userId: user.id };
   } catch {
     return null;
   }
@@ -434,8 +416,8 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // tenant_id: header X-Tenant-ID tem prioridade sobre o token
-  const tenantId = xTenantId || auth.tenantId;
+  // tenant_id vem obrigatoriamente do header X-Tenant-ID
+  const tenantId = xTenantId;
   if (!tenantId) {
     return new Response(JSON.stringify({ error: "tenant_id não fornecido." }), {
       status: 400,
