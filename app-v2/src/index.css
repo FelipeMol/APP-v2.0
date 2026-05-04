@@ -98,9 +98,8 @@
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    /* Reduz leve zoom nativo para melhor experiência em Mac */
+    /* Removido o zoom nativo, pois causa problemas de viewport (barra no final) */
     font-size: 14px;
-    zoom: 0.9;
   }
 
   body {
