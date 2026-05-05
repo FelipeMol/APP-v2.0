@@ -16,14 +16,14 @@ const C = {
 const getTenantId = () => useTenantStore.getState().selectedTenantId || 'construtora'
 
 const TABS = [
-  { key: 'dados',       label: 'Dados Pessoais' },
-  { key: 'documentos',  label: 'Documentos' },
-  { key: 'experiencia', label: 'Experiência' },
-  { key: 'obras',       label: 'Obras' },
-  { key: 'exames',      label: 'Exames' },
-  { key: 'disciplinar', label: 'Disciplinar' },
-  { key: 'epis',        label: 'EPIs' },
+  { key: 'dados',       label: 'Identificação' },
+  { key: 'documentos',  label: 'Documentação', badge: '2' },
+  { key: 'exames',      label: 'Exames ocupacionais' },
+  { key: 'experiencia', label: 'Experiência', dot: true },
   { key: 'avaliacoes',  label: 'Avaliações' },
+  { key: 'obras',       label: 'Histórico de obras' },
+  { key: 'disciplinar', label: 'Disciplinar' },
+  { key: 'epis',        label: 'Integração & EPIs' },
 ]
 
 function initials(nome) {
@@ -306,7 +306,7 @@ function TabPlaceholder({ label, icon }) {
   )
 }
 
-// ── Modal Principal ──────────────────────────────────────────────
+// ── Ficha Principal (página cheia, sem drawer) ──────────────────────
 export default function FichaColaborador({ funcionario, onClose, onAtualizado }) {
   const [activeTab, setActiveTab] = useState('dados')
   const [func, setFunc] = useState(funcionario)
@@ -316,46 +316,114 @@ export default function FichaColaborador({ funcionario, onClose, onAtualizado })
     if (onAtualizado) onAtualizado(updated)
   }
 
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'stretch', justifyContent: 'flex-end' }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ width: '100%', maxWidth: 680, background: C.surface, height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 40px rgba(0,0,0,0.18)' }}>
+  const btnGhost = {
+    background: C.surface, border: `1px solid ${C.line}`, color: C.ink2, fontSize: 12,
+    fontWeight: 500, padding: '7px 13px', borderRadius: 8, cursor: 'pointer',
+    display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'inherit',
+  }
+  const btnAmber = {
+    background: C.amber, border: 'none', color: C.navy, fontSize: 12, fontWeight: 700,
+    padding: '7px 14px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+  }
 
-        {/* Header */}
-        <div style={{ padding: '22px 24px 18px', borderBottom: `1px solid ${C.line2}`, background: C.navy }}>
-          <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-            <Avatar nome={func.nome} size={52} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: '#FFF', lineHeight: 1.25 }}>{func.nome}</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 3 }}>{func.funcao || '—'} · {func.empresa || '—'}</div>
-              <div style={{ marginTop: 7 }}><StatusBadge situacao={func.situacao} /></div>
+  const admissaoFmt = func.data_admissao
+    ? new Date(func.data_admissao + 'T12:00').toLocaleDateString('pt-BR')
+    : '—'
+
+  const STATUS_ROW = [
+    { label: 'ADMISSÃO', value: admissaoFmt },
+    { label: 'EXPERIÊNCIA', value: func.data_admissao ? '90 dias' : '—' },
+    { label: 'DOCUMENTAÇÃO', value: '—', alert: false },
+    { label: 'EXAME', value: '—' },
+    { label: 'AVALIAÇÃO', value: '—' },
+  ]
+
+  return (
+    <div style={{ fontFamily: 'Inter, system-ui, sans-serif', color: C.ink }}>
+
+      {/* Botão Voltar */}
+      <div style={{ marginBottom: 14 }}>
+        <button onClick={onClose} style={btnGhost}>← Colaboradores</button>
+      </div>
+
+      {/* ColabHeader Card */}
+      <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 10, padding: 24, marginBottom: 14 }}>
+        <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+          <Avatar nome={func.nome} size={68} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
+              <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>{func.nome}</h1>
+              <StatusBadge situacao={func.situacao} />
+              <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: C.ink3 }}>
+                #{String(func.id || '').slice(-6).toUpperCase() || '—'}
+              </span>
             </div>
-            <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', color: '#FFF', cursor: 'pointer', width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, lineHeight: 1, flexShrink: 0 }}>×</button>
+            <div style={{ fontSize: 13, color: C.ink2, marginBottom: 14 }}>
+              {func.funcao || '—'} · {func.empresa || '—'} · CLT
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button style={btnGhost}>⬇ Exportar</button>
+              <button style={btnGhost}>↗ Transferir obra</button>
+              <button style={btnAmber}>✎ Editar ficha</button>
+            </div>
           </div>
         </div>
 
+        {/* Status row: 5 colunas */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)',
+          borderTop: `1px solid ${C.line2}`, marginTop: 20, paddingTop: 0,
+        }}>
+          {STATUS_ROW.map((s, i) => (
+            <div key={i} style={{
+              padding: '12px 16px',
+              borderLeft: i === 0 ? 'none' : `1px solid ${C.line2}`,
+            }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: C.ink3, letterSpacing: '0.1em', marginBottom: 5 }}>{s.label}</div>
+              <div style={{ fontSize: 13, fontWeight: 500, color: s.alert === true ? C.bad : C.ink }}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* FichaTabs */}
+      <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 10, overflow: 'hidden' }}>
         {/* Tab bar */}
-        <div style={{ borderBottom: `1px solid ${C.line2}`, display: 'flex', overflowX: 'auto', background: C.surface, flexShrink: 0 }}>
+        <div style={{ display: 'flex', overflowX: 'auto', borderBottom: `1px solid ${C.line2}` }}>
           {TABS.map(t => {
             const on = t.key === activeTab
             return (
               <button key={t.key} onClick={() => setActiveTab(t.key)}
-                style={{ padding: '10px 14px', background: 'none', border: 'none', fontSize: 12, fontWeight: on ? 700 : 500, color: on ? C.ink : C.ink3, borderBottom: on ? `2px solid ${C.navy}` : '2px solid transparent', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0, transition: 'color 0.1s' }}>
+                style={{
+                  padding: '12px 16px', background: 'none', border: 'none',
+                  fontSize: 12.5, fontWeight: on ? 700 : 500,
+                  color: on ? C.ink : C.ink3,
+                  borderBottom: on ? `2px solid ${C.navy}` : '2px solid transparent',
+                  cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+                  flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6,
+                }}>
                 {t.label}
+                {t.badge && (
+                  <span style={{ background: C.warn, color: '#FFF', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10 }}>{t.badge}</span>
+                )}
+                {t.dot && (
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.bad, display: 'inline-block', marginLeft: 2 }} />
+                )}
               </button>
             )
           })}
         </div>
 
         {/* Tab content */}
-        <div style={{ padding: 24, flex: 1 }}>
+        <div style={{ padding: 24 }}>
           {activeTab === 'dados'       && <TabDados funcionario={func} onAtualizado={handleAtualizado} />}
-          {activeTab === 'documentos'  && <TabPlaceholder label="Documentos" icon="📄" />}
+          {activeTab === 'documentos'  && <TabPlaceholder label="Documentação" icon="📄" />}
           {activeTab === 'experiencia' && <TabExperiencia funcionario={func} />}
           {activeTab === 'obras'       && <TabObras funcionario={func} />}
           {activeTab === 'exames'      && <TabPlaceholder label="Exames Ocupacionais" icon="🩺" />}
           {activeTab === 'disciplinar' && <TabPlaceholder label="Histórico Disciplinar" icon="⚖️" />}
-          {activeTab === 'epis'        && <TabPlaceholder label="EPIs Entregues" icon="🦺" />}
+          {activeTab === 'epis'        && <TabPlaceholder label="Integração & EPIs" icon="🦺" />}
           {activeTab === 'avaliacoes'  && <TabAvaliacoes funcionario={func} />}
         </div>
       </div>

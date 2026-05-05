@@ -66,6 +66,17 @@ export default function FuncionariosRH() {
     setSelecionado(updated)
   }
 
+  // Quando ficha selecionada, renderiza inline (página cheia) no lugar do grid
+  if (selecionado) {
+    return (
+      <FichaColaborador
+        funcionario={selecionado}
+        onClose={() => setSelecionado(null)}
+        onAtualizado={handleAtualizado}
+      />
+    )
+  }
+
   return (
     <div style={{ fontFamily: 'Inter, system-ui, sans-serif', color: C.ink }}>
 
@@ -124,14 +135,6 @@ export default function FuncionariosRH() {
         </div>
       )}
 
-      {/* Ficha */}
-      {selecionado && (
-        <FichaColaborador
-          funcionario={selecionado}
-          onClose={() => setSelecionado(null)}
-          onAtualizado={handleAtualizado}
-        />
-      )}
     </div>
   )
 }
