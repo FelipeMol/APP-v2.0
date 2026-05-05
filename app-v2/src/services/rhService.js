@@ -45,7 +45,7 @@ class RHService {
   // ========================================
   async listarCandidatos(filtros = {}) {
     const tenantId = getTenantId()
-    let query = supabase.from('candidatos').select('*, requisicoes_vagas(cargo)').eq('tenant_id', tenantId).order('criado_em', { ascending: false })
+    let query = supabase.from('candidatos').select('*, requisicoes_vagas(id, obras(nome), funcoes(nome))').eq('tenant_id', tenantId).order('created_at', { ascending: false })
     if (filtros.status)        query = query.eq('status', filtros.status)
     if (filtros.requisicao_id) query = query.eq('requisicao_id', filtros.requisicao_id)
     const { data, error } = await query
