@@ -41,17 +41,3 @@ function RH() {
 }
 
 export default RH
-
-        <TabsContent value="documentos">
-          <Documentos />
-        </TabsContent>
-
-        <TabsContent value="desligamentos">
-          <Desligamentos />
-        </TabsContent>
-      </Tabs>
-    </div>
-  )
-}
-
-export default RH
