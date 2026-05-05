@@ -1,62 +1,46 @@
 import React, { useState } from 'react'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs'
-import { Card } from '../components/ui/card'
 import DashboardRH from './rh/DashboardRH'
 import RequisicoesVagas from './rh/RequisicoesVagas'
-import Candidatos from './rh/Candidatos'
-import Admissoes from './rh/Admissoes'
-import Experiencias from './rh/Experiencias'
-import Documentos from './rh/Documentos'
 import Desligamentos from './rh/Desligamentos'
 import FuncionariosRH from './rh/FuncionariosRH'
 
 function RH() {
   const [activeTab, setActiveTab] = useState('dashboard')
 
+  const tabs = [
+    { key: 'dashboard',    label: 'Painel RH' },
+    { key: 'funcionarios', label: 'Colaboradores' },
+    { key: 'requisicoes',  label: 'Requisições' },
+    { key: 'desligamentos',label: 'Desligamentos' },
+  ]
+
+  const C = { navy: '#17273C', amber: '#E8A628', ink: '#1C2330', ink3: '#7F8A99', line: '#DDD6C7', surface2: '#F6F3ED' }
+
   return (
-    <div className="container mx-auto py-6 px-4">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Recursos Humanos</h1>
-        <p className="text-gray-600 mt-2">
-          Gestão completa de RH: vagas, candidatos, admissões, experiências e gestão de colaboradores
-        </p>
+    <div style={{ fontFamily: 'Inter, system-ui, sans-serif', padding: '24px 28px', background: C.surface2, minHeight: '100vh' }}>
+      {/* Tab bar */}
+      <div style={{ display: 'flex', gap: 2, borderBottom: `1px solid ${C.line}`, marginBottom: 22 }}>
+        {tabs.map(t => {
+          const on = t.key === activeTab
+          return (
+            <button key={t.key}
+              onClick={() => setActiveTab(t.key)}
+              style={{ background: 'none', border: 'none', padding: '10px 18px', fontSize: 13, fontWeight: on ? 700 : 500, color: on ? C.ink : C.ink3, borderBottom: on ? `2px solid ${C.navy}` : '2px solid transparent', cursor: 'pointer', fontFamily: 'inherit', transition: 'color 0.15s' }}>
+              {t.label}
+            </button>
+          )
+        })}
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="w-full justify-start overflow-x-auto">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="funcionarios">Funcionários</TabsTrigger>
-          <TabsTrigger value="requisicoes">Requisições</TabsTrigger>
-          <TabsTrigger value="candidatos">Candidatos</TabsTrigger>
-          <TabsTrigger value="admissoes">Admissões</TabsTrigger>
-          <TabsTrigger value="experiencias">Experiências</TabsTrigger>
-          <TabsTrigger value="documentos">Documentos</TabsTrigger>
-          <TabsTrigger value="desligamentos">Desligamentos</TabsTrigger>
-        </TabsList>
+      {activeTab === 'dashboard'    && <DashboardRH />}
+      {activeTab === 'funcionarios' && <FuncionariosRH />}
+      {activeTab === 'requisicoes'  && <RequisicoesVagas />}
+      {activeTab === 'desligamentos'&& <Desligamentos />}
+    </div>
+  )
+}
 
-        <TabsContent value="dashboard">
-          <DashboardRH />
-        </TabsContent>
-
-        <TabsContent value="funcionarios">
-          <FuncionariosRH />
-        </TabsContent>
-
-        <TabsContent value="requisicoes">
-          <RequisicoesVagas />
-        </TabsContent>
-
-        <TabsContent value="candidatos">
-          <Candidatos />
-        </TabsContent>
-
-        <TabsContent value="admissoes">
-          <Admissoes />
-        </TabsContent>
-
-        <TabsContent value="experiencias">
-          <Experiencias />
-        </TabsContent>
+export default RH
 
         <TabsContent value="documentos">
           <Documentos />

@@ -200,17 +200,30 @@ class RHService {
   // ========================================
   async getDashboard() {
     const tenantId = getTenantId()
-    const [{ data: requisicoes }, { data: candidatos }, { data: admissoes }, { data: avaliacoes }] = await Promise.all([
-      supabase.from('requisicoes_vagas').select('status').eq('tenant_id', tenantId),
-      supabase.from('candidatos').select('status').eq('tenant_id', tenantId),
-      supabase.from('admissoes').select('status').eq('tenant_id', tenantId),
-      supabase.from('avaliacoes').select('nota_geral').eq('tenant_id', tenantId),
+
+    const [funcsRes, reqRes] = await Promise.all([
+      supabase.from('funcionarios').select('id,nome,funcao,empresa,situacao').eq('tenant_id', tenantId),
+      supabase.from('requisicoes_vagas').select('id,funcao,status,urgencia,obra_id,obras(nome)').eq('tenant_id', tenantId).neq('status', 'admitido').neq('status', 'cancelada').then(r => r).catch(() => ({ data: null })),
     ])
+
+    const funcs = funcsRes.data || []
+    const ativos = funcs.filter(f => (f.situacao || 'Ativo') !== 'Inativo')
+
+    const porEmpresa = {}
+    ativos.forEach(f => {
+      const emp = f.empresa || 'Sem empresa'
+      porEmpresa[emp] = (porEmpresa[emp] || 0) + 1
+    })
+
+    const requisicoes = reqRes.data || []
+
     return {
-      requisicoes_abertas: (requisicoes || []).filter(r => r.status === 'aberta').length,
-      candidatos_em_processo: (candidatos || []).filter(c => ['em_processo', 'entrevistado'].includes(c.status)).length,
-      admissoes_pendentes: (admissoes || []).filter(a => a.status !== 'concluida').length,
-      total_avaliacoes: (avaliacoes || []).length,
+      total_ativos: ativos.length,
+      total_empresas: Object.keys(porEmpresa).length,
+      headcount_por_empresa: Object.entries(porEmpresa).map(([empresa, n]) => ({ empresa, n })).sort((a, b) => b.n - a.n),
+      vagas_abertas: requisicoes.length,
+      vagas_criticas: requisicoes.filter(r => r.urgencia === 'critica' || r.urgencia === 'critico').length,
+      requisicoes_abertas: requisicoes,
     }
   }
 
