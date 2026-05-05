@@ -132,6 +132,137 @@ function ModalDesligar({ ativos, onClose, onSalvo }) {
   )
 }
 
+// ── Processo de Desligamento (visão detalhada) ──────────────────────────────
+const CHECKLIST_ITEMS = [
+  'Devolução de EPI / ferramentas',
+  'Entrega do crachá / cartão de ponto',
+  'Revogação de acessos (sistema, e-mail)',
+  'Baixa na carteira de trabalho (CTPS)',
+  'Homologação sindical (quando aplicável)',
+  'Carta de demissão / Aviso prévio assinado',
+  'Cálculo de rescisão conferido pelo DP',
+  'TRCT assinado pelo colaborador',
+  'Comunicação ao RH da obra',
+]
+
+const DOCS_RESCISAO = [
+  { label: 'TRCT (Termo de Rescisão Contratual)', status: 'pendente' },
+  { label: 'Aviso prévio indenizado / trabalhado', status: 'pendente' },
+  { label: 'Comprovante de saldo FGTS', status: 'pendente' },
+  { label: 'Baixa da CTPS', status: 'pendente' },
+]
+
+function ProcessoDesligamento({ func, onClose }) {
+  const [checks, setChecks] = useState(CHECKLIST_ITEMS.map(() => false))
+  const toggle = (i) => setChecks(prev => prev.map((v, j) => j === i ? !v : v))
+
+  const isJusta = func.status === 'demissao_justa_causa'
+  const tipo = MOTIVO_LABEL[func.status] || func.status || '—'
+  const dataFmt = func.data_demissao
+    ? new Date(func.data_demissao + 'T12:00').toLocaleDateString('pt-BR')
+    : '—'
+
+  const btnGhost = {
+    background: C.surface, border: `1px solid ${C.line}`, color: C.ink2,
+    fontSize: 12, fontWeight: 500, padding: '7px 13px', borderRadius: 8,
+    cursor: 'pointer', fontFamily: 'inherit',
+  }
+  const concluidos = checks.filter(Boolean).length
+
+  return (
+    <div style={{ fontFamily: 'Inter, system-ui, sans-serif', color: C.ink }}>
+
+      {/* Botão Voltar */}
+      <div style={{ marginBottom: 14 }}>
+        <button onClick={onClose} style={btnGhost}>← Desligamentos</button>
+      </div>
+
+      {/* Navy Banner */}
+      <div style={{ background: C.navy, borderRadius: 10, padding: '20px 24px', marginBottom: 14, display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 0 }}>
+        {/* Colaborador */}
+        <div style={{ display: 'flex', gap: 14, alignItems: 'center', paddingRight: 24, borderRight: '1px solid rgba(255,255,255,0.12)' }}>
+          <Avatar nome={func.nome} size={48} />
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#FFF', letterSpacing: '-0.01em' }}>{func.nome}</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 3 }}>{func.funcao || '—'} · {func.empresa || '—'}</div>
+          </div>
+        </div>
+        {/* Tipo */}
+        <div style={{ padding: '0 20px', borderRight: '1px solid rgba(255,255,255,0.12)' }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>TIPO</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: isJusta ? C.amber : '#FFF' }}>{tipo}</div>
+        </div>
+        {/* Data */}
+        <div style={{ padding: '0 20px', borderRight: '1px solid rgba(255,255,255,0.12)' }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>DATA DESLIGAMENTO</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#FFF', fontFamily: '"JetBrains Mono", monospace' }}>{dataFmt}</div>
+        </div>
+        {/* Status */}
+        <div style={{ padding: '0 20px' }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>CHECKLIST</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: concluidos === CHECKLIST_ITEMS.length ? C.amber : 'rgba(255,255,255,0.8)' }}>
+            {concluidos}/{CHECKLIST_ITEMS.length} itens
+          </div>
+        </div>
+      </div>
+
+      {/* Alerta Justa Causa */}
+      {isJusta && (
+        <div style={{ background: 'linear-gradient(135deg, #FFF8EC 0%, #FEF3D7 100%)', border: `1px solid ${C.amber}`, borderRadius: 10, padding: '14px 18px', marginBottom: 14, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <span style={{ fontSize: 22, lineHeight: 1.2 }}>⚠️</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.warn, marginBottom: 4 }}>Processo de Justa Causa</div>
+            <div style={{ fontSize: 12, color: C.ink2, lineHeight: 1.5 }}>
+              Desligamento por justa causa requer documentação comprobatória, registro das ocorrências e validação pelo DP antes da homologação. Confirme com o jurídico antes de prosseguir.
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+
+        {/* Checklist digital */}
+        <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.line2}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>Checklist digital</div>
+            <span style={{ fontSize: 11, color: C.ink3 }}>{concluidos} / {CHECKLIST_ITEMS.length}</span>
+          </div>
+          <div style={{ padding: '8px 0' }}>
+            {CHECKLIST_ITEMS.map((item, i) => (
+              <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 18px', cursor: 'pointer', background: checks[i] ? '#F4FAF6' : 'transparent', borderBottom: i < CHECKLIST_ITEMS.length - 1 ? `1px solid ${C.line2}` : 'none' }}>
+                <input type="checkbox" checked={checks[i]} onChange={() => toggle(i)}
+                  style={{ width: 16, height: 16, accentColor: C.ok, flexShrink: 0, cursor: 'pointer' }} />
+                <span style={{ fontSize: 12.5, color: checks[i] ? C.ok : C.ink2, textDecoration: checks[i] ? 'line-through' : 'none', transition: 'color 0.15s' }}>{item}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Documentação de rescisão */}
+        <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.line2}` }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>Documentação de rescisão</div>
+          </div>
+          <div style={{ padding: '8px 0' }}>
+            {DOCS_RESCISAO.map((doc, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 18px', borderBottom: i < DOCS_RESCISAO.length - 1 ? `1px solid ${C.line2}` : 'none' }}>
+                <span style={{ fontSize: 12.5, color: C.ink2 }}>{doc.label}</span>
+                <span style={{ fontSize: 10, padding: '3px 10px', borderRadius: 4, background: '#FBE9E4', color: C.bad, fontWeight: 700, letterSpacing: '0.06em' }}>PENDENTE</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ padding: '14px 18px', borderTop: `1px solid ${C.line2}` }}>
+            <button style={{ width: '100%', background: C.navy, border: 'none', color: '#FFF', fontSize: 12, fontWeight: 700, padding: '10px 0', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Finalizar processo
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
 function calcTempoEmpresa(admissao, demissao) {
   if (!admissao) return null
   const inicio = new Date(admissao)
@@ -159,6 +290,7 @@ export default function Desligamentos() {
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
   const [modal, setModal] = useState(false)
+  const [processando, setProcessando] = useState(null)
 
   const carregar = async () => {
     setLoading(true)
@@ -173,6 +305,11 @@ export default function Desligamentos() {
   }
 
   useEffect(() => { carregar() }, [])
+
+  // Quando processo selecionado, renderiza visão detalhada
+  if (processando) {
+    return <ProcessoDesligamento func={processando} onClose={() => setProcessando(null)} />
+  }
 
   const filtrados = inativos.filter(f => {
     if (!busca.trim()) return true
@@ -234,7 +371,7 @@ export default function Desligamentos() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: `2px solid ${C.line}` }}>
-                {['Colaborador','Função','Empresa','Admissão','Desligamento','Tempo','Motivo'].map(h => (
+                {['Colaborador','Função','Empresa','Admissão','Desligamento','Tempo','Motivo',''].map(h => (
                   <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: C.ink3, fontWeight: 600, fontSize: 10.5, letterSpacing: '0.07em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -259,6 +396,12 @@ export default function Desligamentos() {
                         {MOTIVO_LABEL[f.status] || f.status}
                       </span>
                     )}
+                  </td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <button onClick={() => setProcessando(f)}
+                      style={{ background: 'none', border: `1px solid ${C.line}`, color: C.ink2, fontSize: 11, fontWeight: 600, padding: '4px 11px', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                      Ver processo →
+                    </button>
                   </td>
                 </tr>
               ))}
