@@ -284,14 +284,18 @@ export const extratoService = {
 // ── Orçamentos (Previsto) ────────────────────────────────
 // previsto por obra × categoria × mês × ano
 export const orcamentosService = {
-  // Retorna todos os orçamentos de uma obra+ano (ou ano inteiro se obra=null)
+  // Retorna todos os orçamentos de uma obra (todos os anos) ou ano específico se obra=null
   async listByObraAno(obraId, ano) {
     let q = supabase
       .from('financeiro_orcamentos')
       .select('*, financeiro_categorias(id,nome,tipo,parent_id,grupo)')
-      .or(`ano.eq.${ano},ano.is.null`)
-    if (obraId) q = q.eq('obra_id', obraId)
-    else q = q.is('obra_id', null)
+    if (obraId) {
+      // Orçamento de projeto: retorna todos os anos para esta obra
+      // O mais recente por (categoria, mês) vence no prevMap do componente
+      q = q.eq('obra_id', obraId).order('ano', { ascending: true })
+    } else {
+      q = q.is('obra_id', null).or(`ano.eq.${ano},ano.is.null`)
+    }
     const { data, error } = await q
     check(error); return data || []
   },

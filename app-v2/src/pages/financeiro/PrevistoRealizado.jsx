@@ -313,7 +313,9 @@ export default function PrevistoRealizado() {
 
   const prevMap = useMemo(() => {
     const m = {}
-    orcamentos.forEach(o => {
+    // Ordena por ano crescente para que o ano mais recente sobrescreva anos anteriores
+    const sorted = [...orcamentos].sort((a, b) => (a.ano || 0) - (b.ano || 0))
+    sorted.forEach(o => {
       if (!m[o.categoria_id]) m[o.categoria_id] = {}
       m[o.categoria_id][o.mes] = Number(o.valor)
     })
@@ -338,11 +340,14 @@ export default function PrevistoRealizado() {
   const treeReceitas = tree.filter(c => c.tipo === 'receita')
 
   const { totalPrevisto, totalRealizado } = useMemo(() => {
-    let tp = 0, tr = 0
-    orcamentos.forEach(o => { tp += Number(o.valor) })
-    lancamentos.forEach(l => { tr += Number(l.valor) })
+    // Usa prevMap para evitar dupla contagem quando há orçamentos de múltiplos anos
+    let tp = 0
+    Object.values(prevMap).forEach(mesMapa => {
+      Object.values(mesMapa).forEach(v => { tp += v })
+    })
+    const tr = lancamentos.reduce((s, l) => s + Number(l.valor), 0)
     return { totalPrevisto: tp, totalRealizado: tr }
-  }, [orcamentos, lancamentos])
+  }, [prevMap, lancamentos])
 
   function getConsolidadoNode(node) {
     const filhos = node.subcategorias || []
