@@ -10,7 +10,7 @@ class RHService {
   // ========================================
   async listarRequisicoes(filtros = {}) {
     const tenantId = getTenantId()
-    let query = supabase.from('requisicoes_vagas').select('*, obras(nome)').eq('tenant_id', tenantId).order('criado_em', { ascending: false })
+    let query = supabase.from('requisicoes_vagas').select('*, obras(nome), funcoes(nome)').eq('tenant_id', tenantId).order('created_at', { ascending: false })
     if (filtros.status)  query = query.eq('status', filtros.status)
     if (filtros.obra_id) query = query.eq('obra_id', filtros.obra_id)
     const { data, error } = await query
@@ -19,7 +19,8 @@ class RHService {
   }
 
   async criarRequisicao(dados) {
-    const { data, error } = await supabase.from('requisicoes_vagas').insert({ ...dados, tenant_id: getTenantId() }).select().single()
+    const { obra_id, funcao_id, requisitante_id, quantidade, urgencia, justificativa, data_limite, observacoes } = dados
+    const { data, error } = await supabase.from('requisicoes_vagas').insert({ obra_id, funcao_id, requisitante_id, quantidade, urgencia, justificativa, data_limite: data_limite || null, observacoes, status: 'aberta', tenant_id: getTenantId() }).select().single()
     check(error)
     return data
   }

@@ -2,6 +2,9 @@
 // Padrão visual: inline styles, paleta C, sem shadcn
 import { useState, useEffect } from 'react'
 import rhService from '../../services/rhService'
+import obrasService from '../../services/obrasService'
+import funcoesService from '../../services/funcoesService'
+import useAuthStore from '../../store/authStore'
 
 const C = {
   navy: '#17273C', amber: '#E8A628', ok: '#3D7A50', bad: '#B84A33',
@@ -79,18 +82,36 @@ function StatusBar({ reqs, filtro, onFiltro }) {
 
 // ── Modal Nova Requisição ──────────────────────────────────────────
 function ModalNovaRequisicao({ onClose, onSalvo }) {
-  const [form, setForm] = useState({ funcao: '', obra_nome: '', quantidade: 1, urgencia: 'media', justificativa: '', data_limite: '', observacoes: '' })
+  const user = useAuthStore(s => s.user)
+  const [form, setForm] = useState({ obra_id: '', funcao_id: '', quantidade: 1, urgencia: 'media', justificativa: '', data_limite: '', observacoes: '' })
+  const [obras, setObras] = useState([])
+  const [funcoes, setFuncoes] = useState([])
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+
+  useEffect(() => {
+    obrasService.list().then(r => setObras(r.dados || [])).catch(() => {})
+    funcoesService.list().then(d => setFuncoes(d || [])).catch(() => {})
+  }, [])
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.funcao || !form.obra_nome) { setErro('Preencha Função e Obra.'); return }
+    if (!form.obra_id || !form.funcao_id) { setErro('Selecione a Obra e a Função.'); return }
+    if (!form.justificativa) { setErro('Justificativa é obrigatória.'); return }
     setSalvando(true)
     try {
-      await rhService.criarRequisicao({ funcao: form.funcao, obra_nome: form.obra_nome, quantidade: Number(form.quantidade), urgencia: form.urgencia, justificativa: form.justificativa, data_limite: form.data_limite || null, observacoes: form.observacoes, status: 'aberta' })
+      await rhService.criarRequisicao({
+        obra_id: Number(form.obra_id),
+        funcao_id: Number(form.funcao_id),
+        requisitante_id: user?.id,
+        quantidade: Number(form.quantidade),
+        urgencia: form.urgencia,
+        justificativa: form.justificativa,
+        data_limite: form.data_limite || null,
+        observacoes: form.observacoes,
+      })
       onSalvo()
       onClose()
     } catch (err) {
@@ -104,10 +125,17 @@ function ModalNovaRequisicao({ onClose, onSalvo }) {
     <input type={type} value={form[k]} onChange={e => set(k, e.target.value)} placeholder={placeholder}
       style={{ width: '100%', border: `1px solid ${C.line}`, borderRadius: 7, padding: '8px 10px', fontSize: 13, color: C.ink, background: C.surface, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', ...extra }} />
   )
-  const sel = (k, options) => (
+  const selSimple = (k, options) => (
     <select value={form[k]} onChange={e => set(k, e.target.value)}
       style={{ width: '100%', border: `1px solid ${C.line}`, borderRadius: 7, padding: '8px 10px', fontSize: 13, color: C.ink, background: C.surface, outline: 'none', fontFamily: 'inherit', cursor: 'pointer' }}>
       {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+    </select>
+  )
+  const selDB = (k, items, placeholder) => (
+    <select value={form[k]} onChange={e => set(k, e.target.value)}
+      style={{ width: '100%', border: `1px solid ${C.line}`, borderRadius: 7, padding: '8px 10px', fontSize: 13, color: form[k] ? C.ink : C.ink3, background: C.surface, outline: 'none', fontFamily: 'inherit', cursor: 'pointer' }}>
+      <option value="">{placeholder}</option>
+      {items.map(it => <option key={it.id} value={it.id}>{it.nome}</option>)}
     </select>
   )
   const label = (txt) => <div style={{ fontSize: 11, fontWeight: 600, color: C.ink3, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 5 }}>{txt}</div>
@@ -129,12 +157,12 @@ function ModalNovaRequisicao({ onClose, onSalvo }) {
         <form onSubmit={handleSubmit}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <div style={{ gridColumn: 'span 2' }}>
-              {label('Função / Cargo')}
-              {inp('funcao', 'Ex: Pedreiro, Encarregado, Servente…')}
+              {label('Obra')}
+              {selDB('obra_id', obras, 'Selecione a obra…')}
             </div>
             <div style={{ gridColumn: 'span 2' }}>
-              {label('Obra')}
-              {inp('obra_nome', 'Nome da obra')}
+              {label('Função / Cargo')}
+              {selDB('funcao_id', funcoes, 'Selecione a função…')}
             </div>
             <div>
               {label('Quantidade')}
@@ -142,10 +170,10 @@ function ModalNovaRequisicao({ onClose, onSalvo }) {
             </div>
             <div>
               {label('Urgência')}
-              {sel('urgencia', [['baixa','Baixa'],['media','Média'],['alta','Alta'],['critica','Crítica']])}
+              {selSimple('urgencia', [['baixa','Baixa'],['media','Média'],['alta','Alta'],['critica','Crítica']])}
             </div>
             <div style={{ gridColumn: 'span 2' }}>
-              {label('Justificativa')}
+              {label('Justificativa *')}
               <textarea value={form.justificativa} onChange={e => set('justificativa', e.target.value)} placeholder="Por que precisa dessa vaga?" rows={3}
                 style={{ width: '100%', border: `1px solid ${C.line}`, borderRadius: 7, padding: '8px 10px', fontSize: 13, color: C.ink, background: C.surface, outline: 'none', fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} />
             </div>
@@ -184,9 +212,9 @@ function ReqRow({ req, onAtualizar }) {
     try { await rhService.atualizarStatusRequisicao(req.id, status, ''); onAtualizar() } catch {}
   }
 
-  const dataAberta = req.criado_em ? new Date(req.criado_em).toLocaleDateString('pt-BR') : '—'
+  const dataAberta = (req.created_at || req.data_abertura) ? new Date(req.created_at || req.data_abertura).toLocaleDateString('pt-BR') : '—'
   const dataLimite = req.data_limite ? new Date(req.data_limite).toLocaleDateString('pt-BR') : '—'
-  const diasAberta = req.criado_em ? Math.floor((Date.now() - new Date(req.criado_em)) / 86400000) : 0
+  const diasAberta = (req.created_at || req.data_abertura) ? Math.floor((Date.now() - new Date(req.created_at || req.data_abertura)) / 86400000) : 0
 
   return (
     <>
@@ -194,8 +222,8 @@ function ReqRow({ req, onAtualizar }) {
         <td style={TD()}>
           <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: C.ink3, fontWeight: 600 }}>#{req.id}</span>
         </td>
-        <td style={TD({ fontWeight: 500 })}>{req.funcao || req.funcao_nome || '—'}</td>
-        <td style={TD()}>{req.obras?.nome || req.obra_nome || '—'}</td>
+        <td style={TD({ fontWeight: 500 })}>{req.funcoes?.nome || req.funcao || '—'}</td>
+        <td style={TD()}>{req.obras?.nome || '—'}</td>
         <td style={TD({ textAlign: 'center', fontWeight: 700 })}>{req.quantidade ?? 1}</td>
         <td style={TD()}><Pill cfg={URG_CFG[req.urgencia] || URG_CFG.media} small /></td>
         <td style={TD()}><Pill cfg={STATUS_CFG[req.status] || STATUS_CFG.aberta} small /></td>
