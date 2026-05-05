@@ -4,6 +4,8 @@ import RequisicoesVagas from './rh/RequisicoesVagas'
 import Desligamentos from './rh/Desligamentos'
 import FuncionariosRH from './rh/FuncionariosRH'
 import ProcessoSeletivo from './rh/ProcessoSeletivo'
+import PainelObra from './rh/PainelObra'
+import KPIsDiretoria from './rh/KPIsDiretoria'
 
 function RH() {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -14,6 +16,8 @@ function RH() {
     { key: 'requisicoes',  label: 'Requisições' },
     { key: 'processo',      label: 'Processo Seletivo' },
     { key: 'desligamentos', label: 'Desligamentos' },
+    { key: 'obras',         label: 'Por Obra' },
+    { key: 'kpis',          label: 'KPIs Diretoria' },
   ]
 
   const C = { navy: '#17273C', amber: '#E8A628', ink: '#1C2330', ink3: '#7F8A99', line: '#DDD6C7', surface2: '#F6F3ED' }
@@ -39,6 +43,8 @@ function RH() {
       {activeTab === 'requisicoes'  && <RequisicoesVagas />}
       {activeTab === 'processo'       && <ProcessoSeletivo />}
       {activeTab === 'desligamentos'  && <Desligamentos />}
+      {activeTab === 'obras'           && <PainelObra />}
+      {activeTab === 'kpis'            && <KPIsDiretoria />}
     </div>
   )
 }
