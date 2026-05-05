@@ -34,7 +34,7 @@ function Bubble({ msg, mascoteUrl, corPrimaria }) {
           border: '1.5px solid rgba(0,0,0,0.08)',
         }}>
           {mascoteUrl
-            ? <img src={mascoteUrl} alt="mascote" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ? <img src={mascoteUrl} alt="mascote" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.currentTarget.style.display = 'none'; }} />
             : <div style={{
                 width: '100%', height: '100%',
                 background: `linear-gradient(135deg, ${corPrimaria}, ${corPrimaria}cc)`,
@@ -181,7 +181,8 @@ export default function FloatingChat() {
             {branding.mascoteUrl ? (
               <img src={branding.mascoteUrl} alt="mascote"
                 style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover',
-                  border: '2px solid rgba(255,255,255,0.5)' }} />
+                  border: '2px solid rgba(255,255,255,0.5)' }}
+                onError={e => { e.currentTarget.style.display = 'none'; }} />
             ) : (
               <div style={{
                 width: 38, height: 38, borderRadius: '50%',
@@ -301,7 +302,8 @@ export default function FloatingChat() {
       >
         {branding.mascoteUrl && !isOpen ? (
           <img src={branding.mascoteUrl} alt="chat"
-            style={{ width: '115%', height: '115%', objectFit: 'cover', objectPosition: 'top center', borderRadius: '50%' }} />
+            style={{ width: '115%', height: '115%', objectFit: 'cover', objectPosition: 'top center', borderRadius: '50%' }}
+            onError={e => { e.currentTarget.style.display = 'none'; }} />
         ) : (
           <Sparkles size={22} color="#fff" style={{ transition: 'transform 0.2s' }} />
         )}

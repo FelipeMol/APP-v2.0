@@ -250,8 +250,10 @@ export default function Sidebar() {
         {isCollapsed && (
           <div className="w-8 h-8 mx-auto rounded-lg overflow-hidden flex items-center justify-center" style={{ background: `${branding.corPrimaria}30` }}>
             {branding.logoLocalUrl
-              ? <img src={branding.logoLocalUrl} alt={branding.nomeExibicao} className="w-full h-full object-contain p-0.5" />
-              : <HardHat className="w-4 h-4 text-white" />}
+              ? <img src={branding.logoLocalUrl} alt={branding.nomeExibicao} className="w-full h-full object-contain p-0.5"
+                  onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'block'; }} />
+              : null}
+            <HardHat className="w-4 h-4 text-white" style={{ display: branding.logoLocalUrl ? 'none' : 'block' }} />
           </div>
         )}
 

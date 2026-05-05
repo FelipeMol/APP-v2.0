@@ -26,12 +26,18 @@ export default function useTenantBranding() {
   const tenant   = useTenantStore(s => s.getTenant());
   const tenantId = useTenantStore(s => s.selectedTenantId);
 
+  // Tenants que têm arquivos de logo local em /public/logos/
+  const TENANTS_WITH_LOCAL_LOGOS = new Set(['transformar']);
+
   return useMemo(() => {
     const tenantCor = tenant?.cor_primaria || null;
     const tId       = tenantId || '';
 
-    const logoLocalUrl = tId ? `/logos/${tId}.jpg`         : DEFAULTS.logoLocalUrl;
-    const mascoteUrl   = tId ? `/logos/${tId}-mascote.jpg` : null;
+    const hasLocalLogo = tId && TENANTS_WITH_LOCAL_LOGOS.has(tId);
+    const logoLocalUrl = hasLocalLogo
+      ? `/logos/${tId}.jpg`
+      : (tenant?.logo_url || grupo?.logo_url || null);
+    const mascoteUrl = hasLocalLogo ? `/logos/${tId}-mascote.jpg` : null;
 
     const branding = {
       corPrimaria:    tenantCor || grupo?.cor_primaria || DEFAULTS.corPrimaria,
