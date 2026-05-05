@@ -130,7 +130,8 @@ function CelulaPrevisto({ value, onSave, disabled }) {
   }
   return (
     <div onClick={startEdit} title={disabled ? '' : 'Clique para editar previsto'}
-      style={{ fontSize: 11, fontWeight: 600, color: value > 0 ? C.navy : C.line, textAlign: 'right',
+      style={{ fontSize: 11, fontWeight: value > 0 ? 600 : 400,
+        color: value > 0 ? C.navy : C.line, textAlign: 'right',
         cursor: disabled ? 'default' : 'pointer', borderRadius: 3, padding: '1px 2px',
         borderBottom: disabled ? 'none' : `1px dashed ${value > 0 ? C.navy : 'transparent'}` }}>
       {value > 0 ? brlK(value) : (disabled ? '—' : '+ prev')}
@@ -352,7 +353,10 @@ export default function PrevistoRealizado() {
   function getConsolidadoNode(node) {
     const filhos = node.subcategorias || []
     if (filhos.length === 0) return { prev: prevMap[node.id] || {}, real: realMap[node.id] || {} }
-    const prev = {}, real = {}
+    // Inicia com o previsto próprio do nó (orçamento atribuído diretamente ao grupo)
+    const ownPrev = prevMap[node.id] || {}
+    const prev = { ...ownPrev }
+    const real = {}
     filhos.forEach(f => {
       const { prev: pf, real: rf } = getConsolidadoNode(f)
       MESES.forEach((_, i) => {
