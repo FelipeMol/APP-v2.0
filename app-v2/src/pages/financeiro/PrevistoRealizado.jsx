@@ -297,6 +297,7 @@ export default function PrevistoRealizado() {
     queryKey: ['financeiro_lancamentos_pxr', obraId, ano, inicioEfetivo, fimEfetivo],
     queryFn: () => lancamentosFinService.list({
       status: 'pago',
+      tipo:   'despesa',
       inicio: inicioEfetivo,
       fim:    fimEfetivo,
       ...(obraId ? { obra_id: obraId } : {}),
