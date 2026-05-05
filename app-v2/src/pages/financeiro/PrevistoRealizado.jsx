@@ -130,9 +130,9 @@ function CelulaPrevisto({ value, onSave, disabled }) {
   }
   return (
     <div onClick={startEdit} title={disabled ? '' : 'Clique para editar previsto'}
-      style={{ fontSize: 10, color: value > 0 ? C.ink2 : C.line, textAlign: 'right',
+      style={{ fontSize: 11, fontWeight: 600, color: value > 0 ? C.navy : C.line, textAlign: 'right',
         cursor: disabled ? 'default' : 'pointer', borderRadius: 3, padding: '1px 2px',
-        borderBottom: disabled ? 'none' : `1px dashed ${value > 0 ? C.line : 'transparent'}` }}>
+        borderBottom: disabled ? 'none' : `1px dashed ${value > 0 ? C.navy : 'transparent'}` }}>
       {value > 0 ? brlK(value) : (disabled ? '—' : '+ prev')}
     </div>
   )
@@ -156,7 +156,7 @@ function CelulaTriple({ previsto, realizado, onSavePrevisto, obraId }) {
         </div>
       )}
       <CelulaPrevisto value={previsto} onSave={onSavePrevisto} disabled={!obraId} />
-      <div style={{ fontSize: 11, fontWeight: 700, color: C.ink, textAlign: 'right', marginTop: 2 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.bad, textAlign: 'right', marginTop: 2 }}>
         {realizado > 0 ? brlK(realizado) : <span style={{ color: C.line2 }}>—</span>}
       </div>
       {(previsto > 0 || realizado > 0) && (
@@ -193,8 +193,8 @@ function LinhaGrupo({ cat, isExpanded, onToggle, prevPorMes, realPorMes, obraId,
           obraId={obraId} onSavePrevisto={(val) => onSave(cat.id, i+1, val)} />
       ))}
       <td style={{ padding: '5px 10px', borderLeft: `2px solid ${C.line}`, background: C.surface2, minWidth: 90, textAlign: 'right' }}>
-        <div style={{ fontSize: 10, color: C.ink3 }}>{brlK(totalPrev)}</div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: C.ink }}>{brlK(totalReal)}</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.navy }}>{brlK(totalPrev)}</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.bad }}>{brlK(totalReal)}</div>
       </td>
     </tr>
   )
@@ -228,8 +228,8 @@ function LinhaSubcat({ cat, isExpanded, onToggle, prevPorMes, realPorMes, obraId
           obraId={obraId} onSavePrevisto={(val) => onSave(cat.id, i+1, val)} />
       ))}
       <td style={{ padding: '5px 10px', borderLeft: `2px solid ${C.line}`, minWidth: 90, textAlign: 'right' }}>
-        <div style={{ fontSize: 10, color: C.ink3 }}>{brlK(totalPrev)}</div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: C.ink }}>{brlK(totalReal)}</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.navy }}>{brlK(totalPrev)}</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.bad }}>{brlK(totalReal)}</div>
       </td>
     </tr>
   )
@@ -251,8 +251,8 @@ function LinhaCategoria({ cat, prevPorMes, realPorMes, obraId, onSave }) {
           obraId={obraId} onSavePrevisto={(val) => onSave(cat.id, i+1, val)} />
       ))}
       <td style={{ padding: '5px 10px', borderLeft: `2px solid ${C.line}`, background: '#FAFAF8', minWidth: 90, textAlign: 'right' }}>
-        <div style={{ fontSize: 10, color: C.ink3 }}>{brlK(totalPrev)}</div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: C.ink2 }}>{brlK(totalReal)}</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.navy }}>{brlK(totalPrev)}</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.bad }}>{brlK(totalReal)}</div>
       </td>
     </tr>
   )
