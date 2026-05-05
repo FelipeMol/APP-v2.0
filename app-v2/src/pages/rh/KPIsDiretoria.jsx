@@ -35,6 +35,7 @@ function Sparkline({ data = [], color = C.navy, fill, w = 100, h = 28 }) {
 }
 
 function KPICard({ label, value, delta, meta, atinge, spark }) {
+  const semDados = atinge === null || atinge === undefined
   return (
     <div style={{
       background: C.surface, border: `1px solid ${C.line}`, borderRadius: 10, padding: 22,
@@ -42,29 +43,39 @@ function KPICard({ label, value, delta, meta, atinge, spark }) {
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: C.ink2, lineHeight: 1.3 }}>{label}</div>
-        <span style={{
-          fontSize: 9, padding: '2px 8px', borderRadius: 3, fontWeight: 700, letterSpacing: '0.06em',
-          background: atinge ? '#E4F1E8' : '#FBE9E4',
-          color: atinge ? '#3D7A50' : '#B84A33',
-          whiteSpace: 'nowrap', flexShrink: 0, marginLeft: 8,
-        }}>
-          {atinge ? 'NA META' : 'FORA DA META'}
-        </span>
+        {!semDados && (
+          <span style={{
+            fontSize: 9, padding: '2px 8px', borderRadius: 3, fontWeight: 700, letterSpacing: '0.06em',
+            background: atinge ? '#E4F1E8' : '#FBE9E4',
+            color: atinge ? '#3D7A50' : '#B84A33',
+            whiteSpace: 'nowrap', flexShrink: 0, marginLeft: 8,
+          }}>
+            {atinge ? 'NA META' : 'FORA DA META'}
+          </span>
+        )}
+        {semDados && (
+          <span style={{
+            fontSize: 9, padding: '2px 8px', borderRadius: 3, fontWeight: 700, letterSpacing: '0.06em',
+            background: C.surface2, color: C.ink3,
+            whiteSpace: 'nowrap', flexShrink: 0, marginLeft: 8,
+          }}>S/DADOS</span>
+        )}
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
         <span style={{
           fontFamily: '"Libre Caslon Text", Georgia, serif',
-          fontSize: 40, fontWeight: 500, letterSpacing: '-0.02em', lineHeight: 1, color: C.ink,
+          fontSize: semDados ? 28 : 40, fontWeight: 500, letterSpacing: '-0.02em', lineHeight: 1,
+          color: semDados ? C.ink3 : C.ink,
         }}>{value}</span>
-        {delta && (
+        {delta && !semDados && (
           <span style={{ fontSize: 12, color: atinge ? C.ok : C.bad, fontWeight: 700 }}>{delta}</span>
         )}
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTop: `1px solid ${C.line2}` }}>
         <span style={{ fontSize: 11, color: C.ink3 }}>Meta · {meta}</span>
-        <Sparkline data={spark} color={atinge ? C.ok : C.bad}
+        {!semDados && <Sparkline data={spark} color={atinge ? C.ok : C.bad}
           fill={atinge ? 'rgba(61,122,80,0.08)' : 'rgba(184,74,51,0.08)'}
-          w={100} h={28} />
+          w={100} h={28} />}
       </div>
     </div>
   )
@@ -205,28 +216,27 @@ export default function KPIsDiretoria() {
   const turnoverNum = parseFloat(dados.turnover)
 
   const KPIS = [
-    { label: 'Tempo médio de contratação', value: '6,4 dias', delta: '−1,2d', meta: '≤ 7 dias', atinge: true,
-      spark: [9.2,8.8,8.5,8.1,7.8,7.4,7.2,7.0,6.8,6.6,6.5,6.4] },
-    { label: '% admissões regulares', value: '100%', delta: '0pp', meta: '100%', atinge: true,
-      spark: [96,97,98,99,100,100,100,100,100,100,100,100] },
-    { label: 'Aprovação na experiência', value: '83%', delta: '+2pp', meta: '≥ 80%', atinge: true,
-      spark: [76,78,79,80,81,82,81,82,83,82,82,83] },
+    { label: 'Tempo médio de contratação', value: '—', delta: null, meta: '≤ 7 dias', atinge: null, spark: [] },
+    { label: '% admissões regulares', value: '—', delta: null, meta: '100%', atinge: null, spark: [] },
+    { label: 'Aprovação na experiência', value: '—', delta: null, meta: '≥ 80%', atinge: null, spark: [] },
     { label: 'Turnover do trimestre', value: `${dados.turnover}%`, delta: turnoverNum <= 12 ? '−0,8pp' : '+1,2pp',
       meta: '≤ 12%', atinge: turnoverNum <= 12,
-      spark: [14,14,13,13,12.5,12,12.2,11.9,11.6,11.5,11.3,11.2] },
-    { label: 'Absenteísmo médio', value: '2,8%', delta: '−0,3pp', meta: '≤ 3%', atinge: true,
-      spark: [3.4,3.3,3.5,3.2,3.1,3.2,3.0,3.1,2.9,2.9,2.8,2.8] },
-    { label: 'Tempo de regularização', value: '1,8 dias', delta: '−0,4d', meta: '≤ 2 dias', atinge: true,
-      spark: [2.6,2.5,2.4,2.3,2.2,2.1,2.1,2.0,1.9,1.9,1.8,1.8] },
+      spark: dados.admPorMes.map((_, i) => {
+        const inat = dados.deslPorMes[i] || 0
+        const tot = (dados.admPorMes[i] || 0) + inat
+        return tot > 0 ? (inat / tot) * 100 : 0
+      }) },
+    { label: 'Absenteísmo médio', value: '—', delta: null, meta: '≤ 3%', atinge: null, spark: [] },
+    { label: 'Tempo de regularização', value: '—', delta: null, meta: '≤ 2 dias', atinge: null, spark: [] },
   ]
 
   const RELATORIOS = [
     { titulo: 'Admissões · Trimestre', desc: 'Por período, obra, função', n: dados.totalAtivos },
-    { titulo: 'Desligamentos · Trimestre', desc: 'Com motivos detalhados', n: dados.turnoverEmpresa.reduce((s,e) => s + Math.round(e.pct / 100 * 8), 0) },
-    { titulo: 'Documentação pendente', desc: 'Atualizado hoje', n: 6 },
-    { titulo: 'Exames vencidos ou a vencer', desc: 'Próximos 30 dias', n: 8 },
+    { titulo: 'Desligamentos · Trimestre', desc: 'Com motivos detalhados', n: dados.turnoverEmpresa.reduce((s, e) => s + Math.round(e.pct / 100 * 8), 0) },
+    { titulo: 'Documentação pendente', desc: 'Atualizado hoje', n: null },
+    { titulo: 'Exames vencidos ou a vencer', desc: 'Próximos 30 dias', n: null },
     { titulo: 'Avaliações de desempenho', desc: 'Gestor + RH', n: dados.totalAvs },
-    { titulo: 'Histórico disciplinar', desc: 'Advertências e suspensões', n: 4 },
+    { titulo: 'Histórico disciplinar', desc: 'Advertências e suspensões', n: null },
   ]
 
   const btnGhost = {
@@ -307,7 +317,7 @@ export default function KPIsDiretoria() {
           }}>
             <div>
               <div style={{ fontSize: 12.5, fontWeight: 500, color: C.ink }}>{r.titulo}</div>
-              <div style={{ fontSize: 10.5, color: C.ink3, marginTop: 1 }}>{r.desc} · {r.n} registros</div>
+              <div style={{ fontSize: 10.5, color: C.ink3, marginTop: 1 }}>{r.desc}{r.n != null ? ` · ${r.n} registros` : ''}</div>
             </div>
             <button style={{ ...btnGhost, padding: '5px 10px', fontSize: 11 }}>PDF</button>
             <button style={{ ...btnGhost, padding: '5px 10px', fontSize: 11 }}>Excel</button>
