@@ -189,8 +189,8 @@ export const lancamentosFinService = {
     if (filtros.status)    q = q.eq('status', filtros.status)
     if (filtros.conta_id)  q = q.eq('conta_id', filtros.conta_id)
     if (filtros.obra_id)   q = q.eq('obra_id', filtros.obra_id)
-    if (filtros.inicio)    q = q.gte('data_vencimento', filtros.inicio)
-    if (filtros.fim)       q = q.lte('data_vencimento', filtros.fim)
+    if (filtros.inicio)    q = q.gte('data_pagamento', filtros.inicio)
+    if (filtros.fim)       q = q.lte('data_pagamento', filtros.fim)
     const { data, error } = await q
     check(error); return data || []
   },

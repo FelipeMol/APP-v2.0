@@ -23,6 +23,11 @@ function brl(n) {
   const abs = Math.abs(n)
   return (n < 0 ? '-' : '') + 'R$ ' + abs.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
+function brlFull(n) {
+  if (!n && n !== 0) return 'R$ 0,00'
+  const abs = Math.abs(n)
+  return (n < 0 ? '-' : '') + 'R$ ' + abs.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
 function brlK(n) {
   if (!n && n !== 0) return '—'
   const abs = Math.abs(n)
@@ -71,12 +76,12 @@ function Banner({ totalPrevisto, totalRealizado, obraNome, ano }) {
       </div>
       <div style={{ paddingLeft: 24, paddingRight: 24, borderRight: '1px solid rgba(255,255,255,.12)' }}>
         <div style={{ fontSize: 10, letterSpacing: '.15em', color: 'rgba(255,255,255,.5)', fontWeight: 600 }}>PREVISTO</div>
-        <div style={{ fontSize: 30, fontWeight: 700, color: '#fff', marginTop: 6 }}>{brl(totalPrevisto)}</div>
+        <div style={{ fontSize: 30, fontWeight: 700, color: '#fff', marginTop: 6 }}>{brlFull(totalPrevisto)}</div>
         <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginTop: 4 }}>Orcamento total</div>
       </div>
       <div style={{ paddingLeft: 24, paddingRight: 24, borderRight: '1px solid rgba(255,255,255,.12)' }}>
         <div style={{ fontSize: 10, letterSpacing: '.15em', color: 'rgba(255,255,255,.5)', fontWeight: 600 }}>REALIZADO</div>
-        <div style={{ fontSize: 30, fontWeight: 700, color: '#F4B19C', marginTop: 6 }}>{brl(totalRealizado)}</div>
+        <div style={{ fontSize: 30, fontWeight: 700, color: '#F4B19C', marginTop: 6 }}>{brlFull(totalRealizado)}</div>
         <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginTop: 4 }}>Despesas pagas</div>
       </div>
       <div style={{ paddingLeft: 24 }}>
@@ -150,23 +155,11 @@ function CelulaTriple({ previsto, realizado, onSavePrevisto, obraId }) {
   const sc = SC[status]
   const execPct = previsto > 0 ? Math.min(Math.round((realizado / previsto) * 100), 100) : 0
   return (
-    <td style={{ padding: '5px 7px', verticalAlign: 'top', minWidth: 90, borderLeft: `1px solid ${C.line2}` }}>
-      {previsto > 0 && (
-        <div style={{ height: 2, background: C.line2, borderRadius: 1, marginBottom: 4, overflow: 'hidden' }}>
-          <div style={{ width: execPct + '%', height: '100%', borderRadius: 1, background: sc.fg }} />
-        </div>
-      )}
-      <CelulaPrevisto value={previsto} onSave={onSavePrevisto} disabled={!obraId} />
-      <div style={{ fontSize: 11, fontWeight: 700, color: C.bad, textAlign: 'right', marginTop: 2 }}>
-        {realizado > 0 ? brlK(realizado) : <span style={{ color: C.line2 }}>—</span>}
-      </div>
-      {(previsto > 0 || realizado > 0) && (
-        <div style={{ fontSize: 9, textAlign: 'right', marginTop: 2, color: sc.fg,
-          background: (diff > 0 && status !== 'neutro') ? sc.bg : 'transparent',
-          borderRadius: 3, padding: (diff > 0 && status !== 'neutro') ? '1px 4px' : 0 }}>
-          {diff > 0 ? `+${brlK(diff)}` : diff < 0 ? brlK(diff) : '='}
-        </div>
-      )}
+    <td style={{ padding: '5px 7px', verticalAlign: 'middle', minWidth: 90, borderLeft: `1px solid ${C.line2}`, textAlign: 'right' }}>
+      {realizado > 0
+        ? <span style={{ fontSize: 11, fontWeight: 700, color: C.bad }}>{brlK(realizado)}</span>
+        : <span style={{ color: C.line2 }}>—</span>
+      }
     </td>
   )
 }
@@ -193,9 +186,11 @@ function LinhaGrupo({ cat, isExpanded, onToggle, prevPorMes, realPorMes, obraId,
         <CelulaTriple key={i} previsto={prevPorMes[i+1]||0} realizado={realPorMes[i+1]||0}
           obraId={obraId} onSavePrevisto={(val) => onSave(cat.id, i+1, val)} />
       ))}
-      <td style={{ padding: '5px 10px', borderLeft: `2px solid ${C.line}`, background: C.surface2, minWidth: 90, textAlign: 'right' }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: C.navy }}>{brlK(totalPrev)}</div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: C.bad }}>{brlK(totalReal)}</div>
+      <td style={{ padding: '5px 10px', borderLeft: `2px solid ${C.line}`, background: C.surface2, minWidth: 110, textAlign: 'right' }}>
+        <div style={{ fontSize: 10, color: C.ink3, marginBottom: 2 }}>Prev</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.navy }}>{brlFull(totalPrev)}</div>
+        <div style={{ fontSize: 10, color: C.ink3, marginTop: 4, marginBottom: 2 }}>Real</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.bad }}>{brlFull(totalReal)}</div>
       </td>
     </tr>
   )
@@ -228,9 +223,11 @@ function LinhaSubcat({ cat, isExpanded, onToggle, prevPorMes, realPorMes, obraId
         <CelulaTriple key={i} previsto={prevPorMes[i+1]||0} realizado={realPorMes[i+1]||0}
           obraId={obraId} onSavePrevisto={(val) => onSave(cat.id, i+1, val)} />
       ))}
-      <td style={{ padding: '5px 10px', borderLeft: `2px solid ${C.line}`, minWidth: 90, textAlign: 'right' }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: C.navy }}>{brlK(totalPrev)}</div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: C.bad }}>{brlK(totalReal)}</div>
+      <td style={{ padding: '5px 10px', borderLeft: `2px solid ${C.line}`, minWidth: 110, textAlign: 'right' }}>
+        <div style={{ fontSize: 10, color: C.ink3, marginBottom: 2 }}>Prev</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.navy }}>{brlFull(totalPrev)}</div>
+        <div style={{ fontSize: 10, color: C.ink3, marginTop: 4, marginBottom: 2 }}>Real</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.bad }}>{brlFull(totalReal)}</div>
       </td>
     </tr>
   )
@@ -251,9 +248,11 @@ function LinhaCategoria({ cat, prevPorMes, realPorMes, obraId, onSave }) {
         <CelulaTriple key={i} previsto={prevPorMes[i+1]||0} realizado={realPorMes[i+1]||0}
           obraId={obraId} onSavePrevisto={(val) => onSave(cat.id, i+1, val)} />
       ))}
-      <td style={{ padding: '5px 10px', borderLeft: `2px solid ${C.line}`, background: '#FAFAF8', minWidth: 90, textAlign: 'right' }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: C.navy }}>{brlK(totalPrev)}</div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: C.bad }}>{brlK(totalReal)}</div>
+      <td style={{ padding: '5px 10px', borderLeft: `2px solid ${C.line}`, background: '#FAFAF8', minWidth: 110, textAlign: 'right' }}>
+        <div style={{ fontSize: 10, color: C.ink3, marginBottom: 2 }}>Prev</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.navy }}>{brlFull(totalPrev)}</div>
+        <div style={{ fontSize: 10, color: C.ink3, marginTop: 4, marginBottom: 2 }}>Real</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.bad }}>{brlFull(totalReal)}</div>
       </td>
     </tr>
   )
