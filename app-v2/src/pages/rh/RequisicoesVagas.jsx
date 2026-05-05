@@ -1,392 +1,364 @@
-import React, { useState, useEffect } from 'react'
-import { Card } from '../../components/ui/card'
-import { Button } from '../../components/ui/button'
-import { Badge } from '../../components/ui/badge'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog'
-import { Input } from '../../components/ui/input'
-import { Label } from '../../components/ui/label'
+﻿// RH — Requisições de Vagas  (P2)
+// Padrão visual: inline styles, paleta C, sem shadcn
+import { useState, useEffect } from 'react'
 import rhService from '../../services/rhService'
 
-function RequisicoesVagas() {
-  const [requisicoes, setRequisicoes] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [modalAberto, setModalAberto] = useState(false)
-  const [filtroStatus, setFiltroStatus] = useState('')
-  const [obras, setObras] = useState([])
-  const [funcoes, setFuncoes] = useState([])
+const C = {
+  navy: '#17273C', amber: '#E8A628', ok: '#3D7A50', bad: '#B84A33',
+  warn: '#B8862C', info: '#3D5A80',
+  surface: '#FFFFFF', surface2: '#F6F3ED',
+  ink: '#1C2330', ink2: '#45505F', ink3: '#7F8A99',
+  line: '#DDD6C7', line2: '#E8E2D5',
+}
 
-  const [formData, setFormData] = useState({
-    obra_id: '',
-    funcao_id: '',
-    quantidade: 1,
-    justificativa: '',
-    urgencia: 'media',
-    data_limite: '',
-    observacoes: ''
-  })
+// ── Helpers ─────────────────────────────────────────────────────
+function TH(extra = {}) {
+  return { fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '9px 12px', borderBottom: `1px solid ${C.line}`, color: C.ink3, textAlign: 'left', background: C.surface2, ...extra }
+}
+function TD(extra = {}) {
+  return { padding: '11px 12px', verticalAlign: 'middle', fontSize: 12.5, color: C.ink, borderBottom: `1px solid ${C.line2}`, ...extra }
+}
 
-  useEffect(() => {
-    carregarDados()
-  }, [filtroStatus])
+// ── Pills ────────────────────────────────────────────────────────
+const STATUS_CFG = {
+  aberta:      { bg: '#E2E9F2', color: '#3D5A80', label: 'Aberta' },
+  em_selecao:  { bg: '#FDF3DF', color: '#B8862C', label: 'Em Seleção' },
+  aprovada:    { bg: '#E4F1E8', color: '#3D7A50', label: 'Aprovada' },
+  contratada:  { bg: '#E4F1E8', color: '#3D7A50', label: 'Contratada' },
+  cancelada:   { bg: '#FBE9E4', color: '#B84A33', label: 'Cancelada' },
+}
+const URG_CFG = {
+  baixa:   { bg: C.surface2,  color: C.ink3,  label: 'Baixa' },
+  media:   { bg: '#E2E9F2',   color: '#3D5A80', label: 'Média' },
+  alta:    { bg: '#FDF3DF',   color: '#B8862C', label: 'Alta' },
+  critica: { bg: '#FBE9E4',   color: '#B84A33', label: 'Crítica' },
+}
 
-  const carregarDados = async () => {
+function Pill({ cfg, small }) {
+  if (!cfg) return null
+  return (
+    <span style={{ display: 'inline-block', padding: small ? '2px 7px' : '3px 9px', borderRadius: 4, background: cfg.bg, color: cfg.color, fontSize: small ? 9.5 : 11, fontWeight: 700, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
+      {cfg.label?.toUpperCase()}
+    </span>
+  )
+}
+
+// ── StatusBar ─────────────────────────────────────────────────────
+function StatusBar({ reqs, filtro, onFiltro }) {
+  const counts = {
+    '':           reqs.length,
+    aberta:       reqs.filter(r => r.status === 'aberta').length,
+    em_selecao:   reqs.filter(r => r.status === 'em_selecao').length,
+    aprovada:     reqs.filter(r => r.status === 'aprovada').length,
+    contratada:   reqs.filter(r => r.status === 'contratada').length,
+    cancelada:    reqs.filter(r => r.status === 'cancelada').length,
+  }
+  const items = [
+    { key: '',         label: 'Todas',       count: counts[''] },
+    { key: 'aberta',   label: 'Abertas',     count: counts.aberta },
+    { key: 'em_selecao', label: 'Em Seleção', count: counts.em_selecao },
+    { key: 'aprovada', label: 'Aprovadas',   count: counts.aprovada },
+    { key: 'contratada', label: 'Contratadas', count: counts.contratada },
+    { key: 'cancelada', label: 'Canceladas', count: counts.cancelada },
+  ]
+  return (
+    <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+      {items.map(it => {
+        const on = filtro === it.key
+        return (
+          <button key={it.key} onClick={() => onFiltro(it.key)}
+            style={{ background: on ? C.navy : C.surface, border: `1px solid ${on ? C.navy : C.line}`, color: on ? '#FFF' : C.ink2, fontSize: 12, fontWeight: on ? 700 : 500, padding: '6px 14px', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}>
+            {it.label}
+            <span style={{ background: on ? 'rgba(255,255,255,0.2)' : C.surface2, color: on ? '#FFF' : C.ink3, fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10 }}>{it.count}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Modal Nova Requisição ──────────────────────────────────────────
+function ModalNovaRequisicao({ onClose, onSalvo }) {
+  const [form, setForm] = useState({ funcao: '', obra_nome: '', quantidade: 1, urgencia: 'media', justificativa: '', data_limite: '', observacoes: '' })
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!form.funcao || !form.obra_nome) { setErro('Preencha Função e Obra.'); return }
+    setSalvando(true)
     try {
-      setLoading(true)
-      const data = await rhService.listarRequisicoes({ status: filtroStatus })
-      setRequisicoes(data)
-      // Carregar obras e funções para o formulário
-      await carregarObrasEFuncoes()
-    } catch (error) {
-      console.error('Erro ao carregar requisições:', error)
+      await rhService.criarRequisicao({ funcao: form.funcao, obra_nome: form.obra_nome, quantidade: Number(form.quantidade), urgencia: form.urgencia, justificativa: form.justificativa, data_limite: form.data_limite || null, observacoes: form.observacoes, status: 'aberta' })
+      onSalvo()
+      onClose()
+    } catch (err) {
+      setErro(err.message || 'Erro ao criar requisição')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  const inp = (k, placeholder, type = 'text', extra = {}) => (
+    <input type={type} value={form[k]} onChange={e => set(k, e.target.value)} placeholder={placeholder}
+      style={{ width: '100%', border: `1px solid ${C.line}`, borderRadius: 7, padding: '8px 10px', fontSize: 13, color: C.ink, background: C.surface, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', ...extra }} />
+  )
+  const sel = (k, options) => (
+    <select value={form[k]} onChange={e => set(k, e.target.value)}
+      style={{ width: '100%', border: `1px solid ${C.line}`, borderRadius: 7, padding: '8px 10px', fontSize: 13, color: C.ink, background: C.surface, outline: 'none', fontFamily: 'inherit', cursor: 'pointer' }}>
+      {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+    </select>
+  )
+  const label = (txt) => <div style={{ fontSize: 11, fontWeight: 600, color: C.ink3, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 5 }}>{txt}</div>
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: C.surface, borderRadius: 14, padding: 28, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: C.ink }}>Nova Requisição de Vaga</div>
+            <div style={{ fontSize: 12, color: C.ink3, marginTop: 3 }}>Preencha os dados para abrir a requisição</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, color: C.ink3, cursor: 'pointer', lineHeight: 1, padding: 4 }}>×</button>
+        </div>
+
+        {erro && <div style={{ marginBottom: 14, padding: '10px 14px', background: '#FBE9E4', borderRadius: 7, fontSize: 12, color: C.bad }}>{erro}</div>}
+
+        <form onSubmit={handleSubmit}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div style={{ gridColumn: 'span 2' }}>
+              {label('Função / Cargo')}
+              {inp('funcao', 'Ex: Pedreiro, Encarregado, Servente…')}
+            </div>
+            <div style={{ gridColumn: 'span 2' }}>
+              {label('Obra')}
+              {inp('obra_nome', 'Nome da obra')}
+            </div>
+            <div>
+              {label('Quantidade')}
+              {inp('quantidade', '1', 'number', { min: 1 })}
+            </div>
+            <div>
+              {label('Urgência')}
+              {sel('urgencia', [['baixa','Baixa'],['media','Média'],['alta','Alta'],['critica','Crítica']])}
+            </div>
+            <div style={{ gridColumn: 'span 2' }}>
+              {label('Justificativa')}
+              <textarea value={form.justificativa} onChange={e => set('justificativa', e.target.value)} placeholder="Por que precisa dessa vaga?" rows={3}
+                style={{ width: '100%', border: `1px solid ${C.line}`, borderRadius: 7, padding: '8px 10px', fontSize: 13, color: C.ink, background: C.surface, outline: 'none', fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              {label('Data limite (opcional)')}
+              {inp('data_limite', '', 'date')}
+            </div>
+            <div>
+              {label('Observações')}
+              {inp('observacoes', 'Observações adicionais')}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 22, paddingTop: 18, borderTop: `1px solid ${C.line2}` }}>
+            <button type="button" onClick={onClose} style={{ background: 'transparent', border: `1px solid ${C.line}`, color: C.ink2, fontSize: 13, fontWeight: 500, padding: '9px 20px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Cancelar
+            </button>
+            <button type="submit" disabled={salvando} style={{ background: C.navy, border: 'none', color: '#FFF', fontSize: 13, fontWeight: 700, padding: '9px 22px', borderRadius: 8, cursor: salvando ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: salvando ? 0.7 : 1 }}>
+              {salvando ? 'Salvando…' : 'Abrir Requisição'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ── Linha da tabela ───────────────────────────────────────────────
+function ReqRow({ req, onAtualizar }) {
+  const [expandido, setExpandido] = useState(false)
+
+  const handleAprovar = async (nivel) => {
+    try { await rhService.aprovarRequisicao(req.id, nivel); onAtualizar() } catch {}
+  }
+  const handleStatus = async (status) => {
+    try { await rhService.atualizarStatusRequisicao(req.id, status, ''); onAtualizar() } catch {}
+  }
+
+  const dataAberta = req.criado_em ? new Date(req.criado_em).toLocaleDateString('pt-BR') : '—'
+  const dataLimite = req.data_limite ? new Date(req.data_limite).toLocaleDateString('pt-BR') : '—'
+  const diasAberta = req.criado_em ? Math.floor((Date.now() - new Date(req.criado_em)) / 86400000) : 0
+
+  return (
+    <>
+      <tr style={{ cursor: 'pointer' }} onClick={() => setExpandido(x => !x)}>
+        <td style={TD()}>
+          <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: C.ink3, fontWeight: 600 }}>#{req.id}</span>
+        </td>
+        <td style={TD({ fontWeight: 500 })}>{req.funcao || req.funcao_nome || '—'}</td>
+        <td style={TD()}>{req.obras?.nome || req.obra_nome || '—'}</td>
+        <td style={TD({ textAlign: 'center', fontWeight: 700 })}>{req.quantidade ?? 1}</td>
+        <td style={TD()}><Pill cfg={URG_CFG[req.urgencia] || URG_CFG.media} small /></td>
+        <td style={TD()}><Pill cfg={STATUS_CFG[req.status] || STATUS_CFG.aberta} small /></td>
+        <td style={TD({ color: C.ink3 })}>{dataAberta}</td>
+        <td style={TD({ color: diasAberta > 14 ? C.bad : C.ink3 })}>
+          {diasAberta > 0 ? `${diasAberta}d` : 'hoje'}
+        </td>
+        <td style={TD()} onClick={e => e.stopPropagation()}>
+          <div style={{ display: 'flex', gap: 5 }}>
+            {req.status === 'aberta' && (
+              <>
+                {!req.aprovado_nivel1 && (
+                  <button onClick={() => handleAprovar(1)} style={{ background: 'transparent', border: `1px solid ${C.line}`, color: C.ink2, fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5, cursor: 'pointer', fontFamily: 'inherit' }}>Nível 1</button>
+                )}
+                {req.aprovado_nivel1 && !req.aprovado_nivel2 && (
+                  <button onClick={() => handleAprovar(2)} style={{ background: C.navy, border: 'none', color: '#FFF', fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5, cursor: 'pointer', fontFamily: 'inherit' }}>Nível 2</button>
+                )}
+                {req.aprovado_nivel1 && req.aprovado_nivel2 && (
+                  <button onClick={() => handleStatus('em_selecao')} style={{ background: C.amber, border: 'none', color: C.navy, fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 5, cursor: 'pointer', fontFamily: 'inherit' }}>Iniciar seleção</button>
+                )}
+              </>
+            )}
+            {req.status === 'em_selecao' && (
+              <button onClick={() => handleStatus('contratada')} style={{ background: C.ok, border: 'none', color: '#FFF', fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5, cursor: 'pointer', fontFamily: 'inherit' }}>Contratar</button>
+            )}
+          </div>
+        </td>
+      </tr>
+      {expandido && (
+        <tr>
+          <td colSpan={9} style={{ padding: '12px 16px 16px', background: '#FAFAF8', borderBottom: `1px solid ${C.line2}` }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+              {[
+                ['Justificativa', req.justificativa || '—'],
+                ['Observações',   req.observacoes   || '—'],
+                ['Data limite',   dataLimite],
+                ['Dias em aberto', `${diasAberta} dia${diasAberta !== 1 ? 's' : ''}`],
+              ].map(([k, v]) => (
+                <div key={k}>
+                  <div style={{ fontSize: 10, color: C.ink3, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 4 }}>{k}</div>
+                  <div style={{ fontSize: 12.5, color: C.ink }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
+// ── Main ──────────────────────────────────────────────────────────
+export default function RequisicoesVagas() {
+  const [todas, setTodas] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [erro, setErro] = useState('')
+  const [filtroStatus, setFiltroStatus] = useState('')
+  const [busca, setBusca] = useState('')
+  const [modal, setModal] = useState(false)
+
+  const carregar = async () => {
+    setLoading(true)
+    try {
+      const data = await rhService.listarRequisicoes()
+      setTodas(data)
+    } catch (e) {
+      setErro(e.message || 'Erro ao carregar requisições')
     } finally {
       setLoading(false)
     }
   }
 
-  const carregarObrasEFuncoes = async () => {
-    // Simulação - em produção, buscar da API
-    setObras([
-      { id: 1, nome: 'Obra Centro' },
-      { id: 2, nome: 'Obra Bairro Norte' }
-    ])
-    setFuncoes([
-      { id: 1, nome: 'Pedreiro' },
-      { id: 2, nome: 'Servente' },
-      { id: 3, nome: 'Encarregado' }
-    ])
-  }
+  useEffect(() => { carregar() }, [])
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    try {
-      await rhService.criarRequisicao(formData)
-      setModalAberto(false)
-      resetForm()
-      carregarDados()
-      alert('Requisição criada com sucesso!')
-    } catch (error) {
-      console.error('Erro ao criar requisição:', error)
-      alert('Erro ao criar requisição')
+  const filtradas = todas.filter(r => {
+    if (filtroStatus && r.status !== filtroStatus) return false
+    if (busca) {
+      const q = busca.toLowerCase()
+      return (r.funcao || r.funcao_nome || '').toLowerCase().includes(q)
+          || (r.obras?.nome || r.obra_nome || '').toLowerCase().includes(q)
     }
-  }
+    return true
+  })
 
-  const handleAprovar = async (id, nivel) => {
-    try {
-      await rhService.aprovarRequisicao(id, nivel)
-      carregarDados()
-      alert('Requisição aprovada com sucesso!')
-    } catch (error) {
-      console.error('Erro ao aprovar requisição:', error)
-      alert('Erro ao aprovar requisição')
-    }
-  }
-
-  const handleAtualizarStatus = async (id, novoStatus) => {
-    try {
-      await rhService.atualizarStatusRequisicao(id, novoStatus, '')
-      carregarDados()
-      alert('Status atualizado com sucesso!')
-    } catch (error) {
-      console.error('Erro ao atualizar status:', error)
-      alert('Erro ao atualizar status')
-    }
-  }
-
-  const resetForm = () => {
-    setFormData({
-      obra_id: '',
-      funcao_id: '',
-      quantidade: 1,
-      justificativa: '',
-      urgencia: 'media',
-      data_limite: '',
-      observacoes: ''
-    })
-  }
-
-  const getStatusBadge = (status) => {
-    const statusConfig = {
-      aberta: { variant: 'info', label: 'Aberta' },
-      em_selecao: { variant: 'warning', label: 'Em Seleção' },
-      contratada: { variant: 'success', label: 'Contratada' },
-      cancelada: { variant: 'danger', label: 'Cancelada' }
-    }
-    const config = statusConfig[status] || { variant: 'secondary', label: status }
-    return <Badge variant={config.variant}>{config.label}</Badge>
-  }
-
-  const getUrgenciaBadge = (urgencia) => {
-    const urgenciaConfig = {
-      baixa: { variant: 'secondary', label: 'Baixa' },
-      media: { variant: 'info', label: 'Média' },
-      alta: { variant: 'warning', label: 'Alta' },
-      critica: { variant: 'danger', label: 'Crítica' }
-    }
-    const config = urgenciaConfig[urgencia] || { variant: 'secondary', label: urgencia }
-    return <Badge variant={config.variant}>{config.label}</Badge>
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Carregando requisições...</div>
-      </div>
-    )
-  }
+  const criticas = todas.filter(r => r.urgencia === 'critica' && r.status === 'aberta').length
+  const aguardandoAp = todas.filter(r => r.status === 'aberta' && r.aprovado_nivel1 && !r.aprovado_nivel2).length
 
   return (
-    <div className="space-y-4">
-      {/* Header com ações */}
-      <div className="flex justify-between items-center">
-        <div className="flex gap-2">
-          <Button
-            variant={filtroStatus === '' ? 'default' : 'outline'}
-            onClick={() => setFiltroStatus('')}
-            size="sm"
-          >
-            Todas
-          </Button>
-          <Button
-            variant={filtroStatus === 'aberta' ? 'default' : 'outline'}
-            onClick={() => setFiltroStatus('aberta')}
-            size="sm"
-          >
-            Abertas
-          </Button>
-          <Button
-            variant={filtroStatus === 'em_selecao' ? 'default' : 'outline'}
-            onClick={() => setFiltroStatus('em_selecao')}
-            size="sm"
-          >
-            Em Seleção
-          </Button>
-          <Button
-            variant={filtroStatus === 'contratada' ? 'default' : 'outline'}
-            onClick={() => setFiltroStatus('contratada')}
-            size="sm"
-          >
-            Contratadas
-          </Button>
-        </div>
+    <div style={{ fontFamily: 'Inter, system-ui, sans-serif', color: C.ink }}>
 
-        <Button onClick={() => setModalAberto(true)}>
-          Nova Requisição
-        </Button>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.02em', color: C.ink }}>Requisições de Vagas</h1>
+          <div style={{ fontSize: 11.5, color: C.ink3, marginTop: 4 }}>{todas.length} requisições · {criticas > 0 ? `${criticas} crítica${criticas > 1 ? 's' : ''}` : 'nenhuma crítica'}{aguardandoAp > 0 ? ` · ${aguardandoAp} aguardando aprovação` : ''}</div>
+        </div>
+        <button onClick={() => setModal(true)} style={{ background: C.amber, border: 'none', color: C.navy, fontSize: 12, fontWeight: 700, padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>
+          + Nova requisição
+        </button>
       </div>
 
-      {/* Lista de requisições */}
-      <Card className="p-6">
-        {requisicoes.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-500">Nenhuma requisição encontrada</p>
+      {/* Status bar */}
+      <StatusBar reqs={todas} filtro={filtroStatus} onFiltro={setFiltroStatus} />
+
+      {/* Busca */}
+      <div style={{ marginBottom: 14 }}>
+        <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por função ou obra…"
+          style={{ border: `1px solid ${C.line}`, borderRadius: 8, padding: '8px 14px', fontSize: 13, color: C.ink, background: C.surface, outline: 'none', fontFamily: 'inherit', width: 300 }} />
+      </div>
+
+      {erro && (
+        <div style={{ marginBottom: 14, padding: '12px 16px', background: '#FBE9E4', borderRadius: 8, fontSize: 12, color: C.bad }}>{erro}</div>
+      )}
+
+      {/* Tabela */}
+      <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 10, overflow: 'hidden' }}>
+        {loading ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: C.ink3, fontSize: 13 }}>Carregando requisições…</div>
+        ) : filtradas.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '52px 0', color: C.ink3 }}>
+            <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
+            <div style={{ fontSize: 14, fontWeight: 500 }}>{busca || filtroStatus ? 'Nenhuma requisição encontrada com esse filtro' : 'Nenhuma requisição cadastrada'}</div>
+            {!busca && !filtroStatus && (
+              <button onClick={() => setModal(true)} style={{ marginTop: 14, background: C.navy, border: 'none', color: '#FFF', fontSize: 12, fontWeight: 600, padding: '8px 18px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Abrir primeira requisição
+              </button>
+            )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">ID</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Obra</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Função</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Qtd</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Urgência</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Status</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Requisitante</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Data Abertura</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Ações</th>
+                <tr>
+                  <th style={TH()}>ID</th>
+                  <th style={TH()}>Função</th>
+                  <th style={TH()}>Obra</th>
+                  <th style={TH({ textAlign: 'center' })}>Qtd</th>
+                  <th style={TH()}>Urgência</th>
+                  <th style={TH()}>Status</th>
+                  <th style={TH()}>Aberta em</th>
+                  <th style={TH()}>Tempo</th>
+                  <th style={TH()}>Ações</th>
                 </tr>
               </thead>
               <tbody>
-                {requisicoes.map((req) => (
-                  <tr key={req.id} className="border-b hover:bg-gray-50">
-                    <td className="py-3 px-4">#{req.id}</td>
-                    <td className="py-3 px-4">{req.obra_nome}</td>
-                    <td className="py-3 px-4">{req.funcao_nome}</td>
-                    <td className="py-3 px-4">{req.quantidade}</td>
-                    <td className="py-3 px-4">{getUrgenciaBadge(req.urgencia)}</td>
-                    <td className="py-3 px-4">{getStatusBadge(req.status)}</td>
-                    <td className="py-3 px-4">{req.requisitante_nome}</td>
-                    <td className="py-3 px-4">
-                      {new Date(req.data_abertura).toLocaleDateString('pt-BR')}
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex gap-2">
-                        {req.status === 'aberta' && (
-                          <>
-                            {!req.aprovador_gestor_id && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleAprovar(req.id, 'gestor')}
-                              >
-                                Aprovar (Gestor)
-                              </Button>
-                            )}
-                            {req.aprovador_gestor_id && !req.aprovador_rh_id && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleAprovar(req.id, 'rh')}
-                              >
-                                Aprovar (RH)
-                              </Button>
-                            )}
-                            {req.aprovador_rh_id && !req.aprovador_diretoria_id && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleAprovar(req.id, 'diretoria')}
-                              >
-                                Aprovar (Diretoria)
-                              </Button>
-                            )}
-                            {req.aprovador_gestor_id && req.aprovador_rh_id && req.aprovador_diretoria_id && (
-                              <Button
-                                size="sm"
-                                onClick={() => handleAtualizarStatus(req.id, 'em_selecao')}
-                              >
-                                Iniciar Seleção
-                              </Button>
-                            )}
-                          </>
-                        )}
-                        {req.status === 'em_selecao' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleAtualizarStatus(req.id, 'contratada')}
-                          >
-                            Marcar como Contratada
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
+                {filtradas.map(r => (
+                  <ReqRow key={r.id} req={r} onAtualizar={carregar} />
                 ))}
               </tbody>
             </table>
           </div>
         )}
-      </Card>
+      </div>
 
-      {/* Modal de Nova Requisição */}
-      <Dialog open={modalAberto} onOpenChange={setModalAberto}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Nova Requisição de Vaga</DialogTitle>
-          </DialogHeader>
+      {/* Rodapé count */}
+      {filtradas.length > 0 && (
+        <div style={{ marginTop: 10, fontSize: 11, color: C.ink3, textAlign: 'right' }}>
+          Exibindo {filtradas.length} de {todas.length} requisições
+        </div>
+      )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="obra_id">Obra *</Label>
-                <select
-                  id="obra_id"
-                  className="w-full border rounded-md px-3 py-2"
-                  value={formData.obra_id}
-                  onChange={(e) => setFormData({ ...formData, obra_id: e.target.value })}
-                  required
-                >
-                  <option value="">Selecione...</option>
-                  {obras.map((obra) => (
-                    <option key={obra.id} value={obra.id}>{obra.nome}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <Label htmlFor="funcao_id">Função *</Label>
-                <select
-                  id="funcao_id"
-                  className="w-full border rounded-md px-3 py-2"
-                  value={formData.funcao_id}
-                  onChange={(e) => setFormData({ ...formData, funcao_id: e.target.value })}
-                  required
-                >
-                  <option value="">Selecione...</option>
-                  {funcoes.map((funcao) => (
-                    <option key={funcao.id} value={funcao.id}>{funcao.nome}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="quantidade">Quantidade *</Label>
-                <Input
-                  id="quantidade"
-                  type="number"
-                  min="1"
-                  value={formData.quantidade}
-                  onChange={(e) => setFormData({ ...formData, quantidade: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="urgencia">Urgência *</Label>
-                <select
-                  id="urgencia"
-                  className="w-full border rounded-md px-3 py-2"
-                  value={formData.urgencia}
-                  onChange={(e) => setFormData({ ...formData, urgencia: e.target.value })}
-                  required
-                >
-                  <option value="baixa">Baixa</option>
-                  <option value="media">Média</option>
-                  <option value="alta">Alta</option>
-                  <option value="critica">Crítica</option>
-                </select>
-              </div>
-
-              <div>
-                <Label htmlFor="data_limite">Data Limite</Label>
-                <Input
-                  id="data_limite"
-                  type="date"
-                  value={formData.data_limite}
-                  onChange={(e) => setFormData({ ...formData, data_limite: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="justificativa">Justificativa *</Label>
-              <textarea
-                id="justificativa"
-                className="w-full border rounded-md px-3 py-2"
-                rows="3"
-                value={formData.justificativa}
-                onChange={(e) => setFormData({ ...formData, justificativa: e.target.value })}
-                required
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="observacoes">Observações</Label>
-              <textarea
-                id="observacoes"
-                className="w-full border rounded-md px-3 py-2"
-                rows="2"
-                value={formData.observacoes}
-                onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
-              />
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setModalAberto(false)}>
-                Cancelar
-              </Button>
-              <Button type="submit">
-                Criar Requisição
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* Modal */}
+      {modal && <ModalNovaRequisicao onClose={() => setModal(false)} onSalvo={carregar} />}
     </div>
   )
 }
-
-export default RequisicoesVagas
