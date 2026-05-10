@@ -144,16 +144,11 @@ function CelulaPrevisto({ value, onSave, disabled }) {
   )
 }
 
-function CelulaTriple({ previsto, realizado, onSavePrevisto, obraId }) {
-  let realizadoColor = realizado > 0 ? C.bad : C.line
-  if (previsto > 0 && realizado > 0) {
-    const p = realizado / previsto
-    realizadoColor = p <= 0.85 ? C.ok : p <= 1.0 ? C.warn : C.bad
-  }
+function CelulaTriple({ realizado }) {
+  const color = realizado > 0 ? C.bad : C.line
   return (
     <td style={{ padding: '4px 7px', verticalAlign: 'middle', minWidth: 90, borderLeft: `1px solid ${C.line2}`, textAlign: 'right' }}>
-      <CelulaPrevisto value={previsto} onSave={onSavePrevisto} disabled={!obraId} />
-      <div style={{ marginTop: 2, fontSize: 13, fontWeight: 700, color: realizadoColor }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color }}>
         {realizado > 0 ? brlK(realizado) : '—'}
       </div>
     </td>
@@ -179,14 +174,15 @@ function LinhaGrupo({ cat, isExpanded, onToggle, prevPorMes, realPorMes, obraId,
         </div>
       </td>
       {MESES.map((_, i) => (
-        <CelulaTriple key={i} previsto={prevPorMes[i+1]||0} realizado={realPorMes[i+1]||0}
-          obraId={obraId} onSavePrevisto={(val) => onSave(cat.id, i+1, val)} />
+        <CelulaTriple key={i} realizado={realPorMes[i+1]||0} />
       ))}
-      <td style={{ padding: '6px 12px', borderLeft: `2px solid ${C.line}`, background: C.surface2, minWidth: 120, textAlign: 'right' }}>
+      <td style={{ padding: '6px 12px', borderLeft: `2px solid ${C.line}`, background: C.surface2, minWidth: 130, textAlign: 'right' }}>
         <div style={{ fontSize: 10, color: C.ink3, marginBottom: 2 }}>Prev</div>
         <div style={{ fontSize: 13, fontWeight: 700, color: C.navy }}>{brlFull(totalPrev)}</div>
-        <div style={{ fontSize: 10, color: C.ink3, marginTop: 5, marginBottom: 2 }}>Real</div>
-        <div style={{ fontSize: 14, fontWeight: 700, color: C.bad }}>{brlFull(totalReal)}</div>
+        <div style={{ borderTop: `1px solid ${C.line2}`, marginTop: 6, paddingTop: 4 }}>
+          <div style={{ fontSize: 10, color: C.ink3, marginBottom: 2 }}>Real</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.bad }}>{brlFull(totalReal)}</div>
+        </div>
       </td>
     </tr>
   )
@@ -216,14 +212,15 @@ function LinhaSubcat({ cat, isExpanded, onToggle, prevPorMes, realPorMes, obraId
         </div>
       </td>
       {MESES.map((_, i) => (
-        <CelulaTriple key={i} previsto={prevPorMes[i+1]||0} realizado={realPorMes[i+1]||0}
-          obraId={obraId} onSavePrevisto={(val) => onSave(cat.id, i+1, val)} />
+        <CelulaTriple key={i} realizado={realPorMes[i+1]||0} />
       ))}
-      <td style={{ padding: '6px 12px', borderLeft: `2px solid ${C.line}`, minWidth: 120, textAlign: 'right' }}>
+      <td style={{ padding: '6px 12px', borderLeft: `2px solid ${C.line}`, minWidth: 130, textAlign: 'right' }}>
         <div style={{ fontSize: 10, color: C.ink3, marginBottom: 2 }}>Prev</div>
         <div style={{ fontSize: 13, fontWeight: 700, color: C.navy }}>{brlFull(totalPrev)}</div>
-        <div style={{ fontSize: 10, color: C.ink3, marginTop: 5, marginBottom: 2 }}>Real</div>
-        <div style={{ fontSize: 14, fontWeight: 700, color: C.bad }}>{brlFull(totalReal)}</div>
+        <div style={{ borderTop: `1px solid ${C.line2}`, marginTop: 6, paddingTop: 4 }}>
+          <div style={{ fontSize: 10, color: C.ink3, marginBottom: 2 }}>Real</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.bad }}>{brlFull(totalReal)}</div>
+        </div>
       </td>
     </tr>
   )
@@ -241,14 +238,15 @@ function LinhaCategoria({ cat, prevPorMes, realPorMes, obraId, onSave }) {
         </div>
       </td>
       {MESES.map((_, i) => (
-        <CelulaTriple key={i} previsto={prevPorMes[i+1]||0} realizado={realPorMes[i+1]||0}
-          obraId={obraId} onSavePrevisto={(val) => onSave(cat.id, i+1, val)} />
+        <CelulaTriple key={i} realizado={realPorMes[i+1]||0} />
       ))}
-      <td style={{ padding: '5px 10px', borderLeft: `2px solid ${C.line}`, background: '#FAFAF8', minWidth: 110, textAlign: 'right' }}>
+      <td style={{ padding: '5px 10px', borderLeft: `2px solid ${C.line}`, background: '#FAFAF8', minWidth: 130, textAlign: 'right' }}>
         <div style={{ fontSize: 10, color: C.ink3, marginBottom: 2 }}>Prev</div>
         <div style={{ fontSize: 11, fontWeight: 600, color: C.navy }}>{brlFull(totalPrev)}</div>
-        <div style={{ fontSize: 10, color: C.ink3, marginTop: 4, marginBottom: 2 }}>Real</div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: C.bad }}>{brlFull(totalReal)}</div>
+        <div style={{ borderTop: `1px solid ${C.line2}`, marginTop: 5, paddingTop: 4 }}>
+          <div style={{ fontSize: 10, color: C.ink3, marginBottom: 2 }}>Real</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.bad }}>{brlFull(totalReal)}</div>
+        </div>
       </td>
     </tr>
   )
@@ -503,7 +501,7 @@ export default function PrevistoRealizado() {
       <Banner totalPrevisto={totalPrevisto} totalRealizado={totalRealizado} obraNome={obraNome} ano={ano} />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <span style={{ fontSize: 10, color: C.ink3 }}>Prev (clique p/ editar) · Real</span>
+        <span style={{ fontSize: 10, color: C.ink3 }}>Meses mostram só o realizado · Total mostra Prev + Real</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <button onClick={() => setMostrarVazias(v => !v)}
             style={{ padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
