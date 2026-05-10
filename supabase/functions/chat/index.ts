@@ -300,47 +300,7 @@ async function fetchTenantContext(sb: ReturnType<typeof createClient>, tenantId:
   }
 }
 
-// ── Snapshot completo do banco ────────────────────────────────
-interface DbSnapshot {
-  obras: Array<{ nome: string; status: string; cidade: string | null; progresso: number | null; orcamento: number | null; custo_atual: number | null }>;
-  funcionarios: Array<{ nome: string; funcao: string | null; status: string }>;
-  lancamentos: { total: number; data_min: string; data_max: string; receitas_mes: number; despesas_mes: number };
-  categorias: string[];
-}
-
-async function fetchDatabaseSnapshot(sb: ReturnType<typeof createClient>, tenantId: string): Promise<DbSnapshot> {
-  const { mes, ano } = currentMonthYear();
-  const [inicio, fim] = dateRange(mes, ano);
-
-  const [obrasRes, funcRes, lancCountRes, lancMinRes, lancMaxRes, lancMesRes, catRes] = await Promise.all([
-    sb.from("obras").select("nome, status, cidade, progresso, orcamento, custo_atual").eq("tenant_id", tenantId).order("nome"),
-    sb.from("funcionarios").select("nome, funcao, status").eq("tenant_id", tenantId).order("nome"),
-    sb.from("financeiro_lancamentos").select("*", { count: "exact", head: true }).eq("tenant_id", tenantId),
-    sb.from("financeiro_lancamentos").select("data_vencimento").eq("tenant_id", tenantId).order("data_vencimento", { ascending: true }).limit(1),
-    sb.from("financeiro_lancamentos").select("data_vencimento").eq("tenant_id", tenantId).order("data_vencimento", { ascending: false }).limit(1),
-    sb.from("financeiro_lancamentos").select("tipo, valor").eq("tenant_id", tenantId).gte("data_vencimento", inicio).lte("data_vencimento", fim),
-    sb.from("financeiro_categorias").select("nome").eq("tenant_id", tenantId).order("nome"),
-  ]);
-
-  const lancMesData = lancMesRes.data ?? [];
-  const receitas_mes = lancMesData.filter((r) => r.tipo === "receita").reduce((s, r) => s + Number(r.valor), 0);
-  const despesas_mes = lancMesData.filter((r) => r.tipo === "despesa").reduce((s, r) => s + Number(r.valor), 0);
-
-  return {
-    obras: (obrasRes.data ?? []) as DbSnapshot["obras"],
-    funcionarios: (funcRes.data ?? []) as DbSnapshot["funcionarios"],
-    lancamentos: {
-      total: lancCountRes.count ?? 0,
-      data_min: (lancMinRes.data?.[0] as { data_vencimento: string } | undefined)?.data_vencimento ?? "",
-      data_max: (lancMaxRes.data?.[0] as { data_vencimento: string } | undefined)?.data_vencimento ?? "",
-      receitas_mes,
-      despesas_mes,
-    },
-    categorias: ((catRes.data ?? []) as Array<{ nome: string }>).map((c) => c.nome),
-  };
-}
-
-function buildSystemPrompt(name: string, modulosAtivos: string[], snapshot: DbSnapshot | null): string {
+function buildSystemPrompt(name: string, modulosAtivos: string[]): string {
   const modulosSection =
     modulosAtivos.length > 0
       ? `\nMÓDULOS ATIVOS NESTA EMPRESA:\n${modulosAtivos
@@ -350,51 +310,7 @@ function buildSystemPrompt(name: string, modulosAtivos: string[], snapshot: DbSn
 
   const agora = new Date();
   const dataHoje = agora.toISOString().split("T")[0];
-  const mesPadrao = agora.getMonth() + 1;
-  const anoPadrao = agora.getFullYear();
   const diaSemana = ["domingo","segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira","sábado"][agora.getDay()];
-
-  let snapshotSection = "";
-  if (snapshot) {
-    const { obras, funcionarios, lancamentos, categorias } = snapshot;
-
-    // Obras
-    const obrasLinhas = obras.map((o) => {
-      const prog = o.progresso != null ? `${o.progresso}%` : "—";
-      const orc = o.orcamento != null ? `R$ ${Number(o.orcamento).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—";
-      const cidade = o.cidade ?? "—";
-      return `  • ${o.nome} | ${o.status} | ${cidade} | progresso: ${prog} | orçado: ${orc}`;
-    }).join("\n");
-
-    // Funcionários
-    const ativos = funcionarios.filter((f) => f.status === "ativo");
-    const inativos = funcionarios.filter((f) => f.status !== "ativo");
-    const funcLinhas = funcionarios.map((f) => `  • ${f.nome} | ${f.funcao ?? "—"} | ${f.status}`).join("\n");
-
-    // Financeiro
-    const periodoLanc = lancamentos.data_min && lancamentos.data_max
-      ? `${lancamentos.data_min} a ${lancamentos.data_max}`
-      : "sem dados";
-    const recMes = lancamentos.receitas_mes.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
-    const despMes = lancamentos.despesas_mes.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
-    const saldoMes = (lancamentos.receitas_mes - lancamentos.despesas_mes).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
-    const catLista = categorias.join(", ") || "nenhuma";
-
-    snapshotSection = `
-
-DADOS ATUAIS DA EMPRESA (use para responder perguntas diretas sem precisar chamar ferramentas):
-
-OBRAS (${obras.length} cadastradas):
-${obrasLinhas || "  (nenhuma obra cadastrada)"}
-
-EQUIPE (${funcionarios.length} total | ${ativos.length} ativas | ${inativos.length} inativas):
-${funcLinhas || "  (nenhum funcionário cadastrado)"}
-
-FINANCEIRO:
-  Total de lançamentos: ${lancamentos.total} (período: ${periodoLanc})
-  ${String(mesPadrao).padStart(2,"0")}/${anoPadrao}: Receitas R$ ${recMes} | Despesas R$ ${despMes} | Saldo R$ ${saldoMes}
-  Categorias disponíveis: ${catLista}`;
-  }
 
   return `Você é o assistente de gestão da empresa **${name}**, integrado ao sistema Controle de Obras.
 
@@ -405,8 +321,8 @@ REGRAS IMPORTANTES:
 - Você SOMENTE tem acesso aos dados de ${name}. Nunca revele dados de outras empresas.
 - Seja objetivo e direto. Use valores formatados em R$ quando falar de dinheiro.
 - Se não encontrar dados, informe claramente sem inventar.
-- Para detalhes específicos (listar lançamentos de um período, filtrar por categoria etc.), use as ferramentas disponíveis.
-- Responda sempre em português brasileiro.${modulosSection}${snapshotSection}
+- Use as ferramentas disponíveis para buscar dados quando o usuário perguntar algo.
+- Responda sempre em português brasileiro.${modulosSection}
 
 Se o usuário pedir algo fora dos módulos ativos acima, informe que essa funcionalidade não está disponível para ${name}.`;
 }
@@ -418,11 +334,8 @@ async function runChat(
   history: { role: string; content: string }[],
   tenantId: string,
 ): Promise<string> {
-  const [{ name, modulosAtivos }, snapshot] = await Promise.all([
-    fetchTenantContext(sb, tenantId),
-    fetchDatabaseSnapshot(sb, tenantId).catch(() => null),
-  ]);
-  const systemPrompt = buildSystemPrompt(name, modulosAtivos, snapshot);
+  const { name, modulosAtivos } = await fetchTenantContext(sb, tenantId);
+  const systemPrompt = buildSystemPrompt(name, modulosAtivos);
 
   const messages: unknown[] = [
     { role: "system", content: systemPrompt },
