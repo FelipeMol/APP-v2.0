@@ -145,21 +145,17 @@ function CelulaPrevisto({ value, onSave, disabled }) {
 }
 
 function CelulaTriple({ previsto, realizado, onSavePrevisto, obraId }) {
-  const diff = realizado - previsto
-  let status = 'neutro'
-  if (previsto > 0) {
+  let realizadoColor = realizado > 0 ? C.bad : C.line
+  if (previsto > 0 && realizado > 0) {
     const p = realizado / previsto
-    status = p <= 0.85 ? 'ok' : p <= 1.0 ? 'warn' : 'bad'
+    realizadoColor = p <= 0.85 ? C.ok : p <= 1.0 ? C.warn : C.bad
   }
-  const SC = { ok: { fg: C.ok, bg: '#E4F1E8' }, warn: { fg: C.warn, bg: '#FDF3DF' }, bad: { fg: C.bad, bg: '#FBE9E4' }, neutro: { fg: C.ink3, bg: 'transparent' } }
-  const sc = SC[status]
-  const execPct = previsto > 0 ? Math.min(Math.round((realizado / previsto) * 100), 100) : 0
   return (
-    <td style={{ padding: '5px 7px', verticalAlign: 'middle', minWidth: 90, borderLeft: `1px solid ${C.line2}`, textAlign: 'right' }}>
-      {realizado > 0
-        ? <span style={{ fontSize: 11, fontWeight: 700, color: C.bad }}>{brlK(realizado)}</span>
-        : <span style={{ color: C.line2 }}>—</span>
-      }
+    <td style={{ padding: '4px 7px', verticalAlign: 'middle', minWidth: 90, borderLeft: `1px solid ${C.line2}`, textAlign: 'right' }}>
+      <CelulaPrevisto value={previsto} onSave={onSavePrevisto} disabled={!obraId} />
+      <div style={{ marginTop: 2, fontSize: 13, fontWeight: 700, color: realizadoColor }}>
+        {realizado > 0 ? brlK(realizado) : '—'}
+      </div>
     </td>
   )
 }
@@ -186,11 +182,11 @@ function LinhaGrupo({ cat, isExpanded, onToggle, prevPorMes, realPorMes, obraId,
         <CelulaTriple key={i} previsto={prevPorMes[i+1]||0} realizado={realPorMes[i+1]||0}
           obraId={obraId} onSavePrevisto={(val) => onSave(cat.id, i+1, val)} />
       ))}
-      <td style={{ padding: '5px 10px', borderLeft: `2px solid ${C.line}`, background: C.surface2, minWidth: 110, textAlign: 'right' }}>
+      <td style={{ padding: '6px 12px', borderLeft: `2px solid ${C.line}`, background: C.surface2, minWidth: 120, textAlign: 'right' }}>
         <div style={{ fontSize: 10, color: C.ink3, marginBottom: 2 }}>Prev</div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: C.navy }}>{brlFull(totalPrev)}</div>
-        <div style={{ fontSize: 10, color: C.ink3, marginTop: 4, marginBottom: 2 }}>Real</div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: C.bad }}>{brlFull(totalReal)}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.navy }}>{brlFull(totalPrev)}</div>
+        <div style={{ fontSize: 10, color: C.ink3, marginTop: 5, marginBottom: 2 }}>Real</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.bad }}>{brlFull(totalReal)}</div>
       </td>
     </tr>
   )
@@ -223,11 +219,11 @@ function LinhaSubcat({ cat, isExpanded, onToggle, prevPorMes, realPorMes, obraId
         <CelulaTriple key={i} previsto={prevPorMes[i+1]||0} realizado={realPorMes[i+1]||0}
           obraId={obraId} onSavePrevisto={(val) => onSave(cat.id, i+1, val)} />
       ))}
-      <td style={{ padding: '5px 10px', borderLeft: `2px solid ${C.line}`, minWidth: 110, textAlign: 'right' }}>
+      <td style={{ padding: '6px 12px', borderLeft: `2px solid ${C.line}`, minWidth: 120, textAlign: 'right' }}>
         <div style={{ fontSize: 10, color: C.ink3, marginBottom: 2 }}>Prev</div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: C.navy }}>{brlFull(totalPrev)}</div>
-        <div style={{ fontSize: 10, color: C.ink3, marginTop: 4, marginBottom: 2 }}>Real</div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: C.bad }}>{brlFull(totalReal)}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.navy }}>{brlFull(totalPrev)}</div>
+        <div style={{ fontSize: 10, color: C.ink3, marginTop: 5, marginBottom: 2 }}>Real</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.bad }}>{brlFull(totalReal)}</div>
       </td>
     </tr>
   )
@@ -267,6 +263,7 @@ export default function PrevistoRealizado() {
   const [dataFim, setDataFim]       = useState(`${ANO_ATUAL}-12-31`)
   const [expanded, setExpanded] = useState({})
   const [toast, setToast]   = useState(null)
+  const [mostrarVazias, setMostrarVazias] = useState(false)
 
   function selecionarAno(a) {
     setAno(a)
@@ -340,6 +337,13 @@ export default function PrevistoRealizado() {
   const treeDespesas = tree.filter(c => c.tipo === 'despesa')
   const treeReceitas = tree.filter(c => c.tipo === 'receita')
 
+  function hasData(node) {
+    const hasPrev = prevMap[node.id] && Object.values(prevMap[node.id]).some(v => v > 0)
+    const hasReal = realMap[node.id] && Object.values(realMap[node.id]).some(v => v > 0)
+    if (hasPrev || hasReal) return true
+    return (node.subcategorias || []).some(child => hasData(child))
+  }
+
   const { totalPrevisto, totalRealizado } = useMemo(() => {
     // Usa prevMap para evitar dupla contagem quando há orçamentos de múltiplos anos
     let tp = 0
@@ -377,7 +381,8 @@ export default function PrevistoRealizado() {
   const obraNome = obras.find(o => o.id === obraId)?.nome
 
   function renderGrupo(cats, tipo) {
-    if (cats.length === 0) return null
+    const filtered = mostrarVazias ? cats : cats.filter(cat => hasData(cat))
+    if (filtered.length === 0) return null
     const tipoColor = tipo === 'despesa' ? C.bad : C.ok
     return (
       <>
@@ -389,7 +394,7 @@ export default function PrevistoRealizado() {
             {tipo === 'despesa' ? 'DESPESAS' : 'RECEITAS'}
           </td>
         </tr>
-        {cats.map(cat => {
+        {filtered.map(cat => {
           const isExp = expanded[cat.id] !== undefined ? expanded[cat.id] : (cat.subcategorias?.length > 0)
           const { prev, real } = getConsolidado(cat)
           return (
@@ -497,15 +502,22 @@ export default function PrevistoRealizado() {
 
       <Banner totalPrevisto={totalPrevisto} totalRealizado={totalRealizado} obraNome={obraNome} ano={ano} />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 10, fontSize: 10, color: C.ink3 }}>
-        <span>Linha sup: Previsto (clique p/ editar) | Linha inf: Realizado | Barra: execucao</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 10, color: C.ink3 }}>Prev (clique p/ editar) · Real</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <button onClick={() => setMostrarVazias(v => !v)}
+            style={{ padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+              border: `1px solid ${mostrarVazias ? C.navy : C.line}`,
+              background: mostrarVazias ? C.navy : C.surface,
+              color: mostrarVazias ? '#fff' : C.ink2 }}>
+            {mostrarVazias ? 'Ocultar vazias' : 'Mostrar todas'}
+          </button>
           <button onClick={() => setExpanded(Object.fromEntries(categorias.map(c => [c.id, true])))}
-            style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${C.line}`, background: C.surface, cursor: 'pointer', fontSize: 11, color: C.ink2 }}>
+            style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${C.line}`, background: C.surface, cursor: 'pointer', fontSize: 11, color: C.ink2, fontFamily: 'inherit' }}>
             Expandir tudo
           </button>
           <button onClick={() => setExpanded(Object.fromEntries(categorias.map(c => [c.id, false])))}
-            style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${C.line}`, background: C.surface, cursor: 'pointer', fontSize: 11, color: C.ink2 }}>
+            style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${C.line}`, background: C.surface, cursor: 'pointer', fontSize: 11, color: C.ink2, fontFamily: 'inherit' }}>
             Recolher tudo
           </button>
         </div>
