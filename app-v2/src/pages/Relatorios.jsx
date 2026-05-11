@@ -3164,7 +3164,7 @@ export default function Relatorios() {
                 <>
                   {/* KPIs */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <KpiCard icon={Target} label="Orçamento" value={orcamento > 0 ? fmt(orcamento) : '—'} color="blue" />
+                    <KpiCard icon={Target} label="Orçamento" value={orcamento > 0 ? fmt(orcamento) : 'Não definido'} sublabel={orcamento > 0 ? '' : 'Cadastre em Obras'} color="blue" />
                     <KpiCard icon={DollarSign} label="Gasto Real" value={fmt(gastoReal)} color={gastoReal > orcamento && orcamento > 0 ? 'rose' : 'purple'} />
                     <KpiCard
                       icon={saldo >= 0 ? TrendingUp : TrendingDown}
@@ -3235,16 +3235,15 @@ export default function Relatorios() {
                               <p className="text-sm">Sem dados mensais</p>
                             </div>
                           ) : (
-                            <div className="flex items-end gap-3 h-40">
+                            <div className="flex items-end gap-2 h-40">
                               {mesesEvol.map(([mes, val]) => {
-                                const h = (val / maxMes) * 100;
+                                const barPx = Math.max(Math.round((val / maxMes) * 116), 4);
                                 return (
-                                  <div key={mes} className="flex-1 flex flex-col items-center gap-1 group cursor-pointer">
-                                    <span className="text-[10px] text-slate-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity">{fmt(val)}</span>
+                                  <div key={mes} className="flex-1 flex flex-col items-center gap-1">
                                     <div
                                       className="w-full bg-gradient-to-t from-indigo-500 to-indigo-400 rounded-t transition-all"
-                                      style={{ height: `${Math.max(h, 4)}%` }}
-                                      title={`${mes}: ${fmt(val)}`}
+                                      style={{ height: `${barPx}px` }}
+                                      title={`${fmtMes(mes)}: ${fmt(val)}`}
                                     />
                                     <span className="text-xs text-slate-500">{fmtMes(mes)}</span>
                                   </div>
@@ -3325,14 +3324,13 @@ export default function Relatorios() {
                         ) : (
                           <div className="flex items-end gap-2 h-40">
                             {funcPorMes.map((item, idx) => {
-                              const h = maxFunc > 0 ? ((item.funcionarios || 0) / maxFunc) * 100 : 0;
+                              const barPx = maxFunc > 0 ? Math.max(Math.round(((item.funcionarios || 0) / maxFunc) * 116), 4) : 4;
                               const mesLabel = item.mes ? item.mes.split('-')[1] : '';
                               return (
-                                <div key={idx} className="flex-1 flex flex-col items-center gap-1 group cursor-pointer">
-                                  <span className="text-[10px] text-slate-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">{item.funcionarios}</span>
+                                <div key={idx} className="flex-1 flex flex-col items-center gap-1">
                                   <div
                                     className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t transition-all"
-                                    style={{ height: `${Math.max(h, 4)}%` }}
+                                    style={{ height: `${barPx}px` }}
                                     title={`${item.mes}: ${item.funcionarios} funcionários`}
                                   />
                                   <span className="text-xs text-slate-500">{mesesNomes[mesLabel] || mesLabel}</span>
@@ -3360,14 +3358,13 @@ export default function Relatorios() {
                           <>
                             <div className="flex items-end gap-2 h-40">
                               {horasPorMes.map((item, idx) => {
-                                const h = maxHoras > 0 ? ((item.horas || 0) / maxHoras) * 100 : 0;
+                                const barPx = maxHoras > 0 ? Math.max(Math.round(((item.horas || 0) / maxHoras) * 116), 4) : 4;
                                 const mesLabel = item.mes ? item.mes.split('-')[1] : '';
                                 return (
-                                  <div key={idx} className="flex-1 flex flex-col items-center gap-1 group cursor-pointer">
-                                    <span className="text-[10px] text-slate-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">{Math.round(item.horas || 0)}h</span>
+                                  <div key={idx} className="flex-1 flex flex-col items-center gap-1">
                                     <div
                                       className="w-full bg-gradient-to-t from-emerald-500 to-emerald-400 rounded-t transition-all"
-                                      style={{ height: `${Math.max(h, 4)}%` }}
+                                      style={{ height: `${barPx}px` }}
                                       title={`${item.mes}: ${Math.round(item.horas || 0)}h`}
                                     />
                                     <span className="text-xs text-slate-500">{mesesNomes[mesLabel] || mesLabel}</span>
