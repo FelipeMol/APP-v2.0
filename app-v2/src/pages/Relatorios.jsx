@@ -44,7 +44,9 @@ import {
   MoreVertical,
   ClipboardList,
   Camera,
-  MessageSquare
+  MessageSquare,
+  Wallet,
+  DollarSign
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format, subDays, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, parseISO, differenceInDays } from 'date-fns';
@@ -61,6 +63,7 @@ import { Label } from '@/components/ui/label';
 import useAuthStore from '@/store/authStore';
 import relatoriosService from '@/services/relatoriosService';
 import obrasService from '@/services/obrasService';
+import { lancamentosFinService } from '@/services/financeiroService';
 import { CronogramaModal } from '@/components/cronograma';
 
 // ============================================================================
@@ -1910,6 +1913,7 @@ export default function Relatorios() {
   const [selectedReport, setSelectedReport] = useState(null);
   const [criarAlertaModal, setCriarAlertaModal] = useState(false);
   const [cronogramaModalOpen, setCronogramaModalOpen] = useState(false);
+  const [finObra, setFinObra] = useState({ lancamentos: [], loading: false });
 
   const canView = isAdmin() || hasPermission('relatorios', 'visualizar');
 
@@ -1976,6 +1980,24 @@ export default function Relatorios() {
       console.error('Erro ao carregar KPIs globais:', error);
     }
   }
+
+  async function loadFinanceiroObra(obraId) {
+    if (!obraId) return;
+    setFinObra({ lancamentos: [], loading: true });
+    try {
+      const data = await lancamentosFinService.list({ obra_id: obraId });
+      setFinObra({ lancamentos: Array.isArray(data) ? data : [], loading: false });
+    } catch (e) {
+      console.error('Erro ao carregar financeiro da obra:', e);
+      setFinObra({ lancamentos: [], loading: false });
+    }
+  }
+
+  useEffect(() => {
+    if (dashboardTab === 'financeiro' && obraSelecionada?.id && !finObra.loading) {
+      loadFinanceiroObra(obraSelecionada.id);
+    }
+  }, [dashboardTab, obraSelecionada?.id]);
 
   async function loadObraData(obra) {
     setLoading(true);
@@ -2219,6 +2241,7 @@ export default function Relatorios() {
   function handleObraClick(obra) {
     setObraSelecionada(obra);
     loadObraData(obra);
+    setFinObra({ lancamentos: [], loading: false });
     setView('dashboard');
     setDashboardTab('visao-geral');
   }
@@ -3094,77 +3117,286 @@ export default function Relatorios() {
 
           {/* TAB: FINANCEIRO */}
           <TabsContent value="financeiro" className="space-y-6 mt-0">
-            <Card>
-              <CardHeader>
-                <CardTitle>Visão Financeira</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger-animation">
-                  <KpiCard
-                    icon={Target}
-                    label="Orçamento Total"
-                    value={relatoriosService.formatarMoeda(kpis.custo_orcado)}
-                    color="blue"
-                  />
-                  <KpiCard
-                    icon={Activity}
-                    label="Custo Atual"
-                    value={relatoriosService.formatarMoeda(kpis.custo_atual)}
-                    color="purple"
-                  />
-                  <KpiCard
-                    icon={TrendingUp}
-                    label="Variação"
-                    value={`${((kpis.custo_atual / kpis.custo_orcado - 1) * 100).toFixed(1)}%`}
-                    color={(kpis.custo_atual || 0) <= (kpis.custo_orcado || 1) ? 'emerald' : 'rose'}
-                  />
-                  <KpiCard
-                    icon={Calendar}
-                    label="Saldo Disponível"
-                    value={relatoriosService.formatarMoeda((kpis.custo_orcado || 0) - (kpis.custo_atual || 0))}
-                    color="emerald"
-                  />
+            {finObra.loading ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  {[1,2,3,4].map(i => <div key={i} className="skeleton h-24 rounded-xl" />)}
                 </div>
-              </CardContent>
-            </Card>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="skeleton h-64 rounded-xl" />
+                  <div className="skeleton h-64 rounded-xl" />
+                </div>
+              </div>
+            ) : (() => {
+              const lancamentos = finObra.lancamentos;
+              const despesas = lancamentos.filter(l => l.tipo === 'despesa' && l.status === 'pago');
+              const receitas = lancamentos.filter(l => l.tipo === 'receita' && l.status === 'pago');
+              const gastoReal = despesas.reduce((s, l) => s + Number(l.valor || 0), 0);
+              const receitaReal = receitas.reduce((s, l) => s + Number(l.valor || 0), 0);
+              const orcamento = kpis.custo_orcado || obraSelecionada?.orcamento || 0;
+              const saldo = orcamento - gastoReal;
+              const pct = orcamento > 0 ? Math.min(((gastoReal / orcamento) * 100), 999) : 0;
+              const fmt = v => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v);
+              const fmtMes = ym => { const [, m] = ym.split('-'); return ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][+m - 1]; };
+
+              // Despesas por categoria
+              const byCat = {};
+              despesas.forEach(l => {
+                const cat = l.financeiro_categorias?.nome || 'Sem categoria';
+                byCat[cat] = (byCat[cat] || 0) + Number(l.valor || 0);
+              });
+              const topCats = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 8);
+              const maxCat = topCats[0]?.[1] || 1;
+
+              // Evolução mensal de gastos
+              const byMes = {};
+              despesas.forEach(l => {
+                const mes = (l.data_pagamento || '').slice(0, 7);
+                if (mes) byMes[mes] = (byMes[mes] || 0) + Number(l.valor || 0);
+              });
+              const mesesEvol = Object.entries(byMes).sort((a, b) => a[0].localeCompare(b[0])).slice(-6);
+              const maxMes = Math.max(...mesesEvol.map(([, v]) => v), 1);
+
+              // Top lançamentos por valor
+              const topLanc = [...despesas].sort((a, b) => Number(b.valor) - Number(a.valor)).slice(0, 8);
+
+              return (
+                <>
+                  {/* KPIs */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <KpiCard icon={Target} label="Orçamento" value={orcamento > 0 ? fmt(orcamento) : '—'} color="blue" />
+                    <KpiCard icon={DollarSign} label="Gasto Real" value={fmt(gastoReal)} color={gastoReal > orcamento && orcamento > 0 ? 'rose' : 'purple'} />
+                    <KpiCard
+                      icon={saldo >= 0 ? TrendingUp : TrendingDown}
+                      label="Saldo"
+                      value={fmt(Math.abs(saldo))}
+                      sublabel={saldo < 0 ? 'Acima do orçamento' : 'Disponível'}
+                      color={saldo >= 0 ? 'emerald' : 'rose'}
+                    />
+                    <KpiCard
+                      icon={Percent}
+                      label="Utilizado"
+                      value={orcamento > 0 ? `${pct.toFixed(1)}%` : '—'}
+                      sublabel={orcamento > 0 ? `de ${fmt(orcamento)}` : 'Orçamento não definido'}
+                      color={pct > 100 ? 'rose' : pct > 80 ? 'amber' : 'emerald'}
+                    />
+                  </div>
+
+                  {lancamentos.length === 0 ? (
+                    <Card>
+                      <CardContent className="flex flex-col items-center justify-center py-16">
+                        <Wallet className="w-12 h-12 mb-3 text-gray-200" />
+                        <p className="text-sm font-medium text-gray-600">Nenhum lançamento financeiro vinculado a esta obra</p>
+                        <p className="text-xs text-gray-400 mt-1">Vincule lançamentos à obra no módulo Financeiro → Lançamentos</p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Gráfico: despesas por categoria */}
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base font-semibold">Despesas por Categoria</CardTitle>
+                          <p className="text-xs text-slate-500">Lançamentos pagos vinculados à obra</p>
+                        </CardHeader>
+                        <CardContent>
+                          {topCats.length === 0 ? (
+                            <p className="text-sm text-gray-400 text-center py-8">Nenhuma despesa paga registrada</p>
+                          ) : (
+                            <div className="space-y-3">
+                              {topCats.map(([cat, val]) => (
+                                <div key={cat} className="space-y-1">
+                                  <div className="flex items-center justify-between text-sm">
+                                    <span className="text-slate-700 truncate max-w-[60%]">{cat}</span>
+                                    <span className="font-semibold text-slate-900 tabular-nums">{fmt(val)}</span>
+                                  </div>
+                                  <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-indigo-400"
+                                      style={{ width: `${(val / maxCat) * 100}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      {/* Gráfico: gastos por mês */}
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base font-semibold">Gastos por Mês</CardTitle>
+                          <p className="text-xs text-slate-500">Últimos meses com lançamentos pagos</p>
+                        </CardHeader>
+                        <CardContent>
+                          {mesesEvol.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-40 text-gray-400">
+                              <Activity className="w-10 h-10 mb-2 opacity-30" />
+                              <p className="text-sm">Sem dados mensais</p>
+                            </div>
+                          ) : (
+                            <div className="flex items-end gap-3 h-40">
+                              {mesesEvol.map(([mes, val]) => {
+                                const h = (val / maxMes) * 100;
+                                return (
+                                  <div key={mes} className="flex-1 flex flex-col items-center gap-1 group cursor-pointer">
+                                    <span className="text-[10px] text-slate-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity">{fmt(val)}</span>
+                                    <div
+                                      className="w-full bg-gradient-to-t from-indigo-500 to-indigo-400 rounded-t transition-all"
+                                      style={{ height: `${Math.max(h, 4)}%` }}
+                                      title={`${mes}: ${fmt(val)}`}
+                                    />
+                                    <span className="text-xs text-slate-500">{fmtMes(mes)}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
+
+                  {/* Maiores despesas */}
+                  {topLanc.length > 0 && (
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base font-semibold">Maiores Despesas</CardTitle>
+                        <p className="text-xs text-slate-500">Lançamentos de maior valor vinculados à obra</p>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="divide-y divide-gray-100">
+                          {topLanc.map((l, idx) => (
+                            <div key={l.id || idx} className="flex items-center justify-between py-2.5">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 truncate">{l.descricao || '—'}</p>
+                                <p className="text-xs text-gray-500">
+                                  {l.financeiro_categorias?.nome || 'Sem categoria'}
+                                  {l.data_pagamento ? ` · ${new Intl.DateTimeFormat('pt-BR').format(new Date(l.data_pagamento + 'T12:00:00'))}` : ''}
+                                </p>
+                              </div>
+                              <span className="text-sm font-bold text-rose-600 ml-4 tabular-nums">{fmt(Number(l.valor))}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              );
+            })()}
           </TabsContent>
 
           {/* TAB: EQUIPE */}
           <TabsContent value="equipe" className="space-y-6 mt-0">
-            <Card>
-              <CardHeader>
-                <CardTitle>Gestão de Equipe</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger-animation">
-                  <KpiCard
-                    icon={Users}
-                    label="Total Funcionários"
-                    value={kpis.funcionarios_ativos || obraSelecionada.funcionarios_count || 0}
-                    color="blue"
-                  />
-                  <KpiCard
-                    icon={Clock}
-                    label="Horas Totais Mês"
-                    value={`${kpis.horas_mes || 0}h`}
-                    color="purple"
-                  />
-                  <KpiCard
-                    icon={Activity}
-                    label="Média Horas/Func"
-                    value={`${Math.round((kpis.horas_mes || 0) / (kpis.funcionarios_ativos || 1))}h`}
-                    color="amber"
-                  />
-                  <KpiCard
-                    icon={Zap}
-                    label="Produtividade"
-                    value={`${kpis.produtividade || 0} m²/dia`}
-                    color="emerald"
-                    trend={12}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+            {(() => {
+              const horasPorMes = graficos.horas_por_mes || [];
+              const funcPorMes = graficos.funcionarios_por_mes || [];
+              const totalHoras = horasPorMes.reduce((s, i) => s + (i.horas || 0), 0);
+              const maxFunc = Math.max(...funcPorMes.map(i => i.funcionarios || 0), 1);
+              const maxHoras = Math.max(...horasPorMes.map(i => i.horas || 0), 1);
+              const mediaDia = funcPorMes.length > 0 && totalHoras > 0
+                ? (totalHoras / (funcPorMes.length * 22)).toFixed(1)
+                : 0;
+              const mesesNomes = { '01':'Jan','02':'Fev','03':'Mar','04':'Abr','05':'Mai','06':'Jun','07':'Jul','08':'Ago','09':'Set','10':'Out','11':'Nov','12':'Dez' };
+              return (
+                <>
+                  {/* KPIs */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <KpiCard icon={Users} label="Funcionários Ativos" value={kpis.funcionarios_ativos || obraSelecionada.funcionarios_count || 0} color="blue" />
+                    <KpiCard icon={Clock} label="Horas no Período" value={`${Math.round(totalHoras)}h`} sublabel="últimos meses" color="purple" />
+                    <KpiCard icon={Activity} label="Média por Dia" value={`${mediaDia}h`} sublabel="por funcionário" color="amber" />
+                    <KpiCard icon={Zap} label="Produtividade" value={`${kpis.produtividade || 0} m²/dia`} color="emerald" />
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Equipe por mês */}
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base font-semibold">Equipe por Mês</CardTitle>
+                        <p className="text-xs text-slate-500">Funcionários ativos mensalmente</p>
+                      </CardHeader>
+                      <CardContent>
+                        {funcPorMes.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center h-40 text-gray-400">
+                            <Users className="w-10 h-10 mb-2 opacity-30" />
+                            <p className="text-sm">Sem dados de equipe no período</p>
+                          </div>
+                        ) : (
+                          <div className="flex items-end gap-2 h-40">
+                            {funcPorMes.map((item, idx) => {
+                              const h = maxFunc > 0 ? ((item.funcionarios || 0) / maxFunc) * 100 : 0;
+                              const mesLabel = item.mes ? item.mes.split('-')[1] : '';
+                              return (
+                                <div key={idx} className="flex-1 flex flex-col items-center gap-1 group cursor-pointer">
+                                  <span className="text-[10px] text-slate-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">{item.funcionarios}</span>
+                                  <div
+                                    className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t transition-all"
+                                    style={{ height: `${Math.max(h, 4)}%` }}
+                                    title={`${item.mes}: ${item.funcionarios} funcionários`}
+                                  />
+                                  <span className="text-xs text-slate-500">{mesesNomes[mesLabel] || mesLabel}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Horas por mês */}
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base font-semibold">Horas por Mês</CardTitle>
+                        <p className="text-xs text-slate-500">Horas trabalhadas mensalmente</p>
+                      </CardHeader>
+                      <CardContent>
+                        {horasPorMes.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center h-40 text-gray-400">
+                            <Clock className="w-10 h-10 mb-2 opacity-30" />
+                            <p className="text-sm">Sem dados de horas no período</p>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-end gap-2 h-40">
+                              {horasPorMes.map((item, idx) => {
+                                const h = maxHoras > 0 ? ((item.horas || 0) / maxHoras) * 100 : 0;
+                                const mesLabel = item.mes ? item.mes.split('-')[1] : '';
+                                return (
+                                  <div key={idx} className="flex-1 flex flex-col items-center gap-1 group cursor-pointer">
+                                    <span className="text-[10px] text-slate-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">{Math.round(item.horas || 0)}h</span>
+                                    <div
+                                      className="w-full bg-gradient-to-t from-emerald-500 to-emerald-400 rounded-t transition-all"
+                                      style={{ height: `${Math.max(h, 4)}%` }}
+                                      title={`${item.mes}: ${Math.round(item.horas || 0)}h`}
+                                    />
+                                    <span className="text-xs text-slate-500">{mesesNomes[mesLabel] || mesLabel}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-sm">
+                              <span className="text-gray-500">Total: <span className="font-semibold text-gray-900">{Math.round(totalHoras)}h</span></span>
+                              {horasPorMes.length >= 2 && (() => {
+                                const atual = horasPorMes[horasPorMes.length - 1]?.horas || 0;
+                                const anterior = horasPorMes[horasPorMes.length - 2]?.horas || 0;
+                                const variacao = anterior > 0 ? Math.round(((atual - anterior) / anterior) * 100) : 0;
+                                return variacao !== 0 ? (
+                                  <span className={`flex items-center gap-1 ${variacao >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                    {variacao >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                                    {variacao >= 0 ? '+' : ''}{variacao}% vs mês anterior
+                                  </span>
+                                ) : null;
+                              })()}
+                            </div>
+                          </>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                </>
+              );
+            })()}
           </TabsContent>
         </Tabs>
 
