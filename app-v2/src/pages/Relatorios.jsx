@@ -3075,44 +3075,223 @@ export default function Relatorios() {
 
           {/* TAB: CRONOGRAMA */}
           <TabsContent value="cronograma" className="space-y-6 mt-0">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Cronograma Detalhado</CardTitle>
-                  <p className="text-sm text-gray-500">Visão completa das fases do projeto</p>
-                </div>
-                <Button variant="outline" size="sm" onClick={() => setCronogramaModalOpen(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Adicionar Fase
-                </Button>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {cronograma.length > 0 ? (
-                    cronograma.filter(f => f.parent_id === null || !f.parent_id).map((fase, idx) => (
-                      <GanttBar
-                        key={fase.id || idx}
-                        fase={fase}
-                        onClick={() => setCronogramaModalOpen(true)}
-                      />
-                    ))
-                  ) : (
-                    <div className="py-6 text-center text-gray-500">
-                      <p className="text-sm">Nenhuma fase cadastrada.</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-2"
-                        onClick={() => setCronogramaModalOpen(true)}
-                      >
-                        <Plus className="w-4 h-4 mr-1" />
-                        Criar cronograma
+            {(() => {
+              const hoje = new Date();
+              const fasesPai = cronograma.filter(f => !f.parent_id);
+              const totalFases = fasesPai.length;
+              const concluidas = fasesPai.filter(f => f.status === 'concluida').length;
+              const emAndamento = fasesPai.filter(f => f.status === 'em_andamento').length;
+              const atrasadas = fasesPai.filter(f => {
+                if (f.status === 'concluida') return false;
+                if (!f.data_fim_planejada) return false;
+                try { return hoje > parseISO(f.data_fim_planejada); } catch { return false; }
+              }).length;
+              const progressoMedio = totalFases > 0
+                ? Math.round(fasesPai.reduce((s, f) => s + Number(f.progresso || 0), 0) / totalFases)
+                : 0;
+
+              // Lista ordenada com hierarquia (pai → filhos → netos)
+              const buildOrdered = () => {
+                const result = [];
+                const addFase = (fase, depth) => {
+                  result.push({ ...fase, depth });
+                  cronograma
+                    .filter(f => f.parent_id === fase.id)
+                    .sort((a, b) => a.ordem - b.ordem)
+                    .forEach(child => addFase(child, depth + 1));
+                };
+                fasesPai.sort((a, b) => a.ordem - b.ordem).forEach(f => addFase(f, 0));
+                return result;
+              };
+              const fasesOrdenadas = buildOrdered();
+
+              // Range de 8 meses centrado no mês atual
+              const meses = [];
+              const mesInicio = new Date(hoje.getFullYear(), hoje.getMonth() - 2, 1);
+              for (let i = 0; i < 8; i++) {
+                meses.push(new Date(mesInicio.getFullYear(), mesInicio.getMonth() + i, 1));
+              }
+              const mesesNomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+              const primeiroMes = meses[0];
+              const ultimoMes = new Date(meses[meses.length - 1].getFullYear(), meses[meses.length - 1].getMonth() + 1, 1);
+              const totalDias = (ultimoMes - primeiroMes) / 86400000;
+
+              const calcBarra = (fase) => {
+                if (!fase.data_inicio_planejada || !fase.data_fim_planejada) return { visible: false };
+                try {
+                  const inicio = parseISO(fase.data_inicio_planejada);
+                  const fim = parseISO(fase.data_fim_planejada);
+                  const left = Math.max(0, (inicio - primeiroMes) / 86400000 / totalDias * 100);
+                  const width = Math.min(100 - left, Math.max(0.5, (fim - inicio) / 86400000 / totalDias * 100));
+                  return { left, width, visible: width > 0 && left < 100 };
+                } catch { return { visible: false }; }
+              };
+
+              const linhaHoje = Math.max(0, Math.min(100, (hoje - primeiroMes) / 86400000 / totalDias * 100));
+
+              const statusColors = {
+                concluida:    { bar: 'bg-emerald-500', light: 'bg-emerald-100', dot: 'bg-emerald-500' },
+                em_andamento: { bar: 'bg-indigo-500',  light: 'bg-indigo-100',  dot: 'bg-indigo-500' },
+                atrasada:     { bar: 'bg-rose-500',    light: 'bg-rose-100',    dot: 'bg-rose-500' },
+                pendente:     { bar: 'bg-gray-300',    light: 'bg-gray-100',    dot: 'bg-gray-300' },
+              };
+
+              const fmtData = (d) => { try { return format(parseISO(d), 'dd/MM', { locale: ptBR }); } catch { return '—'; } };
+
+              if (cronograma.length === 0) {
+                return (
+                  <Card>
+                    <CardContent className="py-16 text-center">
+                      <ListChecks className="w-14 h-14 text-gray-200 mx-auto mb-4" />
+                      <p className="text-gray-600 font-medium mb-1">Nenhuma fase cadastrada</p>
+                      <p className="text-sm text-gray-400 mb-5">Adicione fases para acompanhar o cronograma da obra</p>
+                      <Button onClick={() => setCronogramaModalOpen(true)}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Criar Cronograma
                       </Button>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                    </CardContent>
+                  </Card>
+                );
+              }
+
+              return (
+                <>
+                  {/* KPIs */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <KpiCard icon={ListChecks} label="Total de Fases" value={totalFases} color="blue" />
+                    <KpiCard icon={CheckCircle2} label="Concluídas" value={concluidas} sublabel={`de ${totalFases}`} color="emerald" />
+                    <KpiCard icon={Activity} label="Em Andamento" value={emAndamento} color="indigo" />
+                    <KpiCard icon={AlertTriangle} label="Atrasadas" value={atrasadas} color={atrasadas > 0 ? 'rose' : 'emerald'} />
+                  </div>
+
+                  {/* Gantt */}
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <div>
+                        <CardTitle className="text-base font-semibold">Cronograma Visual</CardTitle>
+                        <p className="text-xs text-slate-500">
+                          Progresso médio: <span className="font-semibold text-slate-700">{progressoMedio}%</span>
+                          {' · '}Clique em "Editar" para modificar as fases
+                        </p>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => setCronogramaModalOpen(true)}>
+                        <Edit3 className="w-4 h-4 mr-2" />
+                        Editar Cronograma
+                      </Button>
+                    </CardHeader>
+                    <CardContent className="overflow-x-auto pb-4">
+                      <div className="min-w-[680px]">
+                        {/* Header meses */}
+                        <div className="flex mb-1">
+                          <div className="w-52 flex-shrink-0" />
+                          <div className="flex-1 flex border-b border-gray-200 pb-2">
+                            {meses.map((m, i) => (
+                              <div key={i} className="flex-1 text-center text-xs font-medium text-gray-500">
+                                {mesesNomes[m.getMonth()]}
+                                <span className="text-gray-400 text-[10px] ml-0.5">{m.getFullYear().toString().slice(2)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Rows */}
+                        <div className="relative">
+                          {/* Linha hoje */}
+                          {linhaHoje >= 0 && linhaHoje <= 100 && (
+                            <div
+                              className="absolute top-0 bottom-0 w-px bg-rose-400 z-10 pointer-events-none"
+                              style={{ left: `calc(208px + (100% - 208px) * ${linhaHoje / 100})` }}
+                            >
+                              <div className="absolute -top-0 -translate-x-1/2 bg-rose-500 text-white text-[9px] px-1 py-px rounded font-medium whitespace-nowrap">
+                                Hoje
+                              </div>
+                            </div>
+                          )}
+
+                          {fasesOrdenadas.map((fase, idx) => {
+                            const barra = calcBarra(fase);
+                            const colors = statusColors[fase.status] || statusColors.pendente;
+                            const indentPx = fase.depth * 14;
+                            return (
+                              <div
+                                key={fase.id || idx}
+                                className={`flex items-center py-1.5 rounded hover:bg-gray-50 transition-colors cursor-pointer ${fase.depth > 0 ? 'opacity-90' : ''}`}
+                                onClick={() => setCronogramaModalOpen(true)}
+                              >
+                                {/* Nome + datas */}
+                                <div className="w-52 flex-shrink-0 pr-2" style={{ paddingLeft: `${indentPx + 6}px` }}>
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <div
+                                      className={`w-2 h-2 rounded-full flex-shrink-0 ${colors.dot}`}
+                                      style={fase.cor ? { backgroundColor: fase.cor } : {}}
+                                    />
+                                    <span className={`text-sm truncate ${fase.depth === 0 ? 'font-medium text-gray-800' : 'text-gray-600'}`}>
+                                      {fase.fase}
+                                    </span>
+                                  </div>
+                                  <div className="text-[10px] text-gray-400 mt-0.5" style={{ paddingLeft: '14px' }}>
+                                    {fmtData(fase.data_inicio_planejada)} → {fmtData(fase.data_fim_planejada)}
+                                  </div>
+                                </div>
+
+                                {/* Gantt area */}
+                                <div className="flex-1 relative h-9">
+                                  {/* Grid */}
+                                  <div className="absolute inset-0 flex">
+                                    {meses.map((_, i) => (
+                                      <div key={i} className="flex-1 border-l border-gray-100 first:border-l-0" />
+                                    ))}
+                                  </div>
+
+                                  {/* Barra */}
+                                  {barra.visible && (
+                                    <div
+                                      className={`absolute top-2 h-5 rounded ${colors.light} overflow-hidden`}
+                                      style={{ left: `${barra.left}%`, width: `${barra.width}%` }}
+                                      title={`${fase.fase}: ${Math.round(Number(fase.progresso || 0))}%`}
+                                    >
+                                      <div
+                                        className={`h-full rounded ${colors.bar} transition-all`}
+                                        style={{ width: `${Math.round(Number(fase.progresso || 0))}%` }}
+                                      />
+                                      {barra.width > 5 && (
+                                        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-white mix-blend-difference">
+                                          {Math.round(Number(fase.progresso || 0))}%
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                  {!barra.visible && fase.data_inicio_planejada && (
+                                    <div className="absolute inset-0 flex items-center pl-2">
+                                      <span className="text-[10px] text-gray-400 italic">fora do período</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Legenda */}
+                        <div className="flex items-center gap-5 mt-4 pt-3 border-t border-gray-100 text-xs">
+                          {[
+                            { label: 'Concluída', color: 'bg-emerald-500' },
+                            { label: 'Em andamento', color: 'bg-indigo-500' },
+                            { label: 'Pendente', color: 'bg-gray-300' },
+                            { label: 'Atrasada', color: 'bg-rose-500' },
+                          ].map(l => (
+                            <div key={l.label} className="flex items-center gap-1.5">
+                              <div className={`w-3 h-3 rounded ${l.color}`} />
+                              <span className="text-gray-600">{l.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              );
+            })()}
           </TabsContent>
 
           {/* TAB: FINANCEIRO */}
