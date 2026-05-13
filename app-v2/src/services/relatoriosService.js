@@ -33,8 +33,9 @@ const relatoriosService = {
   async getKpisGlobais() {
     const { data: obras, error: eObras } = await supabase.from('obras').select('id, status, progresso')
     check(eObras)
+    // lancamentos table has 'horas' (time) but no obra_id/funcionario_id
     const { data: lancamentos, error: eLanc } = await supabase
-      .from('lancamentos').select('horas, obra_id, funcionario_id')
+      .from('lancamentos').select('horas')
     check(eLanc)
     const totalHoras = (lancamentos || []).reduce((sum, l) => sum + this.horasParaDecimal(l.horas), 0)
     return {
@@ -115,11 +116,25 @@ const relatoriosService = {
   },
 
   async salvarCronograma(obraId, items) {
-    // Upsert em bloco
-    const rows = items.map(i => ({ ...i, obra_id: obraId }))
-    const { data, error } = await supabase.from('obras_cronograma').upsert(rows, { onConflict: 'id' }).select()
-    check(error)
-    return data
+    // Separa novos (sem id) de existentes (com id numérico)
+    const toInsert = items.filter(i => !i.id).map(i => { const r = { ...i, obra_id: obraId }; delete r.id; return r; });
+    const toUpdate = items.filter(i => i.id && typeof i.id === 'number').map(i => ({ ...i, obra_id: obraId }));
+
+    const results = [];
+
+    if (toInsert.length > 0) {
+      const { data, error } = await supabase.from('obras_cronograma').insert(toInsert).select();
+      check(error);
+      if (data) results.push(...data);
+    }
+
+    if (toUpdate.length > 0) {
+      const { data, error } = await supabase.from('obras_cronograma').upsert(toUpdate, { onConflict: 'id' }).select();
+      check(error);
+      if (data) results.push(...data);
+    }
+
+    return results;
   },
 
   // ============================================================================
@@ -127,9 +142,10 @@ const relatoriosService = {
   // ============================================================================
 
   async getAlertas(obraId = null, apenasNaoResolvidos = true) {
+    // obras_alertas usa 'lido' (smallint 0/1), não 'resolvido'
     let query = supabase.from('obras_alertas').select('*').order('criado_em', { ascending: false })
     if (obraId) query = query.eq('obra_id', obraId)
-    if (apenasNaoResolvidos) query = query.eq('resolvido', false)
+    if (apenasNaoResolvidos) query = query.eq('lido', 0)
     const { data, error } = await query
     check(error)
     return data || []
@@ -148,8 +164,9 @@ const relatoriosService = {
   },
 
   async resolverAlerta(id, resolucao = '') {
+    // obras_alertas usa 'lido' (smallint), não tem coluna 'resolvido'
     const { data, error } = await supabase.from('obras_alertas')
-      .update({ resolvido: true, resolucao, resolvido_em: new Date().toISOString() })
+      .update({ lido: 1 })
       .eq('id', id).select().single()
     check(error)
     return data
@@ -236,9 +253,15 @@ const relatoriosService = {
   },
 
   async salvarMeta(payload) {
-    const { data, error } = payload.id
-      ? await supabase.from('obras_metas').update(payload).eq('id', payload.id).select().single()
-      : await supabase.from('obras_metas').insert(payload).select().single()
+    // obras_metas: valor_meta NOT NULL; meta_progresso é coluna separada
+    // Garantir que valor_meta seja preenchido (usa meta_progresso como fallback)
+    const row = {
+      ...payload,
+      valor_meta: payload.valor_meta ?? payload.meta_progresso ?? 0,
+    };
+    const { data, error } = row.id
+      ? await supabase.from('obras_metas').update(row).eq('id', row.id).select().single()
+      : await supabase.from('obras_metas').insert(row).select().single()
     check(error)
     return data
   },
@@ -827,19 +850,29 @@ const relatoriosService = {
   // ============================================================================
 
   async getRelatorioMensal(obraId, mes) {
+    // relatorios não tem mes_referencia — usa periodo_inicio (YYYY-MM-DD)
+    const mesInicio = `${mes}-01`;
     const { data, error } = await supabase.from('relatorios')
       .select('*, relatorios_atividades(*), relatorios_ocorrencias(*), relatorios_fotos(*)')
-      .eq('obra_id', obraId).eq('mes_referencia', mes).maybeSingle()
+      .eq('obra_id', obraId).eq('periodo_inicio', mesInicio).maybeSingle()
     check(error)
     return data
   },
 
   async getMesesComRelatorio(obraId, ano) {
+    // Busca via periodo_inicio e retorna estrutura { sucesso, dados: { meses: { 'YYYY-MM': {...} } } }
     const { data, error } = await supabase.from('relatorios')
-      .select('mes_referencia').eq('obra_id', obraId)
-      .like('mes_referencia', `${ano}-%`)
+      .select('*').eq('obra_id', obraId)
+      .gte('periodo_inicio', `${ano}-01-01`)
+      .lte('periodo_inicio', `${ano}-12-31`)
+      .order('periodo_inicio', { ascending: false })
     check(error)
-    return (data || []).map(r => r.mes_referencia)
+    const meses = {};
+    (data || []).forEach(r => {
+      const mes = r.periodo_inicio?.substring(0, 7);
+      if (mes) meses[mes] = { ...r };
+    });
+    return { sucesso: true, dados: { meses } };
   },
 
   async getFuncionariosMes(obraId, mes) {

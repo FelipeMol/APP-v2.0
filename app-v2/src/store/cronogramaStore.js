@@ -323,19 +323,27 @@ const useCronogramaStore = create((set, get) => ({
     set({ isSaving: true });
 
     try {
-      const payload = items.map((item) => {
-        const numericId = typeof item.id === 'string' && /^\d+$/.test(item.id) ? Number(item.id) : item.id;
-        const numericParentId =
-          item.parent_id === null || item.parent_id === undefined || item.parent_id === '' || Number(item.parent_id) === 0
-            ? null
-            : (typeof item.parent_id === 'string' && /^\d+$/.test(item.parent_id) ? Number(item.parent_id) : item.parent_id);
+      // Campos válidos no banco — nunca enviar client_id, isNew, client_key, etc.
+      const DB_FIELDS = ['id','obra_id','fase','descricao','ordem','data_inicio_planejada','data_fim_planejada',
+        'data_inicio_real','data_fim_real','progresso','status','cor','nivel','parent_id'];
 
-        return {
-          ...item,
-          parent_id: numericParentId,
-          client_id: item.id,
-          id: typeof numericId === 'number' ? numericId : null,
-        };
+      const payload = items.map((item) => {
+        const numericId = typeof item.id === 'number' ? item.id
+          : (typeof item.id === 'string' && /^\d+$/.test(item.id) ? Number(item.id) : null);
+        const numericParentId =
+          item.parent_id === null || item.parent_id === undefined || item.parent_id === ''
+            ? null
+            : (typeof item.parent_id === 'number' ? item.parent_id
+              : (typeof item.parent_id === 'string' && /^\d+$/.test(item.parent_id) ? Number(item.parent_id) : null));
+
+        const row = {};
+        DB_FIELDS.forEach(f => {
+          if (f === 'id') row.id = numericId;
+          else if (f === 'parent_id') row.parent_id = numericParentId;
+          else if (f in item) row[f] = item[f];
+        });
+        row.obra_id = obraId;
+        return row;
       });
 
       const response = await relatoriosService.salvarCronograma(obraId, payload);
