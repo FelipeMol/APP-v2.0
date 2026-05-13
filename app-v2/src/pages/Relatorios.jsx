@@ -1913,6 +1913,7 @@ export default function Relatorios() {
   const [selectedReport, setSelectedReport] = useState(null);
   const [criarAlertaModal, setCriarAlertaModal] = useState(false);
   const [cronogramaModalOpen, setCronogramaModalOpen] = useState(false);
+  const [cronogramaTabView, setCronogramaTabView] = useState('gantt');
   const [finObra, setFinObra] = useState({ lancamentos: [], loading: false });
 
   const canView = isAdmin() || hasPermission('relatorios', 'visualizar');
@@ -3074,7 +3075,7 @@ export default function Relatorios() {
           </TabsContent>
 
           {/* TAB: CRONOGRAMA */}
-          <TabsContent value="cronograma" className="space-y-6 mt-0">
+          <TabsContent value="cronograma" className="mt-0">
             {(() => {
               const hoje = new Date();
               const fasesPai = cronograma.filter(f => !f.parent_id);
@@ -3110,12 +3111,10 @@ export default function Relatorios() {
               const datesArr = todasDatas.map(d => { try { return parseISO(d); } catch { return null; } }).filter(Boolean);
               const minDate = datesArr.length > 0 ? new Date(Math.min(...datesArr)) : new Date();
               const maxDate = datesArr.length > 0 ? new Date(Math.max(...datesArr)) : new Date(Date.now() + 180 * 86400000);
-              // Arrenda para início/fim de mês
               const ganttStart = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
               const ganttEnd = new Date(maxDate.getFullYear(), maxDate.getMonth() + 2, 1);
               const totalDias = (ganttEnd - ganttStart) / 86400000;
 
-              // Gera lista de meses para o header
               const mesesGantt = [];
               let cur = new Date(ganttStart);
               while (cur < ganttEnd) {
@@ -3130,7 +3129,7 @@ export default function Relatorios() {
                   const inicio = parseISO(fase.data_inicio_planejada);
                   const fim = parseISO(fase.data_fim_planejada);
                   const left = Math.max(0, (inicio - ganttStart) / 86400000 / totalDias * 100);
-                  const width = Math.min(100 - left, Math.max(0.5, (fim - inicio) / 86400000 / totalDias * 100));
+                  const width = Math.min(100 - left, Math.max(0.3, (fim - inicio) / 86400000 / totalDias * 100));
                   return { left, width, visible: left < 100 };
                 } catch { return { visible: false }; }
               };
@@ -3138,218 +3137,334 @@ export default function Relatorios() {
               const linhaHoje = Math.max(0, Math.min(100, (hoje - ganttStart) / 86400000 / totalDias * 100));
 
               const STATUS_CFG = {
-                concluida:    { bar: 'bg-emerald-500', light: 'bg-emerald-100', badge: 'bg-emerald-100 text-emerald-700', label: 'Concluída' },
-                em_andamento: { bar: 'bg-indigo-500',  light: 'bg-indigo-100',  badge: 'bg-indigo-100 text-indigo-700',  label: 'Em andamento' },
-                atrasada:     { bar: 'bg-rose-500',    light: 'bg-rose-100',    badge: 'bg-rose-100 text-rose-700',    label: 'Atrasada' },
-                pendente:     { bar: 'bg-slate-300',   light: 'bg-slate-100',   badge: 'bg-slate-100 text-slate-500',  label: 'Pendente' },
+                concluida:    { dot: '#10B981', bar: '#10B981', barBg: '#E7F7F0', pill: 'bg-[#E7F7F0] text-[#047857]', label: 'Concluída' },
+                em_andamento: { dot: '#5B5CF6', bar: '#5B5CF6', barBg: '#EEF0FF', pill: 'bg-[#EEF0FF] text-[#4338CA]', label: 'Em andamento' },
+                atrasada:     { dot: '#EF4444', bar: '#EF4444', barBg: '#FCE7E7', pill: 'bg-[#FCE7E7] text-[#B91C1C]', label: 'Atrasada' },
+                pendente:     { dot: '#9095A1', bar: '#9095A1', barBg: '#F2F3F6', pill: 'bg-[#F2F3F6] text-[#6B7080]', label: 'Pendente' },
+              };
+
+              const getStatus = (fase) => {
+                const isAtrasada = !['concluida'].includes(fase.status) && fase.data_fim_planejada;
+                if (isAtrasada) {
+                  try { return hoje > parseISO(fase.data_fim_planejada) ? 'atrasada' : (fase.status || 'pendente'); } catch { return fase.status || 'pendente'; }
+                }
+                return fase.status || 'pendente';
               };
 
               const fmtData = (d) => { try { return format(parseISO(d), 'dd/MM/yy', { locale: ptBR }); } catch { return '—'; } };
+              const fmtDataCurta = (d) => { try { return format(parseISO(d), 'dd MMM', { locale: ptBR }); } catch { return '—'; } };
+
+              // Empty state
+              if (cronograma.length === 0) {
+                return (
+                  <div className="rounded-xl border border-dashed border-gray-200 bg-white">
+                    <div className="py-16 flex flex-col items-center justify-center text-center">
+                      <div className="w-14 h-14 rounded-2xl bg-[#EEF0FF] flex items-center justify-center mb-4">
+                        <ListChecks className="w-7 h-7 text-[#5B5CF6]" />
+                      </div>
+                      <p className="font-semibold text-gray-900 mb-1">Nenhuma fase cadastrada</p>
+                      <p className="text-sm text-gray-400 mb-6 max-w-xs">Adicione fases para acompanhar o progresso e o cronograma da obra</p>
+                      <button
+                        onClick={() => setCronogramaModalOpen(true)}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-[#111317] hover:bg-black text-white text-sm font-medium rounded-[10px] transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Criar Cronograma
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
+              const ROW_H = 36; // px por row no gantt
 
               return (
-                <>
-                  {/* Header com KPIs e ação */}
-                  {cronograma.length > 0 && (
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                      <KpiCard icon={ListChecks} label="Total de Fases" value={totalFases} color="blue" />
-                      <KpiCard icon={CheckCircle2} label="Concluídas" value={concluidas} sublabel={`de ${totalFases}`} color="emerald" />
-                      <KpiCard icon={Activity} label="Em Andamento" value={emAndamento} color="indigo" />
-                      <KpiCard icon={AlertTriangle} label="Atrasadas" value={atrasadas} color={atrasadas > 0 ? 'rose' : 'emerald'} />
+                <div className="rounded-xl border border-[#ECECEF] bg-white overflow-hidden">
+
+                  {/* ── TOOLBAR ── */}
+                  <div className="flex items-center justify-between px-4 py-2 border-b border-[#ECECEF] bg-[#F6F7F9]">
+
+                    {/* Esquerda: KPI chips */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-sm font-semibold text-gray-900 mr-1">{totalFases} fase{totalFases !== 1 ? 's' : ''}</span>
+                      <span className="w-px h-4 bg-gray-200" />
+                      {/* progresso geral */}
+                      <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-white border border-[#ECECEF] rounded-lg">
+                        <div className="w-16 h-1 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full bg-[#5B5CF6]" style={{ width: `${progressoMedio}%` }} />
+                        </div>
+                        <span className="text-xs font-semibold text-[#3D4150]">{progressoMedio}%</span>
+                      </div>
+                      {concluidas > 0 && (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-[#E7F7F0] rounded-lg text-xs font-medium text-[#047857]">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
+                          {concluidas} concluída{concluidas > 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {emAndamento > 0 && (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-[#EEF0FF] rounded-lg text-xs font-medium text-[#4338CA]">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#5B5CF6]" />
+                          {emAndamento} em andamento
+                        </span>
+                      )}
+                      {atrasadas > 0 && (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-[#FCE7E7] rounded-lg text-xs font-medium text-[#B91C1C]">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#EF4444]" />
+                          {atrasadas} atrasada{atrasadas > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Direita: view toggle + ações */}
+                    <div className="flex items-center gap-2">
+                      {/* Toggle Lista / Gantt */}
+                      <div className="flex bg-[#ECECEF] rounded-[8px] p-0.5 gap-0.5">
+                        {[['lista','Lista'],['gantt','Gantt']].map(([v, label]) => (
+                          <button
+                            key={v}
+                            onClick={() => setCronogramaTabView(v)}
+                            className={`px-3 py-1 text-xs font-medium rounded-[6px] transition-all ${
+                              cronogramaTabView === v
+                                ? 'bg-white text-gray-900 shadow-sm'
+                                : 'text-[#6B7080] hover:text-gray-700'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <span className="w-px h-5 bg-[#ECECEF]" />
+                      <button
+                        onClick={() => setCronogramaModalOpen(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#111317] hover:bg-black text-white text-xs font-medium rounded-[8px] transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Adicionar Fase
+                      </button>
+                      <button
+                        onClick={() => setCronogramaModalOpen(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#ECECEF] hover:bg-[#F8F8FB] text-[#3D4150] text-xs font-medium rounded-[8px] transition-colors"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        Editar
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ── VIEW: LISTA ── */}
+                  {cronogramaTabView === 'lista' && (
+                    <div>
+                      {/* Column headers */}
+                      <div className="grid items-center px-4 border-b border-[#ECECEF] bg-[#F6F7F9]/50"
+                        style={{ gridTemplateColumns: '1fr 160px 120px 150px' }}>
+                        <span className="py-2 text-[11px] font-semibold text-[#9095A1] uppercase tracking-wide">Fase</span>
+                        <span className="py-2 text-[11px] font-semibold text-[#9095A1] uppercase tracking-wide">Período</span>
+                        <span className="py-2 text-[11px] font-semibold text-[#9095A1] uppercase tracking-wide">Status</span>
+                        <span className="py-2 text-[11px] font-semibold text-[#9095A1] uppercase tracking-wide">Progresso</span>
+                      </div>
+
+                      {/* Rows */}
+                      {fasesOrdenadas.map((fase, idx) => {
+                        const status = getStatus(fase);
+                        const cfg = STATUS_CFG[status] || STATUS_CFG.pendente;
+                        const prog = Math.round(Number(fase.progresso || 0));
+                        return (
+                          <div
+                            key={fase.id || idx}
+                            onClick={() => setCronogramaModalOpen(true)}
+                            className="grid items-center px-4 border-b border-[#ECECEF] last:border-0 hover:bg-[#F6F7F9] transition-colors cursor-pointer group"
+                            style={{ gridTemplateColumns: '1fr 160px 120px 150px', minHeight: '40px' }}
+                          >
+                            {/* Nome */}
+                            <div className="flex items-center gap-2 py-2.5 min-w-0" style={{ paddingLeft: `${fase.depth * 20}px` }}>
+                              {fase.depth > 0 && <span className="w-3 h-px bg-gray-200 flex-shrink-0" />}
+                              <span
+                                className="w-2 h-2 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: fase.cor || cfg.dot }}
+                              />
+                              <span className={`text-sm truncate ${fase.depth === 0 ? 'font-medium text-[#111317]' : 'text-[#3D4150]'}`}>
+                                {fase.fase}
+                              </span>
+                            </div>
+
+                            {/* Período */}
+                            <div className="text-xs text-[#6B7080] font-mono tabular-nums py-2.5">
+                              {fase.data_inicio_planejada || fase.data_fim_planejada
+                                ? <>{fmtDataCurta(fase.data_inicio_planejada)} <span className="text-[#9095A1]">→</span> {fmtDataCurta(fase.data_fim_planejada)}</>
+                                : <span className="text-[#9095A1] italic">Sem data</span>
+                              }
+                            </div>
+
+                            {/* Status pill */}
+                            <div className="py-2.5">
+                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium ${cfg.pill}`}>
+                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cfg.dot }} />
+                                {cfg.label}
+                              </span>
+                            </div>
+
+                            {/* Progresso */}
+                            <div className="flex items-center gap-2 py-2.5">
+                              <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: cfg.barBg }}>
+                                <div
+                                  className="h-full rounded-full transition-all"
+                                  style={{ width: `${prog}%`, backgroundColor: cfg.bar }}
+                                />
+                              </div>
+                              <span className="text-xs font-semibold w-7 text-right tabular-nums" style={{ color: cfg.dot }}>
+                                {prog}%
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 
-                  {/* Card principal do cronograma */}
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between pb-3">
-                      <div>
-                        <CardTitle className="text-base font-semibold text-gray-900">Cronograma da Obra</CardTitle>
-                        {cronograma.length > 0 && (
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            Progresso médio: <span className="font-semibold text-indigo-600">{progressoMedio}%</span>
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                          onClick={() => setCronogramaModalOpen(true)}
-                        >
-                          <Plus className="w-4 h-4 mr-1.5" />
-                          {cronograma.length === 0 ? 'Criar Cronograma' : 'Adicionar Fase'}
-                        </Button>
-                        {cronograma.length > 0 && (
-                          <Button variant="outline" size="sm" onClick={() => setCronogramaModalOpen(true)}>
-                            <Edit3 className="w-4 h-4 mr-1.5" />
-                            Editar
-                          </Button>
-                        )}
-                      </div>
-                    </CardHeader>
-
-                    <CardContent>
-                      {cronograma.length === 0 ? (
-                        <div className="py-14 flex flex-col items-center justify-center text-center">
-                          <div className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center mb-4">
-                            <ListChecks className="w-8 h-8 text-indigo-400" />
-                          </div>
-                          <p className="font-medium text-gray-900 mb-1">Nenhuma fase cadastrada</p>
-                          <p className="text-sm text-gray-500 mb-5 max-w-xs">Clique em "Criar Cronograma" para adicionar fases e acompanhar o progresso da obra</p>
-                          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => setCronogramaModalOpen(true)}>
-                            <Plus className="w-4 h-4 mr-2" />
-                            Criar Cronograma
-                          </Button>
+                  {/* ── VIEW: GANTT ── */}
+                  {cronogramaTabView === 'gantt' && (
+                    <div className="flex overflow-hidden" style={{ minHeight: `${fasesOrdenadas.length * ROW_H + 36}px` }}>
+                      {/* Coluna esquerda: nomes + status */}
+                      <div className="w-64 flex-shrink-0 border-r border-[#ECECEF]">
+                        {/* Header */}
+                        <div className="h-9 flex items-center px-4 border-b border-[#ECECEF] bg-[#F6F7F9]/50">
+                          <span className="text-[11px] font-semibold text-[#9095A1] uppercase tracking-wide">Fase</span>
                         </div>
-                      ) : (
-                        <div className="space-y-1">
-                          {/* Lista de fases */}
-                          {fasesOrdenadas.map((fase, idx) => {
-                            const cfg = STATUS_CFG[fase.status] || STATUS_CFG.pendente;
-                            const prog = Math.round(Number(fase.progresso || 0));
-                            const indentPx = fase.depth * 16;
-                            const isAtrasada = !['concluida'].includes(fase.status) && fase.data_fim_planejada &&
-                              hoje > parseISO(fase.data_fim_planejada);
-                            const cfgEfetivo = isAtrasada ? STATUS_CFG.atrasada : cfg;
-                            return (
+                        {/* Rows */}
+                        {fasesOrdenadas.map((fase, idx) => {
+                          const status = getStatus(fase);
+                          const cfg = STATUS_CFG[status] || STATUS_CFG.pendente;
+                          return (
+                            <div
+                              key={fase.id || idx}
+                              className="flex items-center gap-2 px-4 border-b border-[#ECECEF] last:border-0 hover:bg-[#F6F7F9] cursor-pointer transition-colors group"
+                              style={{ height: `${ROW_H}px`, paddingLeft: `${16 + fase.depth * 16}px` }}
+                              onClick={() => setCronogramaModalOpen(true)}
+                            >
+                              {fase.depth > 0 && <span className="w-2.5 h-px bg-gray-200 flex-shrink-0" />}
+                              <span
+                                className="w-2 h-2 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: fase.cor || cfg.dot }}
+                              />
+                              <span className={`text-xs truncate min-w-0 ${fase.depth === 0 ? 'font-medium text-[#111317]' : 'text-[#3D4150]'}`}>
+                                {fase.fase}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Coluna direita: timeline */}
+                      <div className="flex-1 overflow-x-auto">
+                        <div style={{ minWidth: `${Math.max(400, mesesGantt.length * 90)}px` }}>
+                          {/* Header meses */}
+                          <div className="flex h-9 border-b border-[#ECECEF] bg-[#F6F7F9]/50">
+                            {mesesGantt.map((m, i) => (
                               <div
-                                key={fase.id || idx}
-                                className={`group flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer border border-transparent hover:border-gray-200 ${
-                                  fase.depth > 0 ? 'ml-4 bg-gray-50/50' : ''
-                                }`}
-                                style={{ marginLeft: `${indentPx}px` }}
-                                onClick={() => setCronogramaModalOpen(true)}
+                                key={i}
+                                className="flex-1 flex items-center justify-center text-[11px] font-medium text-[#9095A1] border-l border-[#ECECEF] first:border-l-0"
                               >
-                                {/* Bolinha colorida */}
+                                {mesesNomes[m.getMonth()]}
+                                <span className="text-[#9095A1]/60 ml-0.5 text-[10px]">{m.getFullYear().toString().slice(2)}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Rows */}
+                          <div className="relative">
+                            {/* Linha hoje */}
+                            {linhaHoje >= 0 && linhaHoje <= 100 && (
+                              <div
+                                className="absolute top-0 bottom-0 w-px z-10 pointer-events-none"
+                                style={{ left: `${linhaHoje}%`, backgroundColor: '#EF4444', opacity: 0.7 }}
+                              >
                                 <div
-                                  className={`w-3 h-3 rounded-full flex-shrink-0 ring-2 ring-white shadow-sm`}
-                                  style={{ backgroundColor: fase.cor || (isAtrasada ? '#ef4444' : '#6366f1') }}
-                                />
-
-                                {/* Nome + datas */}
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <span className={`text-sm truncate ${
-                                      fase.depth === 0 ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'
-                                    }`}>
-                                      {fase.fase}
-                                    </span>
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${cfgEfetivo.badge}`}>
-                                      {isAtrasada ? 'Atrasada' : cfgEfetivo.label}
-                                    </span>
-                                  </div>
-                                  <p className="text-[11px] text-gray-400 mt-0.5">
-                                    {fmtData(fase.data_inicio_planejada)} → {fmtData(fase.data_fim_planejada)}
-                                  </p>
-                                </div>
-
-                                {/* Barra de progresso */}
-                                <div className="w-32 flex-shrink-0">
-                                  <div className="flex items-center gap-2">
-                                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                      <div
-                                        className={`h-full rounded-full transition-all ${cfgEfetivo.bar}`}
-                                        style={{ width: `${prog}%` }}
-                                      />
-                                    </div>
-                                    <span className={`text-xs font-semibold w-8 text-right ${
-                                      prog === 100 ? 'text-emerald-600' : isAtrasada ? 'text-rose-600' : 'text-gray-700'
-                                    }`}>{prog}%</span>
-                                  </div>
+                                  className="absolute -top-0 -translate-x-1/2 text-white text-[9px] px-1.5 py-px rounded font-medium"
+                                  style={{ backgroundColor: '#EF4444', whiteSpace: 'nowrap' }}
+                                >
+                                  Hoje
                                 </div>
                               </div>
-                            );
-                          })}
+                            )}
 
-                          {/* Separador + Gantt */}
-                          <div className="mt-6 pt-4 border-t border-gray-100">
-                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Linha do Tempo</p>
-                            <div className="overflow-x-auto">
-                              <div style={{ minWidth: `${Math.max(600, mesesGantt.length * 80)}px` }}>
-                                {/* Header meses */}
-                                <div className="flex mb-2">
-                                  <div className="w-48 flex-shrink-0" />
-                                  <div className="flex-1 flex">
-                                    {mesesGantt.map((m, i) => (
-                                      <div key={i} className="flex-1 text-center text-[11px] font-medium text-gray-400 border-l border-gray-100 first:border-l-0 py-1">
-                                        {mesesNomes[m.getMonth()]}
-                                        <span className="text-gray-300 ml-0.5 text-[10px]">{m.getFullYear().toString().slice(2)}</span>
-                                      </div>
+                            {fasesOrdenadas.map((fase, idx) => {
+                              const barra = calcBarra(fase);
+                              const status = getStatus(fase);
+                              const cfg = STATUS_CFG[status] || STATUS_CFG.pendente;
+                              const prog = Math.round(Number(fase.progresso || 0));
+                              const isEven = idx % 2 === 0;
+                              return (
+                                <div
+                                  key={fase.id || idx}
+                                  className="relative flex items-center border-b border-[#ECECEF] last:border-0 hover:bg-[#F6F7F9] cursor-pointer transition-colors"
+                                  style={{ height: `${ROW_H}px`, backgroundColor: isEven ? 'transparent' : '#FAFAFA' }}
+                                  onClick={() => setCronogramaModalOpen(true)}
+                                >
+                                  {/* Grid de meses */}
+                                  <div className="absolute inset-0 flex pointer-events-none">
+                                    {mesesGantt.map((_, i) => (
+                                      <div key={i} className="flex-1 border-l border-[#ECECEF]/60 first:border-l-0" />
                                     ))}
                                   </div>
-                                </div>
 
-                                {/* Linhas Gantt */}
-                                <div className="relative">
-                                  {/* Linha hoje */}
-                                  {linhaHoje >= 0 && linhaHoje <= 100 && (
+                                  {/* Barra */}
+                                  {barra.visible && (
                                     <div
-                                      className="absolute top-0 bottom-0 w-px bg-rose-400/60 z-10 pointer-events-none"
-                                      style={{ left: `calc(192px + (100% - 192px) * ${linhaHoje / 100})` }}
+                                      className="absolute rounded-full overflow-hidden"
+                                      style={{
+                                        left: `${barra.left}%`,
+                                        width: `${barra.width}%`,
+                                        height: fase.depth === 0 ? '16px' : '10px',
+                                        top: '50%',
+                                        transform: 'translateY(-50%)',
+                                        backgroundColor: cfg.barBg,
+                                      }}
                                     >
-                                      <div className="absolute -top-0 -translate-x-1/2 bg-rose-500 text-white text-[9px] px-1.5 py-px rounded font-medium">
-                                        Hoje
-                                      </div>
+                                      <div
+                                        className="h-full rounded-full transition-all"
+                                        style={{ width: `${prog}%`, backgroundColor: cfg.bar }}
+                                      />
+                                      {/* Label % dentro da barra se grande o suficiente */}
+                                      {barra.width > 8 && fase.depth === 0 && (
+                                        <div
+                                          className="absolute inset-0 flex items-center px-1.5"
+                                          style={{ color: prog > 50 ? 'white' : cfg.dot }}
+                                        >
+                                          <span className="text-[9px] font-semibold">{prog}%</span>
+                                        </div>
+                                      )}
                                     </div>
                                   )}
-
-                                  {fasesOrdenadas.map((fase, idx) => {
-                                    const barra = calcBarra(fase);
-                                    const isAtrasada2 = !['concluida'].includes(fase.status) && fase.data_fim_planejada &&
-                                      hoje > parseISO(fase.data_fim_planejada);
-                                    const cfg2 = isAtrasada2 ? STATUS_CFG.atrasada : (STATUS_CFG[fase.status] || STATUS_CFG.pendente);
-                                    const prog2 = Math.round(Number(fase.progresso || 0));
-                                    return (
-                                      <div key={fase.id || idx} className="flex items-center h-8 border-b border-gray-50 last:border-0">
-                                        <div className="w-48 flex-shrink-0 pr-3">
-                                          <span
-                                            className="text-xs text-gray-600 truncate block"
-                                            style={{ paddingLeft: `${fase.depth * 12}px` }}
-                                          >
-                                            {fase.fase}
-                                          </span>
-                                        </div>
-                                        <div className="flex-1 relative h-full flex items-center">
-                                          {/* Grid */}
-                                          <div className="absolute inset-0 flex">
-                                            {mesesGantt.map((_, i) => (
-                                              <div key={i} className="flex-1 border-l border-gray-100 first:border-l-0" />
-                                            ))}
-                                          </div>
-                                          {/* Barra */}
-                                          {barra.visible && (
-                                            <div
-                                              className={`absolute h-4 rounded-full ${cfg2.light} overflow-hidden`}
-                                              style={{ left: `${barra.left}%`, width: `${barra.width}%` }}
-                                            >
-                                              <div
-                                                className={`h-full rounded-full ${cfg2.bar}`}
-                                                style={{ width: `${prog2}%` }}
-                                              />
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-
-                                {/* Legenda */}
-                                <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-100">
-                                  {Object.entries(STATUS_CFG).map(([k, v]) => (
-                                    <div key={k} className="flex items-center gap-1.5 text-xs text-gray-500">
-                                      <div className={`w-2.5 h-2.5 rounded-full ${v.bar}`} />
-                                      {v.label}
+                                  {!barra.visible && !fase.data_inicio_planejada && (
+                                    <div className="absolute inset-0 flex items-center pl-3">
+                                      <span className="text-[10px] text-[#9095A1] italic">Sem data</span>
                                     </div>
-                                  ))}
+                                  )}
                                 </div>
-                              </div>
-                            </div>
+                              );
+                            })}
                           </div>
                         </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── FOOTER: legenda ── */}
+                  <div className="flex items-center justify-between px-4 py-2 border-t border-[#ECECEF] bg-[#F6F7F9]/50">
+                    <div className="flex items-center gap-4">
+                      {Object.entries(STATUS_CFG).map(([k, v]) => (
+                        <div key={k} className="flex items-center gap-1.5 text-[11px] text-[#6B7080]">
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: v.dot }} />
+                          {v.label}
+                        </div>
+                      ))}
+                    </div>
+                    <span className="text-[11px] text-[#9095A1]">
+                      Clique em qualquer fase para editar
+                    </span>
+                  </div>
+
+                </div>
               );
             })()}
           </TabsContent>
