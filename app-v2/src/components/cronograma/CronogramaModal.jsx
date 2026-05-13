@@ -21,7 +21,7 @@ import CronogramaTimeline from './CronogramaTimeline';
 import useCronogramaStore from '@/store/cronogramaStore';
 import toast from 'react-hot-toast';
 
-export default function CronogramaModal({ open, onOpenChange, obraId, obraNome }) {
+export default function CronogramaModal({ open, onOpenChange, obraId, obraNome, onSave }) {
   const [scrollTop, setScrollTop] = useState(0);
   const [columnWidth, setColumnWidth] = useState(220); // Largura inicial da coluna Nome
 
@@ -67,6 +67,7 @@ export default function CronogramaModal({ open, onOpenChange, obraId, obraNome }
     const success = await salvarAlteracoes();
     if (success) {
       toast.success('Cronograma salvo com sucesso!');
+      onSave?.();
     } else {
       toast.error('Erro ao salvar cronograma');
     }

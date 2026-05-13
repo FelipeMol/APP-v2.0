@@ -3090,7 +3090,7 @@ export default function Relatorios() {
                 ? Math.round(fasesPai.reduce((s, f) => s + Number(f.progresso || 0), 0) / totalFases)
                 : 0;
 
-              // Lista ordenada com hierarquia (pai → filhos → netos)
+              // Lista hierárquica (pai → filhos)
               const buildOrdered = () => {
                 const result = [];
                 const addFase = (fase, depth) => {
@@ -3105,188 +3105,248 @@ export default function Relatorios() {
               };
               const fasesOrdenadas = buildOrdered();
 
-              // Range de 8 meses centrado no mês atual
-              const meses = [];
-              const mesInicio = new Date(hoje.getFullYear(), hoje.getMonth() - 2, 1);
-              for (let i = 0; i < 8; i++) {
-                meses.push(new Date(mesInicio.getFullYear(), mesInicio.getMonth() + i, 1));
+              // Range de meses para gantt (baseado nas datas das fases)
+              const todasDatas = cronograma.flatMap(f => [f.data_inicio_planejada, f.data_fim_planejada].filter(Boolean));
+              const datesArr = todasDatas.map(d => { try { return parseISO(d); } catch { return null; } }).filter(Boolean);
+              const minDate = datesArr.length > 0 ? new Date(Math.min(...datesArr)) : new Date();
+              const maxDate = datesArr.length > 0 ? new Date(Math.max(...datesArr)) : new Date(Date.now() + 180 * 86400000);
+              // Arrenda para início/fim de mês
+              const ganttStart = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+              const ganttEnd = new Date(maxDate.getFullYear(), maxDate.getMonth() + 2, 1);
+              const totalDias = (ganttEnd - ganttStart) / 86400000;
+
+              // Gera lista de meses para o header
+              const mesesGantt = [];
+              let cur = new Date(ganttStart);
+              while (cur < ganttEnd) {
+                mesesGantt.push(new Date(cur));
+                cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
               }
               const mesesNomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-              const primeiroMes = meses[0];
-              const ultimoMes = new Date(meses[meses.length - 1].getFullYear(), meses[meses.length - 1].getMonth() + 1, 1);
-              const totalDias = (ultimoMes - primeiroMes) / 86400000;
 
               const calcBarra = (fase) => {
                 if (!fase.data_inicio_planejada || !fase.data_fim_planejada) return { visible: false };
                 try {
                   const inicio = parseISO(fase.data_inicio_planejada);
                   const fim = parseISO(fase.data_fim_planejada);
-                  const left = Math.max(0, (inicio - primeiroMes) / 86400000 / totalDias * 100);
+                  const left = Math.max(0, (inicio - ganttStart) / 86400000 / totalDias * 100);
                   const width = Math.min(100 - left, Math.max(0.5, (fim - inicio) / 86400000 / totalDias * 100));
-                  return { left, width, visible: width > 0 && left < 100 };
+                  return { left, width, visible: left < 100 };
                 } catch { return { visible: false }; }
               };
 
-              const linhaHoje = Math.max(0, Math.min(100, (hoje - primeiroMes) / 86400000 / totalDias * 100));
+              const linhaHoje = Math.max(0, Math.min(100, (hoje - ganttStart) / 86400000 / totalDias * 100));
 
-              const statusColors = {
-                concluida:    { bar: 'bg-emerald-500', light: 'bg-emerald-100', dot: 'bg-emerald-500' },
-                em_andamento: { bar: 'bg-indigo-500',  light: 'bg-indigo-100',  dot: 'bg-indigo-500' },
-                atrasada:     { bar: 'bg-rose-500',    light: 'bg-rose-100',    dot: 'bg-rose-500' },
-                pendente:     { bar: 'bg-gray-300',    light: 'bg-gray-100',    dot: 'bg-gray-300' },
+              const STATUS_CFG = {
+                concluida:    { bar: 'bg-emerald-500', light: 'bg-emerald-100', badge: 'bg-emerald-100 text-emerald-700', label: 'Concluída' },
+                em_andamento: { bar: 'bg-indigo-500',  light: 'bg-indigo-100',  badge: 'bg-indigo-100 text-indigo-700',  label: 'Em andamento' },
+                atrasada:     { bar: 'bg-rose-500',    light: 'bg-rose-100',    badge: 'bg-rose-100 text-rose-700',    label: 'Atrasada' },
+                pendente:     { bar: 'bg-slate-300',   light: 'bg-slate-100',   badge: 'bg-slate-100 text-slate-500',  label: 'Pendente' },
               };
 
-              const fmtData = (d) => { try { return format(parseISO(d), 'dd/MM', { locale: ptBR }); } catch { return '—'; } };
-
-              if (cronograma.length === 0) {
-                return (
-                  <Card>
-                    <CardContent className="py-16 text-center">
-                      <ListChecks className="w-14 h-14 text-gray-200 mx-auto mb-4" />
-                      <p className="text-gray-600 font-medium mb-1">Nenhuma fase cadastrada</p>
-                      <p className="text-sm text-gray-400 mb-5">Adicione fases para acompanhar o cronograma da obra</p>
-                      <Button onClick={() => setCronogramaModalOpen(true)}>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Criar Cronograma
-                      </Button>
-                    </CardContent>
-                  </Card>
-                );
-              }
+              const fmtData = (d) => { try { return format(parseISO(d), 'dd/MM/yy', { locale: ptBR }); } catch { return '—'; } };
 
               return (
                 <>
-                  {/* KPIs */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <KpiCard icon={ListChecks} label="Total de Fases" value={totalFases} color="blue" />
-                    <KpiCard icon={CheckCircle2} label="Concluídas" value={concluidas} sublabel={`de ${totalFases}`} color="emerald" />
-                    <KpiCard icon={Activity} label="Em Andamento" value={emAndamento} color="indigo" />
-                    <KpiCard icon={AlertTriangle} label="Atrasadas" value={atrasadas} color={atrasadas > 0 ? 'rose' : 'emerald'} />
-                  </div>
+                  {/* Header com KPIs e ação */}
+                  {cronograma.length > 0 && (
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                      <KpiCard icon={ListChecks} label="Total de Fases" value={totalFases} color="blue" />
+                      <KpiCard icon={CheckCircle2} label="Concluídas" value={concluidas} sublabel={`de ${totalFases}`} color="emerald" />
+                      <KpiCard icon={Activity} label="Em Andamento" value={emAndamento} color="indigo" />
+                      <KpiCard icon={AlertTriangle} label="Atrasadas" value={atrasadas} color={atrasadas > 0 ? 'rose' : 'emerald'} />
+                    </div>
+                  )}
 
-                  {/* Gantt */}
+                  {/* Card principal do cronograma */}
                   <Card>
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardHeader className="flex flex-row items-center justify-between pb-3">
                       <div>
-                        <CardTitle className="text-base font-semibold">Cronograma Visual</CardTitle>
-                        <p className="text-xs text-slate-500">
-                          Progresso médio: <span className="font-semibold text-slate-700">{progressoMedio}%</span>
-                          {' · '}Clique em "Editar" para modificar as fases
-                        </p>
+                        <CardTitle className="text-base font-semibold text-gray-900">Cronograma da Obra</CardTitle>
+                        {cronograma.length > 0 && (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Progresso médio: <span className="font-semibold text-indigo-600">{progressoMedio}%</span>
+                          </p>
+                        )}
                       </div>
-                      <Button variant="outline" size="sm" onClick={() => setCronogramaModalOpen(true)}>
-                        <Edit3 className="w-4 h-4 mr-2" />
-                        Editar Cronograma
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                          onClick={() => setCronogramaModalOpen(true)}
+                        >
+                          <Plus className="w-4 h-4 mr-1.5" />
+                          {cronograma.length === 0 ? 'Criar Cronograma' : 'Adicionar Fase'}
+                        </Button>
+                        {cronograma.length > 0 && (
+                          <Button variant="outline" size="sm" onClick={() => setCronogramaModalOpen(true)}>
+                            <Edit3 className="w-4 h-4 mr-1.5" />
+                            Editar
+                          </Button>
+                        )}
+                      </div>
                     </CardHeader>
-                    <CardContent className="overflow-x-auto pb-4">
-                      <div className="min-w-[680px]">
-                        {/* Header meses */}
-                        <div className="flex mb-1">
-                          <div className="w-52 flex-shrink-0" />
-                          <div className="flex-1 flex border-b border-gray-200 pb-2">
-                            {meses.map((m, i) => (
-                              <div key={i} className="flex-1 text-center text-xs font-medium text-gray-500">
-                                {mesesNomes[m.getMonth()]}
-                                <span className="text-gray-400 text-[10px] ml-0.5">{m.getFullYear().toString().slice(2)}</span>
-                              </div>
-                            ))}
+
+                    <CardContent>
+                      {cronograma.length === 0 ? (
+                        <div className="py-14 flex flex-col items-center justify-center text-center">
+                          <div className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center mb-4">
+                            <ListChecks className="w-8 h-8 text-indigo-400" />
                           </div>
+                          <p className="font-medium text-gray-900 mb-1">Nenhuma fase cadastrada</p>
+                          <p className="text-sm text-gray-500 mb-5 max-w-xs">Clique em "Criar Cronograma" para adicionar fases e acompanhar o progresso da obra</p>
+                          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => setCronogramaModalOpen(true)}>
+                            <Plus className="w-4 h-4 mr-2" />
+                            Criar Cronograma
+                          </Button>
                         </div>
-
-                        {/* Rows */}
-                        <div className="relative">
-                          {/* Linha hoje */}
-                          {linhaHoje >= 0 && linhaHoje <= 100 && (
-                            <div
-                              className="absolute top-0 bottom-0 w-px bg-rose-400 z-10 pointer-events-none"
-                              style={{ left: `calc(208px + (100% - 208px) * ${linhaHoje / 100})` }}
-                            >
-                              <div className="absolute -top-0 -translate-x-1/2 bg-rose-500 text-white text-[9px] px-1 py-px rounded font-medium whitespace-nowrap">
-                                Hoje
-                              </div>
-                            </div>
-                          )}
-
+                      ) : (
+                        <div className="space-y-1">
+                          {/* Lista de fases */}
                           {fasesOrdenadas.map((fase, idx) => {
-                            const barra = calcBarra(fase);
-                            const colors = statusColors[fase.status] || statusColors.pendente;
-                            const indentPx = fase.depth * 14;
+                            const cfg = STATUS_CFG[fase.status] || STATUS_CFG.pendente;
+                            const prog = Math.round(Number(fase.progresso || 0));
+                            const indentPx = fase.depth * 16;
+                            const isAtrasada = !['concluida'].includes(fase.status) && fase.data_fim_planejada &&
+                              hoje > parseISO(fase.data_fim_planejada);
+                            const cfgEfetivo = isAtrasada ? STATUS_CFG.atrasada : cfg;
                             return (
                               <div
                                 key={fase.id || idx}
-                                className={`flex items-center py-1.5 rounded hover:bg-gray-50 transition-colors cursor-pointer ${fase.depth > 0 ? 'opacity-90' : ''}`}
+                                className={`group flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer border border-transparent hover:border-gray-200 ${
+                                  fase.depth > 0 ? 'ml-4 bg-gray-50/50' : ''
+                                }`}
+                                style={{ marginLeft: `${indentPx}px` }}
                                 onClick={() => setCronogramaModalOpen(true)}
                               >
+                                {/* Bolinha colorida */}
+                                <div
+                                  className={`w-3 h-3 rounded-full flex-shrink-0 ring-2 ring-white shadow-sm`}
+                                  style={{ backgroundColor: fase.cor || (isAtrasada ? '#ef4444' : '#6366f1') }}
+                                />
+
                                 {/* Nome + datas */}
-                                <div className="w-52 flex-shrink-0 pr-2" style={{ paddingLeft: `${indentPx + 6}px` }}>
-                                  <div className="flex items-center gap-1.5 min-w-0">
-                                    <div
-                                      className={`w-2 h-2 rounded-full flex-shrink-0 ${colors.dot}`}
-                                      style={fase.cor ? { backgroundColor: fase.cor } : {}}
-                                    />
-                                    <span className={`text-sm truncate ${fase.depth === 0 ? 'font-medium text-gray-800' : 'text-gray-600'}`}>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className={`text-sm truncate ${
+                                      fase.depth === 0 ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'
+                                    }`}>
                                       {fase.fase}
                                     </span>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${cfgEfetivo.badge}`}>
+                                      {isAtrasada ? 'Atrasada' : cfgEfetivo.label}
+                                    </span>
                                   </div>
-                                  <div className="text-[10px] text-gray-400 mt-0.5" style={{ paddingLeft: '14px' }}>
+                                  <p className="text-[11px] text-gray-400 mt-0.5">
                                     {fmtData(fase.data_inicio_planejada)} → {fmtData(fase.data_fim_planejada)}
-                                  </div>
+                                  </p>
                                 </div>
 
-                                {/* Gantt area */}
-                                <div className="flex-1 relative h-9">
-                                  {/* Grid */}
-                                  <div className="absolute inset-0 flex">
-                                    {meses.map((_, i) => (
-                                      <div key={i} className="flex-1 border-l border-gray-100 first:border-l-0" />
-                                    ))}
-                                  </div>
-
-                                  {/* Barra */}
-                                  {barra.visible && (
-                                    <div
-                                      className={`absolute top-2 h-5 rounded ${colors.light} overflow-hidden`}
-                                      style={{ left: `${barra.left}%`, width: `${barra.width}%` }}
-                                      title={`${fase.fase}: ${Math.round(Number(fase.progresso || 0))}%`}
-                                    >
+                                {/* Barra de progresso */}
+                                <div className="w-32 flex-shrink-0">
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                                       <div
-                                        className={`h-full rounded ${colors.bar} transition-all`}
-                                        style={{ width: `${Math.round(Number(fase.progresso || 0))}%` }}
+                                        className={`h-full rounded-full transition-all ${cfgEfetivo.bar}`}
+                                        style={{ width: `${prog}%` }}
                                       />
-                                      {barra.width > 5 && (
-                                        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-white mix-blend-difference">
-                                          {Math.round(Number(fase.progresso || 0))}%
-                                        </span>
-                                      )}
                                     </div>
-                                  )}
-                                  {!barra.visible && fase.data_inicio_planejada && (
-                                    <div className="absolute inset-0 flex items-center pl-2">
-                                      <span className="text-[10px] text-gray-400 italic">fora do período</span>
-                                    </div>
-                                  )}
+                                    <span className={`text-xs font-semibold w-8 text-right ${
+                                      prog === 100 ? 'text-emerald-600' : isAtrasada ? 'text-rose-600' : 'text-gray-700'
+                                    }`}>{prog}%</span>
+                                  </div>
                                 </div>
                               </div>
                             );
                           })}
-                        </div>
 
-                        {/* Legenda */}
-                        <div className="flex items-center gap-5 mt-4 pt-3 border-t border-gray-100 text-xs">
-                          {[
-                            { label: 'Concluída', color: 'bg-emerald-500' },
-                            { label: 'Em andamento', color: 'bg-indigo-500' },
-                            { label: 'Pendente', color: 'bg-gray-300' },
-                            { label: 'Atrasada', color: 'bg-rose-500' },
-                          ].map(l => (
-                            <div key={l.label} className="flex items-center gap-1.5">
-                              <div className={`w-3 h-3 rounded ${l.color}`} />
-                              <span className="text-gray-600">{l.label}</span>
+                          {/* Separador + Gantt */}
+                          <div className="mt-6 pt-4 border-t border-gray-100">
+                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Linha do Tempo</p>
+                            <div className="overflow-x-auto">
+                              <div style={{ minWidth: `${Math.max(600, mesesGantt.length * 80)}px` }}>
+                                {/* Header meses */}
+                                <div className="flex mb-2">
+                                  <div className="w-48 flex-shrink-0" />
+                                  <div className="flex-1 flex">
+                                    {mesesGantt.map((m, i) => (
+                                      <div key={i} className="flex-1 text-center text-[11px] font-medium text-gray-400 border-l border-gray-100 first:border-l-0 py-1">
+                                        {mesesNomes[m.getMonth()]}
+                                        <span className="text-gray-300 ml-0.5 text-[10px]">{m.getFullYear().toString().slice(2)}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                {/* Linhas Gantt */}
+                                <div className="relative">
+                                  {/* Linha hoje */}
+                                  {linhaHoje >= 0 && linhaHoje <= 100 && (
+                                    <div
+                                      className="absolute top-0 bottom-0 w-px bg-rose-400/60 z-10 pointer-events-none"
+                                      style={{ left: `calc(192px + (100% - 192px) * ${linhaHoje / 100})` }}
+                                    >
+                                      <div className="absolute -top-0 -translate-x-1/2 bg-rose-500 text-white text-[9px] px-1.5 py-px rounded font-medium">
+                                        Hoje
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {fasesOrdenadas.map((fase, idx) => {
+                                    const barra = calcBarra(fase);
+                                    const isAtrasada2 = !['concluida'].includes(fase.status) && fase.data_fim_planejada &&
+                                      hoje > parseISO(fase.data_fim_planejada);
+                                    const cfg2 = isAtrasada2 ? STATUS_CFG.atrasada : (STATUS_CFG[fase.status] || STATUS_CFG.pendente);
+                                    const prog2 = Math.round(Number(fase.progresso || 0));
+                                    return (
+                                      <div key={fase.id || idx} className="flex items-center h-8 border-b border-gray-50 last:border-0">
+                                        <div className="w-48 flex-shrink-0 pr-3">
+                                          <span
+                                            className="text-xs text-gray-600 truncate block"
+                                            style={{ paddingLeft: `${fase.depth * 12}px` }}
+                                          >
+                                            {fase.fase}
+                                          </span>
+                                        </div>
+                                        <div className="flex-1 relative h-full flex items-center">
+                                          {/* Grid */}
+                                          <div className="absolute inset-0 flex">
+                                            {mesesGantt.map((_, i) => (
+                                              <div key={i} className="flex-1 border-l border-gray-100 first:border-l-0" />
+                                            ))}
+                                          </div>
+                                          {/* Barra */}
+                                          {barra.visible && (
+                                            <div
+                                              className={`absolute h-4 rounded-full ${cfg2.light} overflow-hidden`}
+                                              style={{ left: `${barra.left}%`, width: `${barra.width}%` }}
+                                            >
+                                              <div
+                                                className={`h-full rounded-full ${cfg2.bar}`}
+                                                style={{ width: `${prog2}%` }}
+                                              />
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+
+                                {/* Legenda */}
+                                <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-100">
+                                  {Object.entries(STATUS_CFG).map(([k, v]) => (
+                                    <div key={k} className="flex items-center gap-1.5 text-xs text-gray-500">
+                                      <div className={`w-2.5 h-2.5 rounded-full ${v.bar}`} />
+                                      {v.label}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
                             </div>
-                          ))}
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </CardContent>
                   </Card>
                 </>
@@ -3615,6 +3675,16 @@ export default function Relatorios() {
           onOpenChange={setCronogramaModalOpen}
           obraId={obraSelecionada?.id}
           obraNome={obraSelecionada?.nome}
+          onSave={async () => {
+            // Recarrega o cronograma da obra após salvar no modal
+            try {
+              const res = await relatoriosService.getCronograma(obraSelecionada?.id);
+              const list = Array.isArray(res) ? res : (Array.isArray(res?.dados) ? res.dados : []);
+              setObraData(prev => ({ ...prev, cronograma: list }));
+            } catch (e) {
+              console.warn('Falha ao recarregar cronograma após salvar:', e);
+            }
+          }}
         />
       </div>
     );
