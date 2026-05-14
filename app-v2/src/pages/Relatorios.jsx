@@ -3078,392 +3078,378 @@ export default function Relatorios() {
           <TabsContent value="cronograma" className="mt-0">
             {(() => {
               const hoje = new Date();
-              const fasesPai = cronograma.filter(f => !f.parent_id);
-              const totalFases = fasesPai.length;
-              const concluidas = fasesPai.filter(f => f.status === 'concluida').length;
-              const emAndamento = fasesPai.filter(f => f.status === 'em_andamento').length;
-              const atrasadas = fasesPai.filter(f => {
-                if (f.status === 'concluida') return false;
-                if (!f.data_fim_planejada) return false;
-                try { return hoje > parseISO(f.data_fim_planejada); } catch { return false; }
-              }).length;
-              const progressoMedio = totalFases > 0
-                ? Math.round(fasesPai.reduce((s, f) => s + Number(f.progresso || 0), 0) / totalFases)
-                : 0;
 
-              // Lista hierárquica (pai → filhos)
+              // Helpers
+              const parseD = (iso) => { try { return parseISO(iso); } catch { return null; } };
+              const daysBetween = (a, b) => {
+                const da = parseD(a), db = parseD(b);
+                if (!da || !db) return 0;
+                return Math.max(0, Math.round((db - da) / 86400000));
+              };
+              const fmtData = (d) => { try { return format(parseISO(d), 'dd/MM/yy', { locale: ptBR }); } catch { return '—'; } };
+
+              // Status (db → design tokens)
+              const getStatus = (fase) => {
+                if (fase.status === 'concluida') return 'concluida';
+                if (fase.data_fim_planejada) {
+                  try { if (hoje > parseISO(fase.data_fim_planejada)) return 'atrasada'; } catch {}
+                }
+                if (fase.status === 'em_andamento') return 'em_andamento';
+                return 'pendente';
+              };
+
+              const S = {
+                concluida:    { fg:'#10B981', bg:'#E7F7F0', ring:'#C7EBD9', ink:'#0A6E4D', label:'Concluída' },
+                em_andamento: { fg:'#5B5CF6', bg:'#EEF0FF', ring:'#DCDEFF', ink:'#3F40B0', label:'Em andamento' },
+                atrasada:     { fg:'#EF4444', bg:'#FCE7E7', ring:'#F6CCCC', ink:'#9F1F1F', label:'Atrasada' },
+                pendente:     { fg:'#B7BAC2', bg:'#F2F3F6', ring:'#E6E7EC', ink:'#6B7080', label:'Pendente' },
+              };
+
+              // KPI counts (all phases, ignoring hierarchy)
+              const concluidas    = cronograma.filter(f => f.status === 'concluida').length;
+              const emAndamento   = cronograma.filter(f => f.status === 'em_andamento').length;
+              const atrasadas     = cronograma.filter(f => getStatus(f) === 'atrasada').length;
+              const totalFases    = cronograma.length;
+              const progressoMedio = totalFases > 0
+                ? Math.round(cronograma.reduce((s, f) => s + Number(f.progresso || 0), 0) / totalFases) : 0;
+
+              // Ordered flat list (parent → children)
+              const fasesPai = cronograma.filter(f => !f.parent_id).sort((a,b)=>a.ordem-b.ordem);
               const buildOrdered = () => {
                 const result = [];
-                const addFase = (fase, depth) => {
-                  result.push({ ...fase, depth });
-                  cronograma
-                    .filter(f => f.parent_id === fase.id)
-                    .sort((a, b) => a.ordem - b.ordem)
-                    .forEach(child => addFase(child, depth + 1));
+                const add = (f, depth) => {
+                  result.push({ ...f, depth });
+                  cronograma.filter(c => c.parent_id === f.id).sort((a,b)=>a.ordem-b.ordem).forEach(c => add(c, depth+1));
                 };
-                fasesPai.sort((a, b) => a.ordem - b.ordem).forEach(f => addFase(f, 0));
+                fasesPai.forEach(f => add(f, 0));
                 return result;
               };
               const fasesOrdenadas = buildOrdered();
 
-              // Range de meses para gantt (baseado nas datas das fases)
-              const todasDatas = cronograma.flatMap(f => [f.data_inicio_planejada, f.data_fim_planejada].filter(Boolean));
-              const datesArr = todasDatas.map(d => { try { return parseISO(d); } catch { return null; } }).filter(Boolean);
-              const minDate = datesArr.length > 0 ? new Date(Math.min(...datesArr)) : new Date();
-              const maxDate = datesArr.length > 0 ? new Date(Math.max(...datesArr)) : new Date(Date.now() + 180 * 86400000);
-              const ganttStart = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
-              const ganttEnd = new Date(maxDate.getFullYear(), maxDate.getMonth() + 2, 1);
-              const totalDias = (ganttEnd - ganttStart) / 86400000;
+              // Timeline range
+              const allDates = cronograma.flatMap(f=>[f.data_inicio_planejada, f.data_fim_planejada].filter(Boolean));
+              const dateObjs = allDates.map(d=>parseD(d)).filter(Boolean);
+              const minDate = dateObjs.length ? new Date(Math.min(...dateObjs)) : new Date();
+              const maxDate = dateObjs.length ? new Date(Math.max(...dateObjs)) : new Date(Date.now()+180*86400000);
+              const projStart = `${minDate.getFullYear()}-${String(minDate.getMonth()+1).padStart(2,'0')}-01`;
+              const ganttEnd  = new Date(maxDate.getFullYear(), maxDate.getMonth()+2, 1);
+              const projEnd   = `${ganttEnd.getFullYear()}-${String(ganttEnd.getMonth()+1).padStart(2,'0')}-01`;
+              const totalDias = daysBetween(projStart, projEnd) || 1;
 
-              const mesesGantt = [];
-              let cur = new Date(ganttStart);
-              while (cur < ganttEnd) {
-                mesesGantt.push(new Date(cur));
-                cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
-              }
+              const pct = (iso) => Math.max(0, Math.min(100, (daysBetween(projStart, iso) / totalDias) * 100));
+              const todayPct = pct(format(hoje, 'yyyy-MM-dd'));
+
+              // Month list for headers
               const mesesNomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-
-              const calcBarra = (fase) => {
-                if (!fase.data_inicio_planejada || !fase.data_fim_planejada) return { visible: false };
-                try {
-                  const inicio = parseISO(fase.data_inicio_planejada);
-                  const fim = parseISO(fase.data_fim_planejada);
-                  const left = Math.max(0, (inicio - ganttStart) / 86400000 / totalDias * 100);
-                  const width = Math.min(100 - left, Math.max(0.3, (fim - inicio) / 86400000 / totalDias * 100));
-                  return { left, width, visible: left < 100 };
-                } catch { return { visible: false }; }
-              };
-
-              const linhaHoje = Math.max(0, Math.min(100, (hoje - ganttStart) / 86400000 / totalDias * 100));
-
-              const STATUS_CFG = {
-                concluida:    { dot: '#10B981', bar: '#10B981', barBg: '#E7F7F0', pill: 'bg-[#E7F7F0] text-[#047857]', label: 'Concluída' },
-                em_andamento: { dot: '#5B5CF6', bar: '#5B5CF6', barBg: '#EEF0FF', pill: 'bg-[#EEF0FF] text-[#4338CA]', label: 'Em andamento' },
-                atrasada:     { dot: '#EF4444', bar: '#EF4444', barBg: '#FCE7E7', pill: 'bg-[#FCE7E7] text-[#B91C1C]', label: 'Atrasada' },
-                pendente:     { dot: '#9095A1', bar: '#9095A1', barBg: '#F2F3F6', pill: 'bg-[#F2F3F6] text-[#6B7080]', label: 'Pendente' },
-              };
-
-              const getStatus = (fase) => {
-                const isAtrasada = !['concluida'].includes(fase.status) && fase.data_fim_planejada;
-                if (isAtrasada) {
-                  try { return hoje > parseISO(fase.data_fim_planejada) ? 'atrasada' : (fase.status || 'pendente'); } catch { return fase.status || 'pendente'; }
-                }
-                return fase.status || 'pendente';
-              };
-
-              const fmtData = (d) => { try { return format(parseISO(d), 'dd/MM/yy', { locale: ptBR }); } catch { return '—'; } };
-              const fmtDataCurta = (d) => { try { return format(parseISO(d), 'dd MMM', { locale: ptBR }); } catch { return '—'; } };
-
-              // Empty state
-              if (cronograma.length === 0) {
-                return (
-                  <div className="rounded-xl border border-dashed border-gray-200 bg-white">
-                    <div className="py-16 flex flex-col items-center justify-center text-center">
-                      <div className="w-14 h-14 rounded-2xl bg-[#EEF0FF] flex items-center justify-center mb-4">
-                        <ListChecks className="w-7 h-7 text-[#5B5CF6]" />
-                      </div>
-                      <p className="font-semibold text-gray-900 mb-1">Nenhuma fase cadastrada</p>
-                      <p className="text-sm text-gray-400 mb-6 max-w-xs">Adicione fases para acompanhar o progresso e o cronograma da obra</p>
-                      <button
-                        onClick={() => setCronogramaModalOpen(true)}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-[#111317] hover:bg-black text-white text-sm font-medium rounded-[10px] transition-colors"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Criar Cronograma
-                      </button>
-                    </div>
-                  </div>
-                );
+              const meses = [];
+              let cur = parseD(projStart);
+              const ganttEndDate = parseD(projEnd);
+              while (cur < ganttEndDate) {
+                meses.push(new Date(cur));
+                cur = new Date(cur.getFullYear(), cur.getMonth()+1, 1);
               }
 
-              const ROW_H = 36; // px por row no gantt
+              // ── EMPTY STATE ──
+              if (cronograma.length === 0) return (
+                <div style={{ background:'#fff', border:'1px dashed #D1D5DB', borderRadius:14 }}>
+                  <div style={{ padding:'64px 32px', display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center' }}>
+                    <div style={{ width:56, height:56, borderRadius:14, background:'#EEF0FF', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:16 }}>
+                      <ListChecks style={{ width:28, height:28, color:'#5B5CF6' }}/>
+                    </div>
+                    <p style={{ fontWeight:600, fontSize:15, margin:'0 0 6px' }}>Nenhuma fase cadastrada</p>
+                    <p style={{ fontSize:13, color:'#6B7080', margin:'0 0 24px', maxWidth:280 }}>Adicione fases para acompanhar o progresso e cronograma da obra</p>
+                    <button onClick={() => setCronogramaModalOpen(true)} style={{
+                      display:'inline-flex', alignItems:'center', gap:8, padding:'9px 18px',
+                      background:'#111317', color:'#fff', border:'none', borderRadius:10,
+                      fontSize:13, fontWeight:500, cursor:'pointer',
+                    }}>
+                      <Plus style={{ width:15, height:15 }}/> Criar Cronograma
+                    </button>
+                  </div>
+                </div>
+              );
+
+              // ── KPI STRIP ──
+              const kpiCards = [
+                { value: totalFases, label:'Total de fases', sub:`${totalFases} no plano`, icon: <ListChecks style={{width:18,height:18}}/>,
+                  tone:{ bg:'#F2F4FF', ring:'#DCE0FF', ink:'#3F40B0' } },
+                { value: concluidas, label:'Concluídas', sub:`${concluidas} de ${totalFases}`, icon: <CheckCircle2 style={{width:18,height:18}}/>,
+                  tone:{ bg:'#E7F7F0', ring:'#C7EBD9', ink:'#0A6E4D' } },
+                { value: emAndamento, label:'Em andamento', sub:`${emAndamento} frente${emAndamento!==1?'s':''} ativa${emAndamento!==1?'s':''}`, icon: <Activity style={{width:18,height:18}}/>,
+                  tone:{ bg:'#EEF0FF', ring:'#DCDEFF', ink:'#3F40B0' } },
+                { value: atrasadas, label:'Atrasadas', sub: atrasadas > 0 ? 'Requer atenção' : 'Tudo no prazo', icon: <AlertTriangle style={{width:18,height:18}}/>,
+                  tone: atrasadas > 0
+                    ? { bg:'#FCE7E7', ring:'#F6CCCC', ink:'#9F1F1F' }
+                    : { bg:'#E7F7F0', ring:'#C7EBD9', ink:'#0A6E4D' } },
+              ];
+
+              // Styles
+              const btnBase = { display:'inline-flex', alignItems:'center', gap:7, padding:'7px 14px', background:'#fff', border:'1px solid #ECECEF', borderRadius:10, fontSize:13, fontWeight:500, color:'#111317', cursor:'pointer', fontFamily:'inherit' };
+              const btnPrimary = { ...btnBase, background:'#111317', color:'#fff', borderColor:'#111317' };
+              const colHdr = { fontSize:10.5, fontWeight:600, letterSpacing:'.06em', textTransform:'uppercase', color:'#9095A1' };
 
               return (
-                <div className="rounded-xl border border-[#ECECEF] bg-white overflow-hidden">
+                <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
 
-                  {/* ── TOOLBAR ── */}
-                  <div className="flex items-center justify-between px-4 py-2 border-b border-[#ECECEF] bg-[#F6F7F9]">
-
-                    {/* Esquerda: KPI chips */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-sm font-semibold text-gray-900 mr-1">{totalFases} fase{totalFases !== 1 ? 's' : ''}</span>
-                      <span className="w-px h-4 bg-gray-200" />
-                      {/* progresso geral */}
-                      <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-white border border-[#ECECEF] rounded-lg">
-                        <div className="w-16 h-1 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full bg-[#5B5CF6]" style={{ width: `${progressoMedio}%` }} />
+                  {/* KPI cards */}
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14 }}>
+                    {kpiCards.map((c, i) => (
+                      <div key={i} style={{ background:c.tone.bg, borderRadius:14, padding:'16px 18px', border:`1px solid ${c.tone.ring}`, position:'relative', overflow:'hidden' }}>
+                        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', color:c.tone.ink, opacity:.85 }}>
+                          {c.icon}
                         </div>
-                        <span className="text-xs font-semibold text-[#3D4150]">{progressoMedio}%</span>
+                        <div style={{ fontSize:36, fontWeight:600, color:c.tone.ink, letterSpacing:'-.02em', lineHeight:1.05, marginTop:8 }}>{c.value}</div>
+                        <div style={{ marginTop:2, fontSize:13, fontWeight:500, color:c.tone.ink }}>{c.label}</div>
+                        <div style={{ marginTop:2, fontSize:11.5, color:c.tone.ink, opacity:.7 }}>{c.sub}</div>
                       </div>
-                      {concluidas > 0 && (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-[#E7F7F0] rounded-lg text-xs font-medium text-[#047857]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
-                          {concluidas} concluída{concluidas > 1 ? 's' : ''}
-                        </span>
-                      )}
-                      {emAndamento > 0 && (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-[#EEF0FF] rounded-lg text-xs font-medium text-[#4338CA]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#5B5CF6]" />
-                          {emAndamento} em andamento
-                        </span>
-                      )}
-                      {atrasadas > 0 && (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-[#FCE7E7] rounded-lg text-xs font-medium text-[#B91C1C]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#EF4444]" />
-                          {atrasadas} atrasada{atrasadas > 1 ? 's' : ''}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Direita: view toggle + ações */}
-                    <div className="flex items-center gap-2">
-                      {/* Toggle Lista / Gantt */}
-                      <div className="flex bg-[#ECECEF] rounded-[8px] p-0.5 gap-0.5">
-                        {[['lista','Lista'],['gantt','Gantt']].map(([v, label]) => (
-                          <button
-                            key={v}
-                            onClick={() => setCronogramaTabView(v)}
-                            className={`px-3 py-1 text-xs font-medium rounded-[6px] transition-all ${
-                              cronogramaTabView === v
-                                ? 'bg-white text-gray-900 shadow-sm'
-                                : 'text-[#6B7080] hover:text-gray-700'
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                      <span className="w-px h-5 bg-[#ECECEF]" />
-                      <button
-                        onClick={() => setCronogramaModalOpen(true)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#111317] hover:bg-black text-white text-xs font-medium rounded-[8px] transition-colors"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        Adicionar Fase
-                      </button>
-                      <button
-                        onClick={() => setCronogramaModalOpen(true)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#ECECEF] hover:bg-[#F8F8FB] text-[#3D4150] text-xs font-medium rounded-[8px] transition-colors"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                        Editar
-                      </button>
-                    </div>
+                    ))}
                   </div>
 
-                  {/* ── VIEW: LISTA ── */}
-                  {cronogramaTabView === 'lista' && (
-                    <div>
-                      {/* Column headers */}
-                      <div className="grid items-center px-4 border-b border-[#ECECEF] bg-[#F6F7F9]/50"
-                        style={{ gridTemplateColumns: '1fr 160px 120px 150px' }}>
-                        <span className="py-2 text-[11px] font-semibold text-[#9095A1] uppercase tracking-wide">Fase</span>
-                        <span className="py-2 text-[11px] font-semibold text-[#9095A1] uppercase tracking-wide">Período</span>
-                        <span className="py-2 text-[11px] font-semibold text-[#9095A1] uppercase tracking-wide">Status</span>
-                        <span className="py-2 text-[11px] font-semibold text-[#9095A1] uppercase tracking-wide">Progresso</span>
+                  {/* Main card */}
+                  <div style={{ background:'#fff', border:'1px solid #ECECEF', borderRadius:14, overflow:'hidden' }}>
+
+                    {/* Card header */}
+                    <div style={{ padding:'16px 20px', borderBottom:'1px solid #ECECEF', display:'flex', alignItems:'center', gap:14 }}>
+                      <div>
+                        <div style={{ fontSize:15, fontWeight:600 }}>Cronograma visual</div>
+                        <div style={{ fontSize:12, color:'#6B7080', marginTop:2 }}>
+                          Progresso médio <b style={{ color:'#111317' }}>{progressoMedio}%</b>
+                          <span style={{ margin:'0 8px', color:'#9095A1' }}>·</span>
+                          {totalFases} fase{totalFases!==1?'s':''}
+                          <span style={{ margin:'0 8px', color:'#9095A1' }}>·</span>
+                          {concluidas} concluída{concluidas!==1?'s':''}
+                        </div>
                       </div>
+                      <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
+                        {/* View toggle */}
+                        <div style={{ display:'flex', padding:3, background:'#F4F5F8', borderRadius:9, gap:2 }}>
+                          {[['lista','Lista'],['gantt','Gantt']].map(([v,lbl]) => (
+                            <button key={v} onClick={() => setCronogramaTabView(v)} style={{
+                              padding:'5px 12px', fontSize:12, fontWeight:500, border:0, borderRadius:7, cursor:'pointer', fontFamily:'inherit',
+                              background: cronogramaTabView===v ? '#fff' : 'transparent',
+                              color: cronogramaTabView===v ? '#111317' : '#6B7080',
+                              boxShadow: cronogramaTabView===v ? '0 1px 2px rgba(0,0,0,.06)' : 'none',
+                            }}>{lbl}</button>
+                          ))}
+                        </div>
+                        <button onClick={() => setCronogramaModalOpen(true)} style={btnBase}>
+                          <Edit3 style={{width:14,height:14}}/> Editar cronograma
+                        </button>
+                        <button onClick={() => setCronogramaModalOpen(true)} style={btnPrimary}>
+                          <Plus style={{width:14,height:14}}/> Nova fase
+                        </button>
+                      </div>
+                    </div>
 
-                      {/* Rows */}
-                      {fasesOrdenadas.map((fase, idx) => {
-                        const status = getStatus(fase);
-                        const cfg = STATUS_CFG[status] || STATUS_CFG.pendente;
-                        const prog = Math.round(Number(fase.progresso || 0));
-                        return (
-                          <div
-                            key={fase.id || idx}
-                            onClick={() => setCronogramaModalOpen(true)}
-                            className="grid items-center px-4 border-b border-[#ECECEF] last:border-0 hover:bg-[#F6F7F9] transition-colors cursor-pointer group"
-                            style={{ gridTemplateColumns: '1fr 160px 120px 150px', minHeight: '40px' }}
-                          >
-                            {/* Nome */}
-                            <div className="flex items-center gap-2 py-2.5 min-w-0" style={{ paddingLeft: `${fase.depth * 20}px` }}>
-                              {fase.depth > 0 && <span className="w-3 h-px bg-gray-200 flex-shrink-0" />}
-                              <span
-                                className="w-2 h-2 rounded-full flex-shrink-0"
-                                style={{ backgroundColor: fase.cor || cfg.dot }}
-                              />
-                              <span className={`text-sm truncate ${fase.depth === 0 ? 'font-medium text-[#111317]' : 'text-[#3D4150]'}`}>
-                                {fase.fase}
-                              </span>
-                            </div>
-
-                            {/* Período */}
-                            <div className="text-xs text-[#6B7080] font-mono tabular-nums py-2.5">
-                              {fase.data_inicio_planejada || fase.data_fim_planejada
-                                ? <>{fmtDataCurta(fase.data_inicio_planejada)} <span className="text-[#9095A1]">→</span> {fmtDataCurta(fase.data_fim_planejada)}</>
-                                : <span className="text-[#9095A1] italic">Sem data</span>
-                              }
-                            </div>
-
-                            {/* Status pill */}
-                            <div className="py-2.5">
-                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium ${cfg.pill}`}>
-                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cfg.dot }} />
-                                {cfg.label}
-                              </span>
-                            </div>
-
-                            {/* Progresso */}
-                            <div className="flex items-center gap-2 py-2.5">
-                              <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: cfg.barBg }}>
-                                <div
-                                  className="h-full rounded-full transition-all"
-                                  style={{ width: `${prog}%`, backgroundColor: cfg.bar }}
-                                />
+                    {/* ── VIEW: LISTA ── */}
+                    {cronogramaTabView === 'lista' && (
+                      <div>
+                        {/* Column headers */}
+                        <div style={{ display:'grid', gridTemplateColumns:'36px 2fr 1fr .9fr 2fr', padding:'10px 20px', borderBottom:'1px solid #ECECEF', background:'#FAFAFC', alignItems:'center', gap:14, ...colHdr }}>
+                          <div></div>
+                          <div style={{ display:'flex', alignItems:'center', gap:4 }}>Fase</div>
+                          <div>Status</div>
+                          <div>Progresso</div>
+                          <div style={{ paddingRight:14 }}>
+                            {/* Month scale header */}
+                            <div style={{ position:'relative', height:20 }}>
+                              <div style={{ position:'absolute', inset:0, display:'grid', gridTemplateColumns:`repeat(${meses.length},1fr)` }}>
+                                {meses.map((m,i) => (
+                                  <div key={i} style={{ borderLeft: i ? '1px solid #ECECEF' : 'none', fontSize:9.5, color:'#9095A1', padding:'2px 5px', display:'flex', alignItems:'center', gap:3, fontWeight:600, letterSpacing:'.04em', textTransform:'uppercase' }}>
+                                    {mesesNomes[m.getMonth()]}<span style={{ opacity:.6, fontFamily:'monospace' }}>{String(m.getFullYear()).slice(2)}</span>
+                                  </div>
+                                ))}
                               </div>
-                              <span className="text-xs font-semibold w-7 text-right tabular-nums" style={{ color: cfg.dot }}>
-                                {prog}%
-                              </span>
+                              <div style={{ position:'absolute', left:`${todayPct}%`, top:0, bottom:-2, transform:'translateX(-50%)' }}>
+                                <span style={{ display:'inline-block', background:'#EF4444', color:'#fff', fontSize:8, padding:'1px 4px', fontWeight:700, letterSpacing:'.04em', borderRadius:3 }}>HOJE</span>
+                              </div>
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* ── VIEW: GANTT ── */}
-                  {cronogramaTabView === 'gantt' && (
-                    <div className="flex overflow-hidden" style={{ minHeight: `${fasesOrdenadas.length * ROW_H + 36}px` }}>
-                      {/* Coluna esquerda: nomes + status */}
-                      <div className="w-64 flex-shrink-0 border-r border-[#ECECEF]">
-                        {/* Header */}
-                        <div className="h-9 flex items-center px-4 border-b border-[#ECECEF] bg-[#F6F7F9]/50">
-                          <span className="text-[11px] font-semibold text-[#9095A1] uppercase tracking-wide">Fase</span>
                         </div>
+
                         {/* Rows */}
                         {fasesOrdenadas.map((fase, idx) => {
-                          const status = getStatus(fase);
-                          const cfg = STATUS_CFG[status] || STATUS_CFG.pendente;
+                          const st = getStatus(fase);
+                          const sc = S[st];
+                          const prog = Math.round(Number(fase.progresso || 0));
+                          const left = pct(fase.data_inicio_planejada);
+                          const width = fase.data_inicio_planejada && fase.data_fim_planejada
+                            ? Math.max(0.5, pct(fase.data_fim_planejada) - left) : 0;
+                          const todayL = (daysBetween(projStart, format(hoje,'yyyy-MM-dd')) / totalDias) * 100;
+
                           return (
-                            <div
-                              key={fase.id || idx}
-                              className="flex items-center gap-2 px-4 border-b border-[#ECECEF] last:border-0 hover:bg-[#F6F7F9] cursor-pointer transition-colors group"
-                              style={{ height: `${ROW_H}px`, paddingLeft: `${16 + fase.depth * 16}px` }}
-                              onClick={() => setCronogramaModalOpen(true)}
+                            <div key={fase.id || idx} onClick={() => setCronogramaModalOpen(true)} style={{
+                              display:'grid', gridTemplateColumns:'36px 2fr 1fr .9fr 2fr',
+                              padding:'13px 20px', borderBottom:'1px solid #ECECEF', alignItems:'center', gap:14,
+                              background:'#fff', cursor:'pointer',
+                            }}
+                              onMouseEnter={e => e.currentTarget.style.background='#FBFBFD'}
+                              onMouseLeave={e => e.currentTarget.style.background='#fff'}
                             >
-                              {fase.depth > 0 && <span className="w-2.5 h-px bg-gray-200 flex-shrink-0" />}
-                              <span
-                                className="w-2 h-2 rounded-full flex-shrink-0"
-                                style={{ backgroundColor: fase.cor || cfg.dot }}
-                              />
-                              <span className={`text-xs truncate min-w-0 ${fase.depth === 0 ? 'font-medium text-[#111317]' : 'text-[#3D4150]'}`}>
-                                {fase.fase}
-                              </span>
+                              {/* ID badge */}
+                              <div style={{ width:32, height:32, borderRadius:8, background:sc.bg, color:sc.ink, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, border:`1px solid ${sc.fg}33` }}>
+                                <span style={{ fontSize:11, fontWeight:700 }}>{String(idx+1).padStart(2,'0')}</span>
+                              </div>
+
+                              {/* Nome + datas */}
+                              <div style={{ minWidth:0, paddingLeft: fase.depth * 16 }}>
+                                <div style={{ fontSize:13.5, fontWeight: fase.depth===0 ? 600 : 500, color:'#111317', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{fase.fase}</div>
+                                <div style={{ fontSize:11.5, color:'#6B7080', marginTop:2, fontFamily:'monospace' }}>
+                                  {fmtData(fase.data_inicio_planejada)} → {fmtData(fase.data_fim_planejada)}
+                                  {fase.descricao ? <span style={{ color:'#9095A1', marginLeft:6 }}>· {fase.descricao}</span> : null}
+                                </div>
+                              </div>
+
+                              {/* Status pill */}
+                              <div>
+                                <span style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'3px 9px', borderRadius:999, fontSize:11.5, fontWeight:500, background:sc.bg, color:sc.ink }}>
+                                  <span style={{ width:7, height:7, borderRadius:'50%', display:'inline-block', background:sc.fg }}/>
+                                  {sc.label}
+                                </span>
+                              </div>
+
+                              {/* Progresso */}
+                              <div>
+                                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                                  <div style={{ flex:1, height:6, borderRadius:6, background:'#EFEFF3', overflow:'hidden' }}>
+                                    <div style={{ height:'100%', width:`${prog}%`, background:sc.fg, borderRadius:6 }}/>
+                                  </div>
+                                  <span style={{ fontSize:12, fontWeight:600, minWidth:32, textAlign:'right', fontFamily:'monospace', color:sc.ink }}>{prog}%</span>
+                                </div>
+                              </div>
+
+                              {/* Mini gantt */}
+                              <div style={{ paddingRight:14 }}>
+                                <div style={{ position:'relative', height:30, width:'100%' }}>
+                                  {/* track */}
+                                  <div style={{ position:'absolute', left:0, right:0, top:13, height:4, background:'#F2F3F6', borderRadius:4 }}/>
+                                  {/* bar */}
+                                  {width > 0 && (
+                                    <div style={{ position:'absolute', left:`${left}%`, width:`${width}%`, top:9, height:12, borderRadius:4, background:`${sc.fg}33`, border:`1px solid ${sc.fg}55`, overflow:'hidden' }}>
+                                      {prog > 0 && <div style={{ position:'absolute', left:0, top:0, bottom:0, width:`${prog}%`, background:sc.fg }}/>}
+                                    </div>
+                                  )}
+                                  {/* today line */}
+                                  <div style={{ position:'absolute', left:`${todayL}%`, top:2, bottom:2, width:1.5, background:'#EF4444', opacity:.65 }}/>
+                                </div>
+                              </div>
                             </div>
                           );
                         })}
-                      </div>
 
-                      {/* Coluna direita: timeline */}
-                      <div className="flex-1 overflow-x-auto">
-                        <div style={{ minWidth: `${Math.max(400, mesesGantt.length * 90)}px` }}>
-                          {/* Header meses */}
-                          <div className="flex h-9 border-b border-[#ECECEF] bg-[#F6F7F9]/50">
-                            {mesesGantt.map((m, i) => (
-                              <div
-                                key={i}
-                                className="flex-1 flex items-center justify-center text-[11px] font-medium text-[#9095A1] border-l border-[#ECECEF] first:border-l-0"
-                              >
-                                {mesesNomes[m.getMonth()]}
-                                <span className="text-[#9095A1]/60 ml-0.5 text-[10px]">{m.getFullYear().toString().slice(2)}</span>
+                        {/* Footer summary */}
+                        <div style={{ padding:'12px 20px', display:'flex', alignItems:'center', gap:20, fontSize:12, color:'#6B7080', background:'#FAFAFC' }}>
+                          <span><b style={{ color:'#111317' }}>{totalFases}</b> fases</span>
+                          <span>·</span>
+                          <span>Progresso médio <b style={{ color:'#111317', fontFamily:'monospace' }}>{progressoMedio}%</b></span>
+                          <span>·</span>
+                          <span><b style={{ color:'#0A6E4D' }}>{concluidas}</b> concluída{concluidas!==1?'s':''}</span>
+                          {atrasadas > 0 && <><span>·</span><span><b style={{ color:'#9F1F1F' }}>{atrasadas}</b> atrasada{atrasadas!==1?'s':''}</span></>}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── VIEW: GANTT ── */}
+                    {cronogramaTabView === 'gantt' && (
+                      <div style={{ display:'grid', gridTemplateColumns:'360px 1fr', overflow:'hidden' }}>
+                        {/* Left fixed column header */}
+                        <div style={{ padding:'0 20px', ...colHdr, borderBottom:'1px solid #ECECEF', background:'#FAFAFC', display:'flex', alignItems:'flex-end', paddingBottom:10, height:56 }}>
+                          Fase / Período
+                        </div>
+
+                        {/* Right: month headers */}
+                        <div style={{ position:'relative', borderBottom:'1px solid #ECECEF', background:'#FAFAFC', height:56, overflowX:'auto' }}>
+                          {/* Today pill */}
+                          <div style={{ position:'absolute', left:`${todayPct}%`, top:8, transform:'translateX(-50%)', zIndex:2 }}>
+                            <span style={{ display:'inline-flex', alignItems:'center', background:'#EF4444', color:'#fff', fontSize:10, padding:'3px 8px', fontWeight:700, letterSpacing:'.04em', borderRadius:999 }}>HOJE · {format(hoje,'dd/MM', {locale:ptBR})}</span>
+                          </div>
+                          {/* Month names */}
+                          <div style={{ position:'absolute', left:0, right:0, bottom:0, top:30, display:'grid', gridTemplateColumns:`repeat(${meses.length},1fr)` }}>
+                            {meses.map((m,i) => (
+                              <div key={i} style={{ padding:'6px 10px', ...colHdr, borderLeft: i ? '1px solid #ECECEF' : 'none', display:'flex', alignItems:'center', gap:4 }}>
+                                {mesesNomes[m.getMonth()]} <span style={{ opacity:.6, fontFamily:'monospace' }}>{String(m.getFullYear()).slice(2)}</span>
                               </div>
                             ))}
                           </div>
+                        </div>
 
-                          {/* Rows */}
-                          <div className="relative">
-                            {/* Linha hoje */}
-                            {linhaHoje >= 0 && linhaHoje <= 100 && (
-                              <div
-                                className="absolute top-0 bottom-0 w-px z-10 pointer-events-none"
-                                style={{ left: `${linhaHoje}%`, backgroundColor: '#EF4444', opacity: 0.7 }}
+                        {/* Phase rows */}
+                        {fasesOrdenadas.map((fase, idx) => {
+                          const st = getStatus(fase);
+                          const sc = S[st];
+                          const prog = Math.round(Number(fase.progresso || 0));
+                          const left = fase.data_inicio_planejada ? pct(fase.data_inicio_planejada) : null;
+                          const right = fase.data_fim_planejada ? pct(fase.data_fim_planejada) : null;
+                          const barWidth = left !== null && right !== null ? Math.max(0.5, right - left) : 0;
+                          const isEven = idx % 2 === 0;
+                          const rowBg = isEven ? '#fff' : '#FBFBFD';
+
+                          return (
+                            <React.Fragment key={fase.id || idx}>
+                              {/* Left: name info */}
+                              <div onClick={() => setCronogramaModalOpen(true)} style={{
+                                padding:'13px 20px', borderBottom:'1px solid #ECECEF', display:'flex', alignItems:'center', gap:10,
+                                background:rowBg, cursor:'pointer', paddingLeft: 20 + fase.depth * 16,
+                              }}
+                                onMouseEnter={e => e.currentTarget.style.background='#F6F7F9'}
+                                onMouseLeave={e => e.currentTarget.style.background=rowBg}
                               >
-                                <div
-                                  className="absolute -top-0 -translate-x-1/2 text-white text-[9px] px-1.5 py-px rounded font-medium"
-                                  style={{ backgroundColor: '#EF4444', whiteSpace: 'nowrap' }}
-                                >
-                                  Hoje
+                                <div style={{ width:32, height:32, borderRadius:8, background:sc.bg, color:sc.ink, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, border:`1px solid ${sc.fg}33` }}>
+                                  <span style={{ fontSize:11, fontWeight:700 }}>{String(idx+1).padStart(2,'0')}</span>
+                                </div>
+                                <div style={{ minWidth:0, flex:1 }}>
+                                  <div style={{ fontSize:13.5, fontWeight: fase.depth===0 ? 600 : 500, color:'#111317', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{fase.fase}</div>
+                                  <div style={{ fontSize:11.5, color:'#6B7080', marginTop:2, fontFamily:'monospace', display:'flex', alignItems:'center', gap:6 }}>
+                                    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 7px', borderRadius:999, fontSize:10.5, fontWeight:500, background:sc.bg, color:sc.ink }}>
+                                      <span style={{ width:6, height:6, borderRadius:'50%', display:'inline-block', background:sc.fg }}/>
+                                      {sc.label}
+                                    </span>
+                                    <span>{fmtData(fase.data_inicio_planejada)} → {fmtData(fase.data_fim_planejada)}</span>
+                                  </div>
                                 </div>
                               </div>
-                            )}
 
-                            {fasesOrdenadas.map((fase, idx) => {
-                              const barra = calcBarra(fase);
-                              const status = getStatus(fase);
-                              const cfg = STATUS_CFG[status] || STATUS_CFG.pendente;
-                              const prog = Math.round(Number(fase.progresso || 0));
-                              const isEven = idx % 2 === 0;
-                              return (
-                                <div
-                                  key={fase.id || idx}
-                                  className="relative flex items-center border-b border-[#ECECEF] last:border-0 hover:bg-[#F6F7F9] cursor-pointer transition-colors"
-                                  style={{ height: `${ROW_H}px`, backgroundColor: isEven ? 'transparent' : '#FAFAFA' }}
-                                  onClick={() => setCronogramaModalOpen(true)}
-                                >
-                                  {/* Grid de meses */}
-                                  <div className="absolute inset-0 flex pointer-events-none">
-                                    {mesesGantt.map((_, i) => (
-                                      <div key={i} className="flex-1 border-l border-[#ECECEF]/60 first:border-l-0" />
-                                    ))}
+                              {/* Right: gantt bar */}
+                              <div onClick={() => setCronogramaModalOpen(true)} style={{ position:'relative', borderBottom:'1px solid #ECECEF', height:60, background:rowBg, cursor:'pointer', overflow:'hidden' }}
+                                onMouseEnter={e => e.currentTarget.style.background='#F6F7F9'}
+                                onMouseLeave={e => e.currentTarget.style.background=rowBg}
+                              >
+                                {/* month grid */}
+                                {meses.map((_,i) => (
+                                  <div key={i} style={{ position:'absolute', top:0, bottom:0, left:`${(i/meses.length)*100}%`, width:1, background:'#ECECEF' }}/>
+                                ))}
+
+                                {/* bar */}
+                                {barWidth > 0 && left !== null && (
+                                  <div style={{ position:'absolute', left:`${left}%`, width:`${barWidth}%`, top:18, height:24, borderRadius:7, background:`${sc.fg}22`, border:`1px solid ${sc.fg}55`, display:'flex', alignItems:'center', overflow:'hidden', minWidth:22 }}>
+                                    {prog > 0 && <div style={{ position:'absolute', left:0, top:0, bottom:0, width:`${prog}%`, background:sc.fg, opacity:.9 }}/>}
+                                    <span style={{ position:'relative', margin:'0 auto', fontSize:11, fontWeight:700, color: prog >= 50 ? '#fff' : sc.ink, whiteSpace:'nowrap', fontFamily:'monospace' }}>{prog}%</span>
                                   </div>
+                                )}
 
-                                  {/* Barra */}
-                                  {barra.visible && (
-                                    <div
-                                      className="absolute rounded-full overflow-hidden"
-                                      style={{
-                                        left: `${barra.left}%`,
-                                        width: `${barra.width}%`,
-                                        height: fase.depth === 0 ? '16px' : '10px',
-                                        top: '50%',
-                                        transform: 'translateY(-50%)',
-                                        backgroundColor: cfg.barBg,
-                                      }}
-                                    >
-                                      <div
-                                        className="h-full rounded-full transition-all"
-                                        style={{ width: `${prog}%`, backgroundColor: cfg.bar }}
-                                      />
-                                      {/* Label % dentro da barra se grande o suficiente */}
-                                      {barra.width > 8 && fase.depth === 0 && (
-                                        <div
-                                          className="absolute inset-0 flex items-center px-1.5"
-                                          style={{ color: prog > 50 ? 'white' : cfg.dot }}
-                                        >
-                                          <span className="text-[9px] font-semibold">{prog}%</span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                  {!barra.visible && !fase.data_inicio_planejada && (
-                                    <div className="absolute inset-0 flex items-center pl-3">
-                                      <span className="text-[10px] text-[#9095A1] italic">Sem data</span>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
+                                {/* today line */}
+                                <div style={{ position:'absolute', left:`${todayPct}%`, top:0, bottom:0, width:1.5, background:'#EF4444', opacity:.55 }}/>
+                              </div>
+                            </React.Fragment>
+                          );
+                        })}
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* ── FOOTER: legenda ── */}
-                  <div className="flex items-center justify-between px-4 py-2 border-t border-[#ECECEF] bg-[#F6F7F9]/50">
-                    <div className="flex items-center gap-4">
-                      {Object.entries(STATUS_CFG).map(([k, v]) => (
-                        <div key={k} className="flex items-center gap-1.5 text-[11px] text-[#6B7080]">
-                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: v.dot }} />
+                    {/* Legend footer */}
+                    <div style={{ padding:'14px 20px', borderTop:'1px solid #ECECEF', display:'flex', alignItems:'center', gap:18, flexWrap:'wrap', fontSize:12, color:'#6B7080' }}>
+                      {Object.entries(S).map(([k,v]) => (
+                        <span key={k} style={{ display:'inline-flex', alignItems:'center', gap:7 }}>
+                          <span style={{ width:11, height:11, borderRadius:4, background:v.fg, display:'inline-block' }}/>
                           {v.label}
-                        </div>
+                        </span>
                       ))}
+                      <span style={{ marginLeft:'auto', display:'inline-flex', alignItems:'center', gap:7 }}>
+                        <span style={{ width:2, height:14, background:'#EF4444', display:'inline-block' }}/> Hoje
+                      </span>
                     </div>
-                    <span className="text-[11px] text-[#9095A1]">
-                      Clique em qualquer fase para editar
-                    </span>
-                  </div>
 
+                  </div>
                 </div>
               );
             })()}
