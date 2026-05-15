@@ -984,7 +984,64 @@ const relatoriosService = {
       revisao: { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-200', dot: 'bg-blue-500' }
     };
     return cores[status] || cores.rascunho;
-  }
+  },
+
+  // ============================================================================
+  // RELATÓRIOS DIÁRIOS
+  // ============================================================================
+
+  async listarRelatoriosDiarios(obraId) {
+    let query = supabase
+      .from('relatorios_diarios')
+      .select('id, obra_id, data, clima, observacoes, criado_por, criado_em, itens')
+      .order('data', { ascending: false })
+      .order('criado_em', { ascending: false });
+    if (obraId) query = query.eq('obra_id', obraId);
+    const { data, error } = await query;
+    check(error);
+    return data || [];
+  },
+
+  async getRelatorioDiario(id) {
+    const { data, error } = await supabase
+      .from('relatorios_diarios')
+      .select('*')
+      .eq('id', id)
+      .single();
+    check(error);
+    return data;
+  },
+
+  async criarRelatorioDiario({ obra_id, data, clima, observacoes, itens, criado_por, tenant_id }) {
+    const { data: row, error } = await supabase
+      .from('relatorios_diarios')
+      .insert({ obra_id, data, clima, observacoes, itens, criado_por, tenant_id })
+      .select()
+      .single();
+    check(error);
+    return row;
+  },
+
+  // Salva o relatório diário E atualiza o progresso de cada item no cronograma
+  async submeterRelatorioDiario({ obra_id, data, clima, observacoes, itens, criado_por, tenant_id }) {
+    // 1. Cria o relatório
+    const relatorio = await this.criarRelatorioDiario({ obra_id, data, clima, observacoes, itens, criado_por, tenant_id });
+
+    // 2. Atualiza progresso dos itens que mudaram
+    const updates = itens.filter(i => i.progresso_novo !== i.progresso_anterior);
+    for (const item of updates) {
+      const novoStatus =
+        item.progresso_novo >= 100 ? 'concluida'
+        : item.progresso_novo > 0  ? 'em_andamento'
+        : 'pendente';
+      await supabase
+        .from('obras_cronograma')
+        .update({ progresso: item.progresso_novo, status: novoStatus })
+        .eq('id', item.id);
+    }
+
+    return relatorio;
+  },
 };
 
 export default relatoriosService;

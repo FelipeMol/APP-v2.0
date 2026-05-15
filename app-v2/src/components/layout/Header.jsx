@@ -30,6 +30,7 @@ const ROUTE_LABELS = {
   '/relatorios-visao-geral':   'Relatórios',
   '/relatorios':               'Análise',
   '/relatorios/equipe-pdf':    'Relatório PDF',
+  '/relatorio-diario':         'Relatório Diário',
   '/rh':                       'RH',
   '/usuarios':                 'Usuários',
   '/permissoes':               'Permissões',

@@ -34,6 +34,7 @@ import ContatosCadastros from './pages/cadastros/Contatos';
 import CategoriasFinanceiro from './pages/cadastros/CategoriasFinanceiro';
 import ImportarCategorias from './pages/cadastros/ImportarCategorias';
 import AICopilot from './pages/AICopilot';
+import RelatorioDiario from './pages/RelatorioDiario';
 
 // Usando HashRouter para compatibilidade com hospedagem compartilhada
 // URLs ficam: /#/dashboard, /#/login, etc.
@@ -42,6 +43,18 @@ const router = createHashRouter([
   {
     path: '/login',
     element: <Login />,
+  },
+
+  // Relatório Diário — página standalone mobile (sem sidebar)
+  {
+    path: '/relatorio-diario',
+    element: (
+      <ProtectedRoute>
+        <TenantGate>
+          <RelatorioDiario />
+        </TenantGate>
+      </ProtectedRoute>
+    ),
   },
 
   // Rota protegida: Selecionar Empresa (sempre obrigatório após login)

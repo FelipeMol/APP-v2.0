@@ -32,6 +32,7 @@ import {
   Tag,
   Landmark,
   Bot,
+  ClipboardCheck,
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -95,9 +96,10 @@ export default function Sidebar() {
     {
       name: 'Relatórios', icon: BarChart3, isSubmenu: true,
       submenuItems: [
-        { name: 'Visão Geral', path: '/relatorios-visao-geral', icon: BarChart3, permission: 'relatorios' },
-        { name: 'Análise',     path: '/relatorios',             icon: TrendingUp, permission: 'relatorios' },
-        { name: 'Equipe PDF',  path: '/relatorios/equipe-pdf',  icon: FileDown,  permission: 'relatorios' },
+        { name: 'Visão Geral',   path: '/relatorios-visao-geral', icon: BarChart3,      permission: 'relatorios' },
+        { name: 'Análise',        path: '/relatorios',             icon: TrendingUp,     permission: 'relatorios' },
+        { name: 'Relatório Diário', path: '/relatorio-diario',     icon: ClipboardCheck, permission: 'relatorios' },
+        { name: 'Equipe PDF',     path: '/relatorios/equipe-pdf',  icon: FileDown,       permission: 'relatorios' },
       ],
     },
 
