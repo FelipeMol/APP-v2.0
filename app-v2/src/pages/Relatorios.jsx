@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -3385,7 +3385,7 @@ export default function Relatorios() {
                           const rowBg = isEven ? '#fff' : '#FBFBFD';
 
                           return (
-                            <React.Fragment key={fase.id || idx}>
+                            <Fragment key={fase.id || idx}>
                               {/* Left: name info */}
                               <div onClick={() => setCronogramaModalOpen(true)} style={{
                                 padding:'13px 20px', borderBottom:'1px solid #ECECEF', display:'flex', alignItems:'center', gap:10,
@@ -3430,7 +3430,7 @@ export default function Relatorios() {
                                 {/* today line */}
                                 <div style={{ position:'absolute', left:`${todayPct}%`, top:0, bottom:0, width:1.5, background:'#EF4444', opacity:.55 }}/>
                               </div>
-                            </React.Fragment>
+                            </Fragment>
                           );
                         })}
                       </div>

@@ -15,7 +15,7 @@ export default function TenantHead() {
 
     // Favicon dinâmico por tenant
     if (tenantId) {
-      const faviconUrl = `/logos/${tenantId}.png`;
+      const faviconUrl = branding.logoLocalUrl || `/logos/${tenantId}.png`;
       let link = document.querySelector("link[rel~='icon']");
       if (!link) {
         link = document.createElement('link');
