@@ -14,8 +14,12 @@ import {
   CloudDrizzle,
   Send,
   ArrowLeft,
-  ClipboardList,
+  HardHat,
   Loader2,
+  Minus,
+  Plus,
+  CalendarDays,
+  MapPin,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import obrasService from '@/services/obrasService';
@@ -27,32 +31,57 @@ import useTenantStore from '@/store/tenantStore';
 // CLIMA OPTIONS
 // ============================================================================
 const CLIMAS = [
-  { id: 'sol',        label: 'Sol',         Icon: Sun,         cor: 'text-yellow-500', bg: 'bg-yellow-50 border-yellow-300' },
-  { id: 'nublado',    label: 'Nublado',     Icon: Cloud,       cor: 'text-gray-500',   bg: 'bg-gray-50 border-gray-300' },
-  { id: 'chuva',      label: 'Chuva',       Icon: CloudDrizzle, cor: 'text-blue-500',  bg: 'bg-blue-50 border-blue-300' },
-  { id: 'chuva_forte',label: 'Chuva forte', Icon: CloudRain,   cor: 'text-blue-700',   bg: 'bg-blue-100 border-blue-400' },
+  {
+    id: 'sol',
+    label: 'Sol',
+    emoji: '☀️',
+    Icon: Sun,
+    activeClass: 'bg-amber-400 border-amber-400 text-white shadow-amber-200',
+    idleClass: 'bg-white border-slate-200 text-slate-500',
+  },
+  {
+    id: 'nublado',
+    label: 'Nublado',
+    emoji: '☁️',
+    Icon: Cloud,
+    activeClass: 'bg-slate-500 border-slate-500 text-white shadow-slate-200',
+    idleClass: 'bg-white border-slate-200 text-slate-500',
+  },
+  {
+    id: 'chuva',
+    label: 'Chuva',
+    emoji: '🌦️',
+    Icon: CloudDrizzle,
+    activeClass: 'bg-sky-500 border-sky-500 text-white shadow-sky-200',
+    idleClass: 'bg-white border-slate-200 text-slate-500',
+  },
+  {
+    id: 'chuva_forte',
+    label: 'Tempestade',
+    emoji: '⛈️',
+    Icon: CloudRain,
+    activeClass: 'bg-indigo-700 border-indigo-700 text-white shadow-indigo-200',
+    idleClass: 'bg-white border-slate-200 text-slate-500',
+  },
 ];
 
 // ============================================================================
 // HELPERS
 // ============================================================================
-function getStatusConfig(progresso) {
-  if (progresso >= 100) return { label: 'Concluída', color: 'text-emerald-600', bg: 'bg-emerald-100', Icon: CheckCircle2 };
-  if (progresso > 0)   return { label: 'Em andamento', color: 'text-indigo-600', bg: 'bg-indigo-100', Icon: Clock };
-  return { label: 'Pendente', color: 'text-gray-500', bg: 'bg-gray-100', Icon: AlertTriangle };
+function getProgressStyle(progresso) {
+  if (progresso >= 100) return { bar: 'bg-emerald-500', text: 'text-emerald-600', badge: 'bg-emerald-100 text-emerald-700', Icon: CheckCircle2 };
+  if (progresso >= 50)  return { bar: 'bg-indigo-500',  text: 'text-indigo-600',  badge: 'bg-indigo-100 text-indigo-700',  Icon: Clock };
+  if (progresso > 0)    return { bar: 'bg-amber-500',   text: 'text-amber-600',   badge: 'bg-amber-100 text-amber-700',    Icon: Clock };
+  return { bar: 'bg-slate-300', text: 'text-slate-400', badge: 'bg-slate-100 text-slate-500', Icon: AlertTriangle };
 }
 
-// Constrói árvore hierárquica a partir de lista plana
 function buildTree(items) {
   const byId = {};
   items.forEach(i => { byId[i.id] = { ...i, children: [] }; });
   const roots = [];
   items.forEach(i => {
-    if (i.parent_id && byId[i.parent_id]) {
-      byId[i.parent_id].children.push(byId[i.id]);
-    } else {
-      roots.push(byId[i.id]);
-    }
+    if (i.parent_id && byId[i.parent_id]) byId[i.parent_id].children.push(byId[i.id]);
+    else roots.push(byId[i.id]);
   });
   return roots;
 }
@@ -63,67 +92,82 @@ function buildTree(items) {
 function CronogramaItem({ item, progressMap, onProgressChange, depth = 0 }) {
   const [expanded, setExpanded] = useState(depth === 0);
   const progresso = progressMap[item.id] ?? item.progresso ?? 0;
-  const statusCfg = getStatusConfig(progresso);
-  const { Icon: StatusIcon } = statusCfg;
+  const style = getProgressStyle(progresso);
+  const { Icon: StatusIcon } = style;
   const hasChildren = item.children && item.children.length > 0;
 
-  return (
-    <div className={depth > 0 ? 'ml-4 border-l-2 border-gray-100' : ''}>
-      <div className={`px-4 py-3 ${depth === 0 ? 'bg-white border-b border-gray-100' : 'bg-gray-50/50'}`}>
-        {/* Header da fase */}
-        <div className="flex items-center gap-2 mb-2">
-          {hasChildren && (
-            <button
-              onClick={() => setExpanded(e => !e)}
-              className="flex-shrink-0 text-gray-400 touch-manipulation"
-            >
-              {expanded
-                ? <ChevronDown size={18} />
-                : <ChevronRight size={18} />
-              }
-            </button>
-          )}
-          {!hasChildren && <div className="w-[18px]" />}
+  const decrement = (e) => {
+    e.stopPropagation();
+    onProgressChange(item.id, Math.max(0, progresso - 5));
+  };
+  const increment = (e) => {
+    e.stopPropagation();
+    onProgressChange(item.id, Math.min(100, progresso + 5));
+  };
 
-          <div className="flex-1 min-w-0">
-            <span className={`font-medium truncate block ${depth === 0 ? 'text-gray-900 text-sm' : 'text-gray-700 text-sm'}`}>
-              {item.fase}
-            </span>
+  return (
+    <div>
+      <div
+        className={`${depth === 0 ? 'border-b border-slate-100' : 'border-b border-slate-50 bg-slate-50/60'}`}
+        style={depth > 0 ? { paddingLeft: `${depth * 16}px` } : {}}
+      >
+        <div className="px-4 py-4">
+          {/* Nome + status */}
+          <div className="flex items-start gap-2 mb-3">
+            {hasChildren ? (
+              <button
+                onClick={() => setExpanded(e => !e)}
+                className="mt-0.5 flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 text-slate-500 active:bg-slate-200 touch-manipulation"
+              >
+                {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </button>
+            ) : (
+              <div className="mt-0.5 w-6 h-6 flex-shrink-0 flex items-center justify-center">
+                <StatusIcon size={14} className={style.text} />
+              </div>
+            )}
+
+            <div className="flex-1 min-w-0">
+              <p className={`leading-tight ${depth === 0 ? 'font-semibold text-slate-800 text-sm' : 'font-medium text-slate-600 text-sm'}`}>
+                {item.fase}
+              </p>
+            </div>
           </div>
 
-          <span className={`flex-shrink-0 inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${statusCfg.bg} ${statusCfg.color}`}>
-            <StatusIcon size={11} />
-            {progresso}%
-          </span>
-        </div>
+          {/* Barra de progresso */}
+          <div className="h-2 bg-slate-100 rounded-full overflow-hidden mb-3">
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${style.bar}`}
+              style={{ width: `${progresso}%` }}
+            />
+          </div>
 
-        {/* Slider de progresso */}
-        <div className="flex items-center gap-3">
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={5}
-            value={progresso}
-            onChange={e => onProgressChange(item.id, Number(e.target.value))}
-            className="flex-1 h-2 accent-indigo-600 cursor-pointer touch-manipulation"
-            style={{ minWidth: 0 }}
-          />
-          <span className="text-xs text-gray-500 w-8 text-right tabular-nums">{progresso}%</span>
-        </div>
+          {/* Controles +/- */}
+          <div className="flex items-center gap-3">
+            <button
+              onPointerDown={decrement}
+              disabled={progresso <= 0}
+              className="w-11 h-11 flex items-center justify-center rounded-xl bg-slate-100 text-slate-700 active:bg-slate-200 disabled:opacity-30 touch-manipulation select-none"
+            >
+              <Minus size={18} />
+            </button>
 
-        {/* Barra visual */}
-        <div className="mt-1.5 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-200 ${
-              progresso >= 100 ? 'bg-emerald-500' : progresso > 0 ? 'bg-indigo-500' : 'bg-gray-300'
-            }`}
-            style={{ width: `${progresso}%` }}
-          />
+            <div className="flex-1 flex items-center justify-center gap-1.5">
+              <span className={`text-2xl font-bold tabular-nums ${style.text}`}>{progresso}</span>
+              <span className={`text-sm font-medium ${style.text}`}>%</span>
+            </div>
+
+            <button
+              onPointerDown={increment}
+              disabled={progresso >= 100}
+              className="w-11 h-11 flex items-center justify-center rounded-xl bg-slate-100 text-slate-700 active:bg-slate-200 disabled:opacity-30 touch-manipulation select-none"
+            >
+              <Plus size={18} />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Filhos */}
       {hasChildren && expanded && (
         <div>
           {item.children.map(child => (
@@ -235,106 +279,165 @@ export default function RelatorioDiario() {
   const tree = buildTree(cronograma);
   const obraSelecionada = obras.find(o => String(o.id) === String(obraId));
 
+  const dataFormatada = (() => {
+    try {
+      const [y, m, d] = data.split('-').map(Number);
+      return format(new Date(y, m - 1, d), "EEEE, dd 'de' MMMM", { locale: ptBR });
+    } catch { return data; }
+  })();
+
+  const climaSelecionado = CLIMAS.find(c => c.id === clima);
+  const totalFases = cronograma.length;
+  const fasesAtualizadas = cronograma.filter(i => (progressMap[i.id] ?? i.progresso ?? 0) !== Number(i.progresso ?? 0)).length;
+
   // ============================================================================
   // RENDER
   // ============================================================================
   return (
-    <div className="min-h-screen bg-gray-50 pb-28">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-        <div className="flex items-center gap-3 px-4 py-3">
+    <div className="min-h-screen bg-slate-50 pb-32">
+
+      {/* ── HERO HEADER ── */}
+      <div className="bg-slate-900 sticky top-0 z-20">
+        {/* Barra de navegação */}
+        <div className="flex items-center gap-3 px-4 pt-4 pb-3">
           <button
             onClick={() => navigate(-1)}
-            className="text-gray-500 hover:text-gray-700 touch-manipulation"
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/10 text-white active:bg-white/20 touch-manipulation"
           >
-            <ArrowLeft size={22} />
+            <ArrowLeft size={20} />
           </button>
-          <div className="flex items-center gap-2">
-            <ClipboardList size={20} className="text-indigo-600" />
-            <h1 className="text-base font-semibold text-gray-900">Relatório Diário</h1>
+          <div className="flex-1 flex items-center gap-2">
+            <HardHat size={18} className="text-amber-400" />
+            <span className="text-white font-semibold text-sm tracking-wide">Relatório Diário</span>
           </div>
-        </div>
-      </div>
-
-      <div className="max-w-lg mx-auto px-4 pt-5 space-y-5">
-
-        {/* Seletor de obra */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            Obra
-          </label>
-          {loadingObras ? (
-            <div className="flex items-center gap-2 text-gray-400 text-sm py-2">
-              <Loader2 size={16} className="animate-spin" /> Carregando obras...
-            </div>
-          ) : (
-            <select
-              value={obraId}
-              onChange={e => setObraId(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 touch-manipulation"
-            >
-              <option value="">Selecione a obra...</option>
-              {obras.map(o => (
-                <option key={o.id} value={o.id}>{o.nome}</option>
-              ))}
-            </select>
+          {climaSelecionado && (
+            <span className="text-xl" title={climaSelecionado.label}>{climaSelecionado.emoji}</span>
           )}
         </div>
 
-        {/* Data + Clima */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              Data
-            </label>
-            <input
-              type="date"
-              value={data}
-              onChange={e => setData(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 touch-manipulation"
+        {/* Info da obra + data */}
+        <div className="px-4 pb-4">
+          {obraSelecionada ? (
+            <div className="flex items-start gap-2">
+              <MapPin size={14} className="text-amber-400 mt-0.5 flex-shrink-0" />
+              <p className="text-white font-bold text-lg leading-tight">{obraSelecionada.nome}</p>
+            </div>
+          ) : (
+            <p className="text-slate-400 text-sm italic">Nenhuma obra selecionada</p>
+          )}
+          <div className="flex items-center gap-1.5 mt-1">
+            <CalendarDays size={13} className="text-slate-400" />
+            <span className="text-slate-400 text-xs capitalize">{dataFormatada}</span>
+          </div>
+        </div>
+
+        {/* Barra de progresso geral */}
+        {obraId && totalFases > 0 && (
+          <div className="h-1 bg-slate-700">
+            <div
+              className="h-full bg-amber-400 transition-all duration-500"
+              style={{
+                width: `${Math.round(
+                  cronograma.reduce((sum, i) => sum + (progressMap[i.id] ?? Number(i.progresso ?? 0)), 0) / totalFases
+                )}%`,
+              }}
             />
           </div>
+        )}
+      </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              Clima
-            </label>
-            <div className="grid grid-cols-4 gap-2">
-              {CLIMAS.map(({ id, label, Icon, cor, bg }) => (
-                <button
-                  key={id}
-                  onClick={() => setClima(id)}
-                  className={`flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-2 text-xs font-medium transition-all touch-manipulation ${
-                    clima === id ? bg : 'bg-white border-gray-100 text-gray-500'
-                  }`}
-                >
-                  <Icon size={20} className={clima === id ? cor : 'text-gray-400'} />
-                  {label}
-                </button>
-              ))}
+      <div className="max-w-lg mx-auto space-y-4 pt-4 px-4">
+
+        {/* ── OBRA + DATA ── */}
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-100">
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Configuração</p>
+          </div>
+
+          <div className="p-4 space-y-4">
+            {/* Obra */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1.5">Obra</label>
+              {loadingObras ? (
+                <div className="flex items-center gap-2 text-slate-400 text-sm py-2">
+                  <Loader2 size={14} className="animate-spin" /> Carregando...
+                </div>
+              ) : (
+                <div className="relative">
+                  <select
+                    value={obraId}
+                    onChange={e => setObraId(e.target.value)}
+                    className="w-full appearance-none border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 touch-manipulation pr-10"
+                  >
+                    <option value="">Selecione a obra...</option>
+                    {obras.map(o => (
+                      <option key={o.id} value={o.id}>{o.nome}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                </div>
+              )}
+            </div>
+
+            {/* Data */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1.5">Data</label>
+              <input
+                type="date"
+                value={data}
+                onChange={e => setData(e.target.value)}
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 touch-manipulation"
+              />
             </div>
           </div>
         </div>
 
-        {/* Cronograma */}
+        {/* ── CLIMA ── */}
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-100">
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Clima hoje</p>
+          </div>
+          <div className="p-4 grid grid-cols-2 gap-3">
+            {CLIMAS.map(({ id, label, emoji, Icon, activeClass, idleClass }) => (
+              <button
+                key={id}
+                onClick={() => setClima(id)}
+                className={`
+                  flex items-center gap-3 px-4 py-4 rounded-2xl border-2 font-semibold text-sm
+                  transition-all duration-150 touch-manipulation active:scale-95 shadow-sm
+                  ${clima === id ? `${activeClass} shadow-md` : idleClass}
+                `}
+              >
+                <span className="text-2xl leading-none">{emoji}</span>
+                <div className="text-left">
+                  <p className={`font-bold text-sm leading-none ${clima === id ? 'text-white' : 'text-slate-700'}`}>{label}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ── ETAPAS DO CRONOGRAMA ── */}
         {obraId && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-800">
-                Etapas do cronograma
-              </h2>
-              {obraSelecionada && (
-                <p className="text-xs text-gray-500 mt-0.5">{obraSelecionada.nome}</p>
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-100">
+            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Progresso das etapas</p>
+              {fasesAtualizadas > 0 && (
+                <span className="text-xs font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                  {fasesAtualizadas} alterada{fasesAtualizadas > 1 ? 's' : ''}
+                </span>
               )}
             </div>
 
             {loadingCronograma ? (
-              <div className="flex items-center justify-center gap-2 text-gray-400 text-sm py-10">
-                <Loader2 size={18} className="animate-spin" /> Carregando etapas...
+              <div className="flex flex-col items-center justify-center gap-3 text-slate-400 py-14">
+                <Loader2 size={28} className="animate-spin text-indigo-500" />
+                <p className="text-sm">Carregando etapas...</p>
               </div>
             ) : tree.length === 0 ? (
-              <div className="text-center text-gray-400 text-sm py-10">
-                Nenhuma etapa cadastrada nesta obra.
+              <div className="flex flex-col items-center justify-center gap-2 py-14 text-slate-400">
+                <p className="text-3xl">📋</p>
+                <p className="text-sm">Nenhuma etapa cadastrada</p>
               </div>
             ) : (
               <div>
@@ -352,31 +455,46 @@ export default function RelatorioDiario() {
           </div>
         )}
 
-        {/* Observações */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            Observações gerais
-          </label>
-          <textarea
-            value={observacoes}
-            onChange={e => setObservacoes(e.target.value)}
-            placeholder="Descreva o que foi feito hoje, problemas encontrados, ocorrências..."
-            rows={4}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-900 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
+        {/* ── OBSERVAÇÕES ── */}
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-100">
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Observações</p>
+          </div>
+          <div className="p-4">
+            <textarea
+              value={observacoes}
+              onChange={e => setObservacoes(e.target.value)}
+              placeholder="O que foi feito hoje? Algum problema ou ocorrência?"
+              rows={4}
+              className="w-full text-sm text-slate-800 placeholder-slate-300 resize-none focus:outline-none leading-relaxed"
+            />
+            {observacoes.length > 0 && (
+              <p className="text-right text-xs text-slate-300 mt-1">{observacoes.length} caracteres</p>
+            )}
+          </div>
         </div>
+
       </div>
 
-      {/* Botão fixo no fundo */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 shadow-lg">
+      {/* ── BOTÃO ENVIAR (fixo) ── */}
+      <div className="fixed bottom-0 left-0 right-0 z-20 px-4 pb-6 pt-3"
+        style={{ background: 'linear-gradient(to top, rgba(248,250,252,1) 60%, rgba(248,250,252,0))' }}
+      >
         <button
           onClick={handleSubmit}
           disabled={submitting || !obraId}
-          className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-semibold py-3.5 rounded-xl transition-colors touch-manipulation text-sm"
+          className="
+            w-full max-w-lg mx-auto flex items-center justify-center gap-2.5
+            bg-slate-900 disabled:bg-slate-300
+            text-white font-bold py-4 rounded-2xl
+            shadow-xl shadow-slate-900/20
+            active:scale-[0.98] transition-transform duration-100
+            touch-manipulation text-base
+          "
         >
           {submitting
-            ? <><Loader2 size={18} className="animate-spin" /> Enviando...</>
-            : <><Send size={18} /> Enviar relatório</>
+            ? <><Loader2 size={20} className="animate-spin" /> Enviando...</>
+            : <><Send size={20} /> Registrar dia de trabalho</>
           }
         </button>
       </div>
