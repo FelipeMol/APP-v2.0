@@ -3040,7 +3040,7 @@ export default function Relatorios() {
                         <p className="text-sm text-gray-500">Registro diário de atividades e ocorrências</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" onClick={() => navigate(`/relatorio-diario?obra_id=${obraSelecionada?.id}`)}>
                           <Plus className="w-4 h-4 mr-1" />
                           Novo Registro
                         </Button>

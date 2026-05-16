@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -146,11 +146,12 @@ function CronogramaItem({ item, progressMap, onProgressChange, depth = 0 }) {
 // ============================================================================
 export default function RelatorioDiario() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuthStore();
   const tenantId = useTenantStore(s => s.selectedTenantId);
 
   const [obras, setObras] = useState([]);
-  const [obraId, setObraId] = useState('');
+  const [obraId, setObraId] = useState(searchParams.get('obra_id') || '');
   const [cronograma, setCronograma] = useState([]);
   const [progressMap, setProgressMap] = useState({});
   const [clima, setClima] = useState('sol');
