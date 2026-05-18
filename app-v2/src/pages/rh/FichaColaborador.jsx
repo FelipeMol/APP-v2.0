@@ -19,6 +19,7 @@ const TABS = [
   { key: 'dados',       label: 'Identificação' },
   { key: 'documentos',  label: 'Documentação', badge: '2' },
   { key: 'exames',      label: 'Exames ocupacionais' },
+  { key: 'atestados',   label: 'Atestados' },
   { key: 'experiencia', label: 'Experiência', dot: true },
   { key: 'avaliacoes',  label: 'Avaliações' },
   { key: 'obras',       label: 'Histórico de obras' },
@@ -295,6 +296,245 @@ function TabAvaliacoes({ funcionario }) {
   )
 }
 
+// ── Aba Atestados ────────────────────────────────────────────────
+const FORM_EMPTY = { data_inicio: '', data_fim: '', cid_codigo: '', cid_descricao: '', observacoes: '' }
+
+function TabAtestados({ funcionario }) {
+  const [rows, setRows]       = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm]       = useState(FORM_EMPTY)
+  const [foto, setFoto]       = useState(null)       // File object
+  const [fotoPreview, setFotoPreview] = useState(null)
+  const [salvando, setSalvando] = useState(false)
+  const [msg, setMsg]         = useState('')
+  const [preview, setPreview] = useState(null)       // URL to show full-size
+
+  const carregar = async () => {
+    setLoading(true)
+    try {
+      const { data } = await supabase.from('atestados')
+        .select('*')
+        .eq('tenant_id', getTenantId())
+        .eq('funcionario_id', funcionario.id)
+        .order('data_inicio', { ascending: false })
+      setRows(data || [])
+    } catch { setRows([]) } finally { setLoading(false) }
+  }
+
+  useEffect(() => { carregar() }, [funcionario.id])
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const handleFoto = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setFoto(file)
+    setFotoPreview(URL.createObjectURL(file))
+  }
+
+  const handleSalvar = async () => {
+    if (!form.data_inicio) { setMsg('Informe a data de início.'); return }
+    setSalvando(true); setMsg('')
+    try {
+      let foto_url = null
+      if (foto) {
+        const ext  = foto.name.split('.').pop()
+        const path = `${getTenantId()}/${funcionario.id}/${Date.now()}.${ext}`
+        const { error: upErr } = await supabase.storage.from('atestados').upload(path, foto, { upsert: false })
+        if (upErr) throw upErr
+        const { data: pub } = supabase.storage.from('atestados').getPublicUrl(path)
+        foto_url = pub?.publicUrl || null
+      }
+      const payload = {
+        tenant_id:      getTenantId(),
+        funcionario_id: funcionario.id,
+        data_inicio:    form.data_inicio,
+        data_fim:       form.data_fim || null,
+        cid_codigo:     form.cid_codigo.trim() || null,
+        cid_descricao:  form.cid_descricao.trim() || null,
+        observacoes:    form.observacoes.trim() || null,
+        foto_url,
+      }
+      const { error } = await supabase.from('atestados').insert(payload)
+      if (error) throw error
+      setMsg('Atestado registrado!')
+      setForm(FORM_EMPTY); setFoto(null); setFotoPreview(null)
+      setShowForm(false)
+      carregar()
+    } catch (e) {
+      setMsg('Erro: ' + (e.message || 'falhou'))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  const handleExcluir = async (row) => {
+    if (!confirm('Excluir este atestado?')) return
+    try {
+      if (row.foto_url) {
+        const path = row.foto_url.split('/atestados/')[1]
+        if (path) await supabase.storage.from('atestados').remove([path])
+      }
+      await supabase.from('atestados').delete().eq('id', row.id)
+      carregar()
+    } catch (e) { alert('Erro ao excluir: ' + e.message) }
+  }
+
+  const inp = (label, key, opts = {}) => (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: C.ink3, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
+      <input
+        type={opts.type || 'text'}
+        value={form[key]}
+        onChange={e => set(key, e.target.value)}
+        placeholder={opts.placeholder || ''}
+        style={{ width: '100%', border: `1px solid ${C.line}`, borderRadius: 7, padding: '9px 11px', fontSize: 13, color: C.ink, background: C.surface, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+      />
+    </div>
+  )
+
+  const fmtDate = (d) => d ? new Date(d + 'T12:00').toLocaleDateString('pt-BR') : '—'
+
+  return (
+    <div>
+      {/* Preview modal */}
+      {preview && (
+        <div
+          onClick={() => setPreview(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}
+        >
+          <img src={preview} alt="Atestado" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 10, boxShadow: '0 8px 40px rgba(0,0,0,0.5)' }} />
+        </div>
+      )}
+
+      {/* Cabeçalho */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>Atestados médicos</div>
+          <div style={{ fontSize: 12, color: C.ink3, marginTop: 2 }}>{rows.length} registro{rows.length !== 1 ? 's' : ''}</div>
+        </div>
+        <button
+          onClick={() => { setShowForm(v => !v); setMsg('') }}
+          style={{ background: C.navy, border: 'none', color: '#FFF', fontSize: 12, fontWeight: 700, padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}
+        >
+          {showForm ? '✕ Cancelar' : '+ Novo atestado'}
+        </button>
+      </div>
+
+      {/* Formulário inline */}
+      {showForm && (
+        <div style={{ background: C.surface2, border: `1px solid ${C.line}`, borderRadius: 10, padding: 20, marginBottom: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, marginBottom: 16 }}>Registrar novo atestado</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 18px' }}>
+            {inp('Data início *', 'data_inicio', { type: 'date' })}
+            {inp('Data fim', 'data_fim', { type: 'date' })}
+            {inp('CID (código)', 'cid_codigo', { placeholder: 'Ex: J11, M54.5' })}
+            {inp('Descrição do CID', 'cid_descricao', { placeholder: 'Ex: Influenza, Lombalgia' })}
+            <div style={{ gridColumn: 'span 2' }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.ink3, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 5 }}>Observações</div>
+              <textarea
+                value={form.observacoes}
+                onChange={e => set('observacoes', e.target.value)}
+                rows={2}
+                placeholder="Anotações adicionais…"
+                style={{ width: '100%', border: `1px solid ${C.line}`, borderRadius: 7, padding: '9px 11px', fontSize: 13, color: C.ink, background: C.surface, outline: 'none', fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            {/* Upload de foto */}
+            <div style={{ gridColumn: 'span 2' }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.ink3, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8 }}>Foto / arquivo do atestado</div>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', background: C.surface, border: `1px dashed ${C.line}`, borderRadius: 8, padding: '10px 16px', fontSize: 12.5, color: C.ink2 }}>
+                📎 {foto ? foto.name : 'Selecionar imagem ou PDF (máx. 5 MB)'}
+                <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={handleFoto} />
+              </label>
+              {fotoPreview && (
+                <div style={{ marginTop: 10 }}>
+                  <img src={fotoPreview} alt="Preview" style={{ height: 100, borderRadius: 7, border: `1px solid ${C.line}`, objectFit: 'cover', cursor: 'pointer' }} onClick={() => setPreview(fotoPreview)} />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {msg && (
+            <div style={{ marginTop: 14, padding: '9px 13px', background: msg.startsWith('Erro') ? '#FBE9E4' : '#E4F1E8', borderRadius: 7, fontSize: 12, color: msg.startsWith('Erro') ? C.bad : C.ok }}>{msg}</div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+            <button onClick={handleSalvar} disabled={salvando} style={{ background: C.ok, border: 'none', color: '#FFF', fontSize: 13, fontWeight: 700, padding: '9px 22px', borderRadius: 8, cursor: salvando ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: salvando ? 0.7 : 1 }}>
+              {salvando ? 'Salvando…' : 'Salvar atestado'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Lista */}
+      {loading ? (
+        <div style={{ padding: 40, textAlign: 'center', color: C.ink3, fontSize: 13 }}>Carregando atestados…</div>
+      ) : rows.length === 0 ? (
+        <div style={{ padding: '50px 0', textAlign: 'center', color: C.ink3, fontSize: 13 }}>
+          <div style={{ fontSize: 32, marginBottom: 10 }}>🩺</div>
+          <div>Nenhum atestado registrado para este colaborador.</div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {rows.map((r) => {
+            const diasLabel = r.dias != null ? `${r.dias} dia${r.dias !== 1 ? 's' : ''}` : null
+            return (
+              <div key={r.id} style={{ border: `1px solid ${C.line2}`, borderRadius: 10, padding: '16px 18px', display: 'flex', gap: 16, alignItems: 'flex-start', background: C.surface }}>
+                {/* Foto miniatura */}
+                {r.foto_url && (
+                  <img
+                    src={r.foto_url}
+                    alt="Atestado"
+                    style={{ width: 64, height: 64, borderRadius: 7, objectFit: 'cover', border: `1px solid ${C.line}`, cursor: 'zoom-in', flexShrink: 0 }}
+                    onClick={() => setPreview(r.foto_url)}
+                  />
+                )}
+                {!r.foto_url && (
+                  <div style={{ width: 64, height: 64, borderRadius: 7, background: C.surface2, border: `1px solid ${C.line2}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0, color: C.ink3 }}>📄</div>
+                )}
+
+                {/* Dados */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>
+                      {fmtDate(r.data_inicio)}{r.data_fim ? ` → ${fmtDate(r.data_fim)}` : ''}
+                    </span>
+                    {diasLabel && (
+                      <span style={{ background: C.surface2, border: `1px solid ${C.line}`, borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 600, color: C.ink2 }}>{diasLabel}</span>
+                    )}
+                    {r.cid_codigo && (
+                      <span style={{ background: '#EFF3FA', border: '1px solid #C5D2E8', borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 700, color: C.info, fontFamily: '"JetBrains Mono", monospace' }}>{r.cid_codigo}</span>
+                    )}
+                  </div>
+                  {r.cid_descricao && <div style={{ fontSize: 12.5, color: C.ink2, marginBottom: 4 }}>{r.cid_descricao}</div>}
+                  {r.observacoes && <div style={{ fontSize: 12, color: C.ink3, fontStyle: 'italic' }}>{r.observacoes}</div>}
+                </div>
+
+                {/* Ações */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+                  {r.foto_url && (
+                    <button
+                      onClick={() => setPreview(r.foto_url)}
+                      style={{ background: 'none', border: `1px solid ${C.line}`, color: C.ink2, fontSize: 11, padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit' }}
+                    >🔍 Ver</button>
+                  )}
+                  <button
+                    onClick={() => handleExcluir(r)}
+                    style={{ background: 'none', border: `1px solid ${C.line}`, color: C.bad, fontSize: 11, padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit' }}
+                  >Excluir</button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Aba Placeholder ──────────────────────────────────────────────
 function TabPlaceholder({ label, icon }) {
   return (
@@ -422,6 +662,7 @@ export default function FichaColaborador({ funcionario, onClose, onAtualizado })
           {activeTab === 'experiencia' && <TabExperiencia funcionario={func} />}
           {activeTab === 'obras'       && <TabObras funcionario={func} />}
           {activeTab === 'exames'      && <TabPlaceholder label="Exames Ocupacionais" icon="🩺" />}
+          {activeTab === 'atestados'   && <TabAtestados funcionario={func} />}
           {activeTab === 'disciplinar' && <TabPlaceholder label="Histórico Disciplinar" icon="⚖️" />}
           {activeTab === 'epis'        && <TabPlaceholder label="Integração & EPIs" icon="🦺" />}
           {activeTab === 'avaliacoes'  && <TabAvaliacoes funcionario={func} />}
