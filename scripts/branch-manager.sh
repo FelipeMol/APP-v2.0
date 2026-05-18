@@ -31,7 +31,7 @@ die()   { err "$*"; exit 1; }
 
 # Retorna branches frente/*
 list_frentes() {
-  git -C "$REPO_DIR" branch --list 'frente/*' | sed 's/^[* ]*//' || true
+  git -C "$REPO_DIR" branch --list 'frente/*' | sed 's/^[+* ]*//' || true
 }
 
 # Caminho da worktree irma
@@ -110,8 +110,7 @@ cmd_status() {
     echo "  Status: ${ahead} commit(s) a frente  |  ${count} arquivo(s) modificado(s)"
     if [[ -n "$files" ]]; then
       while IFS= read -r f; do
-        [[ -z "$f" ]] && continue
-        echo "    + $f"
+        [[ -z "$f" ]] || echo "    + $f"
       done <<< "$files"
     fi
   done <<< "$frentes"
@@ -142,14 +141,17 @@ _show_conflicts() {
     done <<< "$files"
   done <<< "$frentes"
 
-  [[ -z "$all" ]] && { [[ -n "$verbose" ]] && ok "Sem conflitos."; return; }
+  if [[ -z "$all" ]]; then
+    [[ -n "$verbose" ]] && ok "Sem conflitos."
+    return 0
+  fi
 
   local dups
   dups=$(printf "%b" "$all" | awk -F'\t' '{print $1}' | sort | uniq -d)
 
   if [[ -z "$dups" ]]; then
     [[ -n "$verbose" ]] && ok "Nenhum conflito de arquivos entre frentes ativas."
-    return
+    return 0
   fi
 
   echo ""
