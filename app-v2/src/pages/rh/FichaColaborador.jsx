@@ -1,9 +1,10 @@
 ﻿// RH — Ficha do Colaborador (P5)
 // Modal de 8 abas: Dados Pessoais | Documentos | Experiência | Obras | Exames | Disciplinar | EPIs | Avaliações
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import supabase from '../../lib/supabase.js'
 import useTenantStore from '../../store/tenantStore.js'
 import funcionariosService from '../../services/funcionariosService.js'
+import { CID10_COMUM } from '../../utils/cid10_common.js'
 
 const C = {
   navy: '#17273C', amber: '#E8A628', ok: '#3D7A50', bad: '#B84A33',
@@ -296,6 +297,92 @@ function TabAvaliacoes({ funcionario }) {
   )
 }
 
+// ── CID Combobox ─────────────────────────────────────────────────
+function CIDCombobox({ value, descricao, onSelect }) {
+  const [query, setQuery] = useState(value || '')
+  const [open, setOpen]   = useState(false)
+  const ref               = useRef(null)
+
+  // Fecha ao clicar fora
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const filtered = query.trim().length === 0
+    ? CID10_COMUM.slice(0, 40)
+    : CID10_COMUM.filter(c =>
+        c.codigo.toLowerCase().includes(query.toLowerCase()) ||
+        c.descricao.toLowerCase().includes(query.toLowerCase())
+      ).slice(0, 50)
+
+  const handleSelect = (item) => {
+    setQuery(item.codigo)
+    setOpen(false)
+    onSelect(item)
+  }
+
+  const handleChange = (e) => {
+    setQuery(e.target.value)
+    setOpen(true)
+    // Se o usuário limpar, limpa a seleção
+    if (!e.target.value.trim()) onSelect({ codigo: '', descricao: '' })
+  }
+
+  const handleFocus = () => setOpen(true)
+
+  return (
+    <div ref={ref} style={{ position: 'relative', gridColumn: 'span 2' }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: C.ink3, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 5 }}>CID-10</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 10 }}>
+        {/* Código */}
+        <input
+          value={query}
+          onChange={handleChange}
+          onFocus={handleFocus}
+          placeholder="Ex: M54.5"
+          autoComplete="off"
+          style={{ border: `1px solid ${C.line}`, borderRadius: 7, padding: '9px 11px', fontSize: 13, color: C.ink, background: C.surface, outline: 'none', fontFamily: 'inherit', fontFamily: '"JetBrains Mono", monospace', textTransform: 'uppercase' }}
+        />
+        {/* Descrição (readonly, preenchida automaticamente) */}
+        <input
+          value={descricao}
+          readOnly
+          placeholder="Selecione o código ao lado…"
+          style={{ border: `1px solid ${C.line}`, borderRadius: 7, padding: '9px 11px', fontSize: 13, color: C.ink2, background: C.surface2, outline: 'none', fontFamily: 'inherit' }}
+        />
+      </div>
+      {open && filtered.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200,
+          background: C.surface, border: `1px solid ${C.line}`, borderRadius: 8,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)', maxHeight: 260, overflowY: 'auto', marginTop: 3,
+        }}>
+          {filtered.map(item => (
+            <div
+              key={item.codigo}
+              onMouseDown={() => handleSelect(item)}
+              style={{ padding: '9px 14px', cursor: 'pointer', display: 'flex', gap: 12, alignItems: 'baseline', fontSize: 13 }}
+              onMouseEnter={e => e.currentTarget.style.background = C.surface2}
+              onMouseLeave={e => e.currentTarget.style.background = ''}
+            >
+              <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 12, fontWeight: 700, color: C.info, minWidth: 60, flexShrink: 0 }}>{item.codigo}</span>
+              <span style={{ color: C.ink2 }}>{item.descricao}</span>
+            </div>
+          ))}
+          {CID10_COMUM.filter(c =>
+            c.codigo.toLowerCase().includes(query.toLowerCase()) ||
+            c.descricao.toLowerCase().includes(query.toLowerCase())
+          ).length > 50 && (
+            <div style={{ padding: '8px 14px', fontSize: 11.5, color: C.ink3, borderTop: `1px solid ${C.line2}` }}>Refine a busca para ver mais resultados.</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Aba Atestados ────────────────────────────────────────────────
 const FORM_EMPTY = { data_inicio: '', data_fim: '', cid_codigo: '', cid_descricao: '', observacoes: '' }
 
@@ -381,16 +468,20 @@ function TabAtestados({ funcionario }) {
     } catch (e) { alert('Erro ao excluir: ' + e.message) }
   }
 
-  const inp = (label, key, opts = {}) => (
+  const inpDate = (label, key) => (
     <div>
       <div style={{ fontSize: 11, fontWeight: 600, color: C.ink3, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
       <input
-        type={opts.type || 'text'}
+        type="date"
         value={form[key]}
         onChange={e => set(key, e.target.value)}
-        placeholder={opts.placeholder || ''}
         style={{ width: '100%', border: `1px solid ${C.line}`, borderRadius: 7, padding: '9px 11px', fontSize: 13, color: C.ink, background: C.surface, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
       />
+      {form[key] && (
+        <div style={{ fontSize: 11, color: C.ink3, marginTop: 4 }}>
+          {new Date(form[key] + 'T12:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}
+        </div>
+      )}
     </div>
   )
 
@@ -427,10 +518,13 @@ function TabAtestados({ funcionario }) {
         <div style={{ background: C.surface2, border: `1px solid ${C.line}`, borderRadius: 10, padding: 20, marginBottom: 20 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, marginBottom: 16 }}>Registrar novo atestado</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 18px' }}>
-            {inp('Data início *', 'data_inicio', { type: 'date' })}
-            {inp('Data fim', 'data_fim', { type: 'date' })}
-            {inp('CID (código)', 'cid_codigo', { placeholder: 'Ex: J11, M54.5' })}
-            {inp('Descrição do CID', 'cid_descricao', { placeholder: 'Ex: Influenza, Lombalgia' })}
+            {inpDate('Data início *', 'data_inicio')}
+            {inpDate('Data fim', 'data_fim')}
+            <CIDCombobox
+              value={form.cid_codigo}
+              descricao={form.cid_descricao}
+              onSelect={item => setForm(f => ({ ...f, cid_codigo: item.codigo, cid_descricao: item.descricao }))}
+            />
             <div style={{ gridColumn: 'span 2' }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: C.ink3, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 5 }}>Observações</div>
               <textarea
