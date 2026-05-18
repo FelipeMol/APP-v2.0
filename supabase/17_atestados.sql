@@ -7,7 +7,7 @@
 create table if not exists public.atestados (
   id            uuid primary key default gen_random_uuid(),
   tenant_id     text not null,
-  funcionario_id uuid not null references public.funcionarios(id) on delete cascade,
+  funcionario_id bigint not null references public.funcionarios(id) on delete cascade,
   data_inicio   date not null,
   data_fim      date,
   dias          int generated always as (
