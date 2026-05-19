@@ -391,6 +391,7 @@ function TabAtestados({ funcionario }) {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm]       = useState(FORM_EMPTY)
+  const [formDisplay, setFormDisplay] = useState({ data_inicio: '', data_fim: '' })
   const [foto, setFoto]       = useState(null)       // File object
   const [fotoPreview, setFotoPreview] = useState(null)
   const [salvando, setSalvando] = useState(false)
@@ -446,7 +447,7 @@ function TabAtestados({ funcionario }) {
       const { error } = await supabase.from('atestados').insert(payload)
       if (error) throw error
       setMsg('Atestado registrado!')
-      setForm(FORM_EMPTY); setFoto(null); setFotoPreview(null)
+      setForm(FORM_EMPTY); setFormDisplay({ data_inicio: '', data_fim: '' }); setFoto(null); setFotoPreview(null)
       setShowForm(false)
       carregar()
     } catch (e) {
@@ -468,22 +469,36 @@ function TabAtestados({ funcionario }) {
     } catch (e) { alert('Erro ao excluir: ' + e.message) }
   }
 
-  const inpDate = (label, key) => (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 600, color: C.ink3, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
-      <input
-        type="date"
-        value={form[key]}
-        onChange={e => set(key, e.target.value)}
-        style={{ width: '100%', border: `1px solid ${C.line}`, borderRadius: 7, padding: '9px 11px', fontSize: 13, color: C.ink, background: C.surface, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
-      />
-      {form[key] && (
-        <div style={{ fontSize: 11, color: C.ink3, marginTop: 4 }}>
-          {new Date(form[key] + 'T12:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}
-        </div>
-      )}
-    </div>
-  )
+  const inpDate = (label, key) => {
+    const handleChange = (e) => {
+      // Auto-mask: keep only digits and insert slashes at positions 2 and 5
+      let digits = e.target.value.replace(/\D/g, '').slice(0, 8)
+      let masked = digits
+      if (digits.length > 4) masked = digits.slice(0, 2) + '/' + digits.slice(2, 4) + '/' + digits.slice(4)
+      else if (digits.length > 2) masked = digits.slice(0, 2) + '/' + digits.slice(2)
+      setFormDisplay(fd => ({ ...fd, [key]: masked }))
+      // Convert DD/MM/YYYY → YYYY-MM-DD for storage once the full date is entered
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(masked)) {
+        const [d, m, y] = masked.split('/')
+        set(key, `${y}-${m}-${d}`)
+      } else {
+        set(key, '')
+      }
+    }
+    return (
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.ink3, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
+        <input
+          type="text"
+          value={formDisplay[key]}
+          onChange={handleChange}
+          placeholder="DD/MM/AAAA"
+          maxLength={10}
+          style={{ width: '100%', border: `1px solid ${C.line}`, borderRadius: 7, padding: '9px 11px', fontSize: 13, color: C.ink, background: C.surface, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+        />
+      </div>
+    )
+  }
 
   const fmtDate = (d) => d ? new Date(d + 'T12:00').toLocaleDateString('pt-BR') : '—'
 

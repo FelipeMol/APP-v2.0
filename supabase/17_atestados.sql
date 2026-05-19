@@ -28,18 +28,21 @@ create index if not exists atestados_tenant_func_idx
 -- 3. RLS
 alter table public.atestados enable row level security;
 
--- Membros do tenant podem ver e criar
+-- Membros do tenant podem ver e criar (usa current_tenant() = JWT app_metadata.tenant_id)
 create policy "atestados_select" on public.atestados
-  for select using (tenant_id = current_setting('app.tenant_id', true));
+  for select using (tenant_id = current_tenant() or is_superadmin());
 
 create policy "atestados_insert" on public.atestados
-  for insert with check (tenant_id = current_setting('app.tenant_id', true));
+  for insert with check (tenant_id = current_tenant() or is_superadmin());
 
 create policy "atestados_update" on public.atestados
-  for update using (tenant_id = current_setting('app.tenant_id', true));
+  for update using (tenant_id = current_tenant() or is_superadmin());
 
 create policy "atestados_delete" on public.atestados
-  for delete using (tenant_id = current_setting('app.tenant_id', true));
+  for delete using (tenant_id = current_tenant() or is_superadmin());
+
+create policy "superadmin_bypass" on public.atestados
+  using (is_superadmin()) with check (is_superadmin());
 
 -- 4. Storage bucket para fotos dos atestados
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
