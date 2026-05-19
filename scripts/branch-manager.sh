@@ -10,6 +10,7 @@
 #   ./scripts/branch-manager.sh status           Lista frentes ativas e arquivos
 #   ./scripts/branch-manager.sh conflicts        Mostra conflitos entre frentes
 #   ./scripts/branch-manager.sh merge-all [msg]  CEO: confere, merge, commit
+#   ./scripts/branch-manager.sh sync [nome]      Atualiza frente(s) com a main
 #   ./scripts/branch-manager.sh close <nome>     Remove frente após merge
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -269,11 +270,75 @@ cmd_merge_all() {
       cmd_close "${b#frente/}" silent
     done <<< "$frentes"
     ok "Worktrees removidas."
+  else
+    echo ""
+    info "Mantendo frentes. Sincronizando-as com a nova main..."
+    _sync_all_frentes
   fi
 
   echo ""
   echo "  Log recente:"
   git -C "$REPO_DIR" log --oneline -8
+}
+
+# ── sync ──────────────────────────────────────────────────────────────────────
+# Atualiza frente(s) puxando a main atual via merge --no-edit dentro da worktree.
+# Uso: sync           -> sincroniza TODAS as frentes
+#      sync <nome>    -> sincroniza apenas a frente indicada
+cmd_sync() {
+  local name="${1:-}"
+  if [[ -n "$name" ]]; then
+    _sync_one "${name#frente/}"
+  else
+    _sync_all_frentes
+  fi
+}
+
+_sync_all_frentes() {
+  local frentes
+  frentes=$(list_frentes)
+  if [[ -z "$frentes" ]]; then
+    info "Nenhuma frente para sincronizar."
+    return 0
+  fi
+  local branch
+  while IFS= read -r branch; do
+    [[ -z "$branch" ]] && continue
+    _sync_one "${branch#frente/}"
+  done <<< "$frentes"
+  echo ""
+  ok "Sincronizacao concluida."
+}
+
+_sync_one() {
+  local name="$1"
+  local branch="frente/${name}"
+  local wt_path
+  wt_path=$(worktree_path "$name")
+
+  if [[ ! -d "$wt_path" ]]; then
+    warn "Frente '${name}' sem worktree em '${wt_path}'. Pulando."
+    return 0
+  fi
+
+  echo ""
+  info "Sincronizando ${branch} com ${BASE_BRANCH}..."
+
+  # Garante que worktree esta em estado limpo
+  if ! git -C "$wt_path" diff --quiet || ! git -C "$wt_path" diff --cached --quiet; then
+    warn "Worktree '${wt_path}' tem mudancas nao commitadas. Pulando."
+    warn "  Commit ou stash dentro da pasta antes de sincronizar."
+    return 0
+  fi
+
+  if git -C "$wt_path" merge --no-edit "$BASE_BRANCH"; then
+    ok "${branch} atualizada com ${BASE_BRANCH}."
+  else
+    err "Conflito ao mergear ${BASE_BRANCH} em ${branch}."
+    err "  Resolva em: ${wt_path}"
+    err "  Depois rode: git -C \"${wt_path}\" merge --continue"
+    return 1
+  fi
 }
 
 # ── close ─────────────────────────────────────────────────────────────────────
@@ -312,6 +377,7 @@ cmd_help() {
   echo "    status              Lista frentes, commits e arquivos por frente"
   echo "    conflicts           Exibe conflitos de arquivo entre frentes"
   echo "    merge-all [msg]     CEO: confere + merge de todas as frentes em ${BASE_BRANCH}"
+  echo "    sync [nome]         Atualiza frente(s) com a ${BASE_BRANCH} atual"
   echo "    close <nome>        Remove worktree + branch apos merge"
   echo ""
   echo "  ESTRUTURA DE PASTAS"
@@ -337,6 +403,7 @@ case "$CMD" in
   status)       cmd_status ;;
   conflicts)    cmd_conflicts ;;
   merge-all)    cmd_merge_all "$@" ;;
+  sync)         cmd_sync "$@" ;;
   close)        cmd_close "$@" ;;
   help|--help)  cmd_help ;;
   *)            die "Comando desconhecido: '$CMD'. Use 'help'." ;;

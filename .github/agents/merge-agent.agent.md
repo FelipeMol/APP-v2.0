@@ -70,7 +70,8 @@ Resuma em linguagem natural o que cada frente fez. Apresente ao usuário antes d
 
 Pergunte ao usuário:
 - A mensagem de release (ou sugira uma baseada nos commits de cada frente)
-- Se quer remover as worktrees/branches após o merge (`close`)
+- Se quer **manter as frentes** (padrão recomendado — atualiza cada worktree com
+  a nova `main` para continuar trabalhando) ou **remover** (`close`)
 
 ### 5. Executar o merge
 
@@ -87,14 +88,27 @@ git merge --no-ff <branch> -m "merge(<frente>): <resumo>"
 Se ocorrer conflito de git durante o merge, **pare imediatamente**, mostre os arquivos
 em conflito com `git status` e instrua o usuário a resolver manualmente.
 
-### 6. Limpeza de worktrees
+### 6. Sincronizar frentes (padrão) OU remover worktrees
 
-Se o usuário confirmou remover as frentes merged:
+**Padrão — manter frentes e atualizá-las com a nova main:**
+
+```bash
+./scripts/branch-manager.sh sync
+```
+
+Isso entra em cada worktree e faz `git merge main` dentro dela, deixando todas as
+frentes atualizadas com o código que acabou de ir pra main. Se alguma worktree tiver
+mudanças não commitadas, o sync pula ela e avisa.
+
+**Alternativa — fechar frente específica que terminou de vez:**
 ```bash
 ./scripts/branch-manager.sh close <nome>
 ```
 
-Isso remove a pasta irmã + a branch. Faça para cada frente merged.
+Isso remove a pasta irmã + a branch. Use só se o usuário confirmou explicitamente
+que aquela frente acabou.
+
+> O comando `merge-all` já pergunta no final se quer remover ou manter+sincronizar.
 
 ### 7. Confirmação final
 
@@ -148,6 +162,7 @@ Se houver sobreposição, alerte o usuário **antes** de criar a branch.
 | Ver conflitos | `./scripts/branch-manager.sh conflicts` |
 | Criar frente | `./scripts/branch-manager.sh new <nome>` |
 | Merge de todas | `./scripts/branch-manager.sh merge-all "<msg>"` |
+| Sync frentes c/ main | `./scripts/branch-manager.sh sync [nome]` |
 | Fechar frente | `./scripts/branch-manager.sh close <nome>` |
 | Diff de uma frente | `git diff main...<branch> --stat` |
 | Log de uma frente | `git log main...<branch> --oneline` |
