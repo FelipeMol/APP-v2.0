@@ -3343,7 +3343,7 @@ export default function Relatorios() {
                                     </div>
                                   )}
                                   {/* today line */}
-                                  <div style={{ position:'absolute', left:`${todayL}%`, top:2, bottom:2, width:1.5, background:'#EF4444', opacity:.65 }}/>
+                                  <div style={{ position:'absolute', left:`${todayL}%`, top:2, bottom:2, width:1.5, background:'#EF4444', opacity:.65, transform:'translateX(-50%)' }}/>
                                 </div>
                               </div>
                             </div>
@@ -3371,7 +3371,7 @@ export default function Relatorios() {
                         </div>
 
                         {/* Right: month headers */}
-                        <div style={{ position:'relative', borderBottom:'1px solid #ECECEF', background:'#FAFAFC', height:56, overflowX:'auto' }}>
+                        <div style={{ position:'relative', borderBottom:'1px solid #ECECEF', background:'#FAFAFC', height:56, overflow:'hidden' }}>
                           {/* Today pill */}
                           <div style={{ position:'absolute', left:`${todayPct}%`, top:8, transform:'translateX(-50%)', zIndex:2 }}>
                             <span style={{ display:'inline-flex', alignItems:'center', background:'#EF4444', color:'#fff', fontSize:10, padding:'3px 8px', fontWeight:700, letterSpacing:'.04em', borderRadius:999 }}>HOJE · {format(hoje,'dd/MM', {locale:ptBR})}</span>
@@ -3441,7 +3441,7 @@ export default function Relatorios() {
                                 )}
 
                                 {/* today line */}
-                                <div style={{ position:'absolute', left:`${todayPct}%`, top:0, bottom:0, width:1.5, background:'#EF4444', opacity:.55 }}/>
+                                <div style={{ position:'absolute', left:`${todayPct}%`, top:0, bottom:0, width:1.5, background:'#EF4444', opacity:.55, transform:'translateX(-50%)' }}/>
                               </div>
                             </Fragment>
                           );
