@@ -3136,9 +3136,6 @@ export default function Relatorios() {
               const projEnd   = `${ganttEnd.getFullYear()}-${String(ganttEnd.getMonth()+1).padStart(2,'0')}-01`;
               const totalDias = daysBetween(projStart, projEnd) || 1;
 
-              const pct = (iso) => Math.max(0, Math.min(100, (daysBetween(projStart, iso) / totalDias) * 100));
-              const todayPct = pct(format(hoje, 'yyyy-MM-dd'));
-
               // Month list for headers
               const mesesNomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
               const meses = [];
@@ -3148,6 +3145,22 @@ export default function Relatorios() {
                 meses.push(new Date(cur));
                 cur = new Date(cur.getFullYear(), cur.getMonth()+1, 1);
               }
+
+              // Posição em % alinhada à grade de meses (colunas de largura igual).
+              // Usar dias direto não alinha porque meses têm 28–31 dias.
+              const projStartDate = parseD(projStart);
+              const totalMeses = meses.length || 1;
+              const pct = (iso) => {
+                const d = parseD(iso);
+                if (!d || !projStartDate) return 0;
+                const monthsFromStart = (d.getFullYear() - projStartDate.getFullYear()) * 12
+                  + (d.getMonth() - projStartDate.getMonth());
+                const diasNoMes = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+                const fracaoMes = (d.getDate() - 1) / diasNoMes;
+                const fracao = (monthsFromStart + fracaoMes) / totalMeses;
+                return Math.max(0, Math.min(100, fracao * 100));
+              };
+              const todayPct = pct(format(hoje, 'yyyy-MM-dd'));
 
               // ── EMPTY STATE ──
               if (cronograma.length === 0) return (
@@ -3275,7 +3288,7 @@ export default function Relatorios() {
                           const left = pct(fase.data_inicio_planejada);
                           const width = fase.data_inicio_planejada && fase.data_fim_planejada
                             ? Math.max(0.5, pct(fase.data_fim_planejada) - left) : 0;
-                          const todayL = (daysBetween(projStart, format(hoje,'yyyy-MM-dd')) / totalDias) * 100;
+                          const todayL = todayPct;
 
                           return (
                             <div key={fase.id || idx} onClick={() => setCronogramaModalOpen(true)} style={{
