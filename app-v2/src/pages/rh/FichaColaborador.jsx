@@ -398,6 +398,18 @@ function TabAtestados({ funcionario }) {
   const [msg, setMsg]         = useState('')
   const [preview, setPreview] = useState(null)       // URL to show full-size
 
+  // Extrai o "path" dentro do bucket a partir de um foto_url salvo
+  // (suporta tanto URLs antigas com /atestados/ quanto paths já normalizados)
+  const extrairPath = (foto_url) => {
+    if (!foto_url) return null
+    const marker = '/atestados/'
+    const idx = foto_url.indexOf(marker)
+    if (idx >= 0) return foto_url.substring(idx + marker.length)
+    // Já é path (não tem protocolo http)
+    if (!/^https?:\/\//.test(foto_url)) return foto_url
+    return null
+  }
+
   const carregar = async () => {
     setLoading(true)
     try {
@@ -406,7 +418,21 @@ function TabAtestados({ funcionario }) {
         .eq('tenant_id', getTenantId())
         .eq('funcionario_id', funcionario.id)
         .order('data_inicio', { ascending: false })
-      setRows(data || [])
+      const list = data || []
+      // Bucket é privado: precisamos gerar signed URLs para exibir as imagens
+      const withSigned = await Promise.all(list.map(async (r) => {
+        const path = extrairPath(r.foto_url)
+        if (!path) return r
+        try {
+          const { data: signed } = await supabase.storage
+            .from('atestados')
+            .createSignedUrl(path, 3600)
+          return { ...r, foto_url_signed: signed?.signedUrl || null }
+        } catch {
+          return r
+        }
+      }))
+      setRows(withSigned)
     } catch { setRows([]) } finally { setLoading(false) }
   }
 
@@ -431,8 +457,8 @@ function TabAtestados({ funcionario }) {
         const path = `${getTenantId()}/${funcionario.id}/${Date.now()}.${ext}`
         const { error: upErr } = await supabase.storage.from('atestados').upload(path, foto, { upsert: false })
         if (upErr) throw upErr
-        const { data: pub } = supabase.storage.from('atestados').getPublicUrl(path)
-        foto_url = pub?.publicUrl || null
+        // Bucket é privado — guardamos o path; a URL assinada é gerada ao listar
+        foto_url = path
       }
       const payload = {
         tenant_id:      getTenantId(),
@@ -461,7 +487,7 @@ function TabAtestados({ funcionario }) {
     if (!confirm('Excluir este atestado?')) return
     try {
       if (row.foto_url) {
-        const path = row.foto_url.split('/atestados/')[1]
+        const path = extrairPath(row.foto_url)
         if (path) await supabase.storage.from('atestados').remove([path])
       }
       await supabase.from('atestados').delete().eq('id', row.id)
@@ -590,18 +616,19 @@ function TabAtestados({ funcionario }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {rows.map((r) => {
             const diasLabel = r.dias != null ? `${r.dias} dia${r.dias !== 1 ? 's' : ''}` : null
+            const fotoSrc = r.foto_url_signed || null
             return (
               <div key={r.id} style={{ border: `1px solid ${C.line2}`, borderRadius: 10, padding: '16px 18px', display: 'flex', gap: 16, alignItems: 'flex-start', background: C.surface }}>
                 {/* Foto miniatura */}
-                {r.foto_url && (
+                {fotoSrc && (
                   <img
-                    src={r.foto_url}
+                    src={fotoSrc}
                     alt="Atestado"
                     style={{ width: 64, height: 64, borderRadius: 7, objectFit: 'cover', border: `1px solid ${C.line}`, cursor: 'zoom-in', flexShrink: 0 }}
-                    onClick={() => setPreview(r.foto_url)}
+                    onClick={() => setPreview(fotoSrc)}
                   />
                 )}
-                {!r.foto_url && (
+                {!fotoSrc && (
                   <div style={{ width: 64, height: 64, borderRadius: 7, background: C.surface2, border: `1px solid ${C.line2}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0, color: C.ink3 }}>📄</div>
                 )}
 
@@ -624,9 +651,9 @@ function TabAtestados({ funcionario }) {
 
                 {/* Ações */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
-                  {r.foto_url && (
+                  {fotoSrc && (
                     <button
-                      onClick={() => setPreview(r.foto_url)}
+                      onClick={() => setPreview(fotoSrc)}
                       style={{ background: 'none', border: `1px solid ${C.line}`, color: C.ink2, fontSize: 11, padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit' }}
                     >🔍 Ver</button>
                   )}
