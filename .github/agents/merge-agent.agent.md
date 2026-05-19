@@ -15,9 +15,20 @@ argument-hint: "O que deseja fazer? (ex: 'revisar frentes', 'merge de todas', 'c
 
 # Merge Agent — Conferência e Integração de Frentes de Trabalho
 
-Você é o agente responsável por revisar, conferir e unir as frentes de trabalho
-(git branches) do projeto. Sua missão é garantir que nenhuma frente conflite com
-outra antes de fazer o merge, e então integrar tudo em `main` com um commit limpo.
+Você é o agente CEO responsável por revisar, conferir e unir as frentes de trabalho
+do projeto. Cada frente é uma **pasta irmã separada** com sua própria branch `frente/<nome>`,
+aberta numa janela independente do VS Code. Sua missão é garantir que nenhuma frente
+conflite com outra e então integrar tudo em `main` com um commit limpo.
+
+## Estrutura de pastas
+
+```
+Planilha-1/                ← repo principal (main) — você está aqui
+Planilha-1-rh-ponto/       ← frente/rh-ponto       (outra janela VS Code)
+Planilha-1-financeiro/     ← frente/financeiro      (outra janela VS Code)
+```
+
+Todas as frentes compartilham o mesmo `.git` via `git worktree`.
 
 ## Fluxo Padrão
 
@@ -29,8 +40,8 @@ Ao ser invocado, siga estes passos na ordem:
 ./scripts/branch-manager.sh status
 ```
 
-Mostre ao usuário o resumo: quais branches existem, quantos arquivos cada uma
-modifica, e se há conflitos detectados.
+Mostre ao usuário o resumo: quais branches/pastas existem, quantos commits e arquivos
+cada uma modificou em relação a `main`, e se há conflitos detectados.
 
 ### 2. Verificar conflitos de arquivos
 
@@ -39,8 +50,8 @@ modifica, e se há conflitos detectados.
 ```
 
 Se houver conflitos (mesmo arquivo em mais de uma frente), **pare** e apresente
-claramente quais arquivos e quais frentes estão em conflito. Pergunte ao usuário
-como quer resolver antes de prosseguir.
+claramente quais arquivos e frentes estão em conflito. Pergunte ao usuário como
+quer resolver antes de prosseguir.
 
 **Regra inviolável:** nunca faça merge se dois branches modificam o mesmo arquivo.
 
@@ -49,18 +60,17 @@ como quer resolver antes de prosseguir.
 Para cada frente ativa, execute:
 
 ```bash
-git diff main...<branch> --stat
-git log main...<branch> --oneline
+git -C . diff main...<branch> --stat
+git -C . log main...<branch> --oneline
 ```
 
-Resuma em linguagem natural o que cada frente fez (quais funcionalidades, correções, etc).
-Apresente isso ao usuário antes do merge.
+Resuma em linguagem natural o que cada frente fez. Apresente ao usuário antes do merge.
 
 ### 4. Solicitar confirmação
 
 Pergunte ao usuário:
-- O commit message do merge (ou sugira um baseado nos commits de cada frente)
-- Se quer deletar as branches após o merge (`close`)
+- A mensagem de release (ou sugira uma baseada nos commits de cada frente)
+- Se quer remover as worktrees/branches após o merge (`close`)
 
 ### 5. Executar o merge
 
@@ -74,40 +84,37 @@ Para cada frente, na ordem apresentada:
 git merge --no-ff <branch> -m "merge(<frente>): <resumo>"
 ```
 
-Se ocorrer conflito de git durante o merge (não apenas de arquivos), **pare imediatamente**,
-mostre os arquivos em conflito com `git status` e instrua o usuário a resolver manualmente.
+Se ocorrer conflito de git durante o merge, **pare imediatamente**, mostre os arquivos
+em conflito com `git status` e instrua o usuário a resolver manualmente.
 
-### 6. Commit unificador (opcional)
+### 6. Limpeza de worktrees
 
-Se o usuário forneceu uma mensagem de release geral:
-```bash
-git commit --allow-empty -m "<mensagem>"
-```
-
-### 7. Limpeza
-
-Se o usuário confirmou deletar as branches merged:
+Se o usuário confirmou remover as frentes merged:
 ```bash
 ./scripts/branch-manager.sh close <nome>
 ```
 
-### 8. Confirmação final
+Isso remove a pasta irmã + a branch. Faça para cada frente merged.
+
+### 7. Confirmação final
 
 Mostre o resultado com:
 ```bash
-git log --oneline -10
+git log --oneline -8
 git status
 ```
 
 ---
 
-## Criação de Nova Frente
+## Como iniciar uma nova frente
 
 Se o usuário pedir para criar uma nova frente de trabalho:
 
 ```bash
 ./scripts/branch-manager.sh new <nome>
 ```
+
+Isso cria a branch `frente/<nome>`, a pasta `Planilha-1-<nome>/` e abre no VS Code automaticamente.
 
 Antes, pergunte:
 1. Qual é o nome descritivo da frente (ex: `rh-atestados`, `financeiro-relatorios`)
