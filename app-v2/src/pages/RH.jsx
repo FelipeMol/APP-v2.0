@@ -6,6 +6,7 @@ import FuncionariosRH from './rh/FuncionariosRH'
 import ProcessoSeletivo from './rh/ProcessoSeletivo'
 import PainelObra from './rh/PainelObra'
 import KPIsDiretoria from './rh/KPIsDiretoria'
+import RelatorioAtestadosFaltas from './rh/RelatorioAtestadosFaltas'
 
 function RH() {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -17,6 +18,7 @@ function RH() {
     { key: 'processo',      label: 'Processo Seletivo' },
     { key: 'desligamentos', label: 'Desligamentos' },
     { key: 'obras',         label: 'Por Obra' },
+    { key: 'atestados',     label: 'Atestados e Faltas' },
     { key: 'kpis',          label: 'KPIs Diretoria' },
   ]
 
@@ -44,6 +46,7 @@ function RH() {
       {activeTab === 'processo'       && <ProcessoSeletivo />}
       {activeTab === 'desligamentos'  && <Desligamentos />}
       {activeTab === 'obras'           && <PainelObra />}
+      {activeTab === 'atestados'       && <RelatorioAtestadosFaltas />}
       {activeTab === 'kpis'            && <KPIsDiretoria />}
     </div>
   )
