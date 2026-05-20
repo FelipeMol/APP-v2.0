@@ -321,14 +321,15 @@ function CronogramaGanttPreview({ cronograma, onOpenModal }) {
     return { bar: 'bg-gray-400', bg: 'bg-gray-200' };
   };
 
-  // Calcula posição da linha "hoje"
+  // Calcula posição da linha "hoje" usando índice do mês (alinhado com flex-1)
   const calcularLinhaHoje = () => {
-    const primeiroMes = meses[0];
-    // Usar o primeiro dia do mês seguinte ao último para calcular corretamente
-    const ultimoMes = new Date(meses[meses.length - 1].getFullYear(), meses[meses.length - 1].getMonth() + 1, 1);
-    const totalDias = (ultimoMes - primeiroMes) / (1000 * 60 * 60 * 24);
-    const diasDesdeInicio = (hoje - primeiroMes) / (1000 * 60 * 60 * 24);
-    return (diasDesdeInicio / totalDias) * 100;
+    const idx = meses.findIndex(
+      m => m.getFullYear() === hoje.getFullYear() && m.getMonth() === hoje.getMonth()
+    );
+    if (idx === -1) return -1;
+    const diasNoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
+    const fracaoMes = (hoje.getDate() - 1) / diasNoMes;
+    return ((idx + fracaoMes) / meses.length) * 100;
   };
 
   const posicaoHoje = calcularLinhaHoje();
@@ -3160,7 +3161,14 @@ export default function Relatorios() {
                 const fracao = (monthsFromStart + fracaoMes) / totalMeses;
                 return Math.max(0, Math.min(100, fracao * 100));
               };
-              const todayPct = pct(format(hoje, 'yyyy-MM-dd'));
+              // todayPct calculado por índice no array meses (alinhado com grid flex-1)
+              const todayMesIdx = meses.findIndex(
+                m => m.getFullYear() === hoje.getFullYear() && m.getMonth() === hoje.getMonth()
+              );
+              const todayPct = todayMesIdx === -1 ? -1 : (() => {
+                const dim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
+                return Math.max(0, Math.min(100, ((todayMesIdx + (hoje.getDate() - 1) / dim) / (meses.length || 1)) * 100));
+              })();
 
               // ── EMPTY STATE ──
               if (cronograma.length === 0) return (
@@ -3273,9 +3281,11 @@ export default function Relatorios() {
                                   </div>
                                 ))}
                               </div>
-                              <div style={{ position:'absolute', left:`${todayPct}%`, top:0, bottom:-2, transform:'translateX(-50%)' }}>
-                                <span style={{ display:'inline-block', background:'#EF4444', color:'#fff', fontSize:8, padding:'1px 4px', fontWeight:700, letterSpacing:'.04em', borderRadius:3 }}>HOJE</span>
-                              </div>
+                              {todayPct >= 0 && (
+                                <div style={{ position:'absolute', left:`${todayPct}%`, top:0, bottom:-2, transform:'translateX(-50%)' }}>
+                                  <span style={{ display:'inline-block', background:'#EF4444', color:'#fff', fontSize:8, padding:'1px 4px', fontWeight:700, letterSpacing:'.04em', borderRadius:3 }}>HOJE</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -3343,7 +3353,7 @@ export default function Relatorios() {
                                     </div>
                                   )}
                                   {/* today line */}
-                                  <div style={{ position:'absolute', left:`${todayL}%`, top:2, bottom:2, width:1.5, background:'#EF4444', opacity:.65, transform:'translateX(-50%)' }}/>
+                                  {todayL >= 0 && <div style={{ position:'absolute', left:`${todayL}%`, top:2, bottom:2, width:1.5, background:'#EF4444', opacity:.65, transform:'translateX(-50%)' }}/>}
                                 </div>
                               </div>
                             </div>
@@ -3373,9 +3383,11 @@ export default function Relatorios() {
                         {/* Right: month headers */}
                         <div style={{ position:'relative', borderBottom:'1px solid #ECECEF', background:'#FAFAFC', height:56, overflow:'hidden' }}>
                           {/* Today pill */}
-                          <div style={{ position:'absolute', left:`${todayPct}%`, top:8, transform:'translateX(-50%)', zIndex:2 }}>
-                            <span style={{ display:'inline-flex', alignItems:'center', background:'#EF4444', color:'#fff', fontSize:10, padding:'3px 8px', fontWeight:700, letterSpacing:'.04em', borderRadius:999 }}>HOJE · {format(hoje,'dd/MM', {locale:ptBR})}</span>
-                          </div>
+                          {todayPct >= 0 && (
+                            <div style={{ position:'absolute', left:`${todayPct}%`, top:8, transform:'translateX(-50%)', zIndex:2 }}>
+                              <span style={{ display:'inline-flex', alignItems:'center', background:'#EF4444', color:'#fff', fontSize:10, padding:'3px 8px', fontWeight:700, letterSpacing:'.04em', borderRadius:999 }}>HOJE · {format(hoje,'dd/MM', {locale:ptBR})}</span>
+                            </div>
+                          )}
                           {/* Month names */}
                           <div style={{ position:'absolute', left:0, right:0, bottom:0, top:30, display:'grid', gridTemplateColumns:`repeat(${meses.length},1fr)` }}>
                             {meses.map((m,i) => (
@@ -3441,7 +3453,7 @@ export default function Relatorios() {
                                 )}
 
                                 {/* today line */}
-                                <div style={{ position:'absolute', left:`${todayPct}%`, top:0, bottom:0, width:1.5, background:'#EF4444', opacity:.55, transform:'translateX(-50%)' }}/>
+                                {todayPct >= 0 && <div style={{ position:'absolute', left:`${todayPct}%`, top:0, bottom:0, width:1.5, background:'#EF4444', opacity:.55, transform:'translateX(-50%)' }}/>}
                               </div>
                             </Fragment>
                           );
