@@ -327,6 +327,38 @@ REGRAS IMPORTANTES:
 Se o usuário pedir algo fora dos módulos ativos acima, informe que essa funcionalidade não está disponível para ${name}.`;
 }
 
+// ── Modo análise (sem tools, alta capacidade de output) ──────
+async function runAnalysis(message: string): Promise<string> {
+  const messages = [
+    {
+      role: "system",
+      content:
+        "Você é um assistente especializado em extratos bancários. " +
+        "Analise os dados fornecidos e responda APENAS com JSON válido, sem texto adicional nem blocos markdown.",
+    },
+    { role: "user", content: message },
+  ];
+
+  const resp = await fetch(`${GLM_BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${GLM_API_KEY}`,
+    },
+    body: JSON.stringify({ model: GLM_MODEL, messages, max_tokens: 4096 }),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.text();
+    throw new Error(`GLM API error ${resp.status}: ${err}`);
+  }
+
+  const data = await resp.json();
+  const choice = data.choices?.[0];
+  if (!choice) throw new Error("Resposta vazia da GLM");
+  return choice.message?.content ?? "{}";
+}
+
 // ── Agente principal ─────────────────────────────────────────
 async function runChat(
   sb: ReturnType<typeof createClient>,
@@ -442,7 +474,7 @@ Deno.serve(async (req: Request) => {
   }
 
   // Parse do body
-  let body: { message?: string; history?: { role: string; content: string }[] };
+  let body: { message?: string; history?: { role: string; content: string }[]; mode?: string };
   try {
     body = await req.json();
   } catch {
@@ -463,7 +495,12 @@ Deno.serve(async (req: Request) => {
   const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
   try {
-    const response = await runChat(sb, body.message, body.history ?? [], tenantId);
+    let response: string;
+    if (body.mode === "analysis") {
+      response = await runAnalysis(body.message);
+    } else {
+      response = await runChat(sb, body.message, body.history ?? [], tenantId);
+    }
     return new Response(JSON.stringify({ response, tenant_id: tenantId }), {
       status: 200,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },

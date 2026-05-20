@@ -103,7 +103,7 @@ ${texto.slice(0, 8000)}`
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(tenantId ? { 'X-Tenant-ID': String(tenantId) } : {}),
     },
-    body: JSON.stringify({ message: prompt, history: [], tenant_id: tenantId }),
+    body: JSON.stringify({ message: prompt, history: [], tenant_id: tenantId, mode: 'analysis' }),
   })
   if (!res.ok) throw new Error(`Erro ${res.status} na IA`)
   const data = await res.json()
