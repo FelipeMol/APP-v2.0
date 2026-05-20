@@ -5,11 +5,7 @@ description: >
   Use quando quiser unir as frentes de trabalho, verificar conflitos entre branches,
   revisar o que cada frente modificou, ou fazer o commit final após o merge.
   Palavras-chave: merge, frentes, branches, unir, conferência, release.
-tools:
-  - execute
-  - read
-  - edit
-  - search
+tools: [supabase/apply_migration, supabase/create_branch, supabase/execute_sql, execute/runNotebookCell, execute/executionSubagent, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, read/getNotebookSummary, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, edit/createDirectory, edit/createFile, edit/createJupyterNotebook, edit/editFiles, edit/editNotebook, edit/rename, search/codebase, search/fileSearch, search/listDirectory, search/textSearch, search/usages]
 argument-hint: "O que deseja fazer? (ex: 'revisar frentes', 'merge de todas', 'checar conflitos')"
 ---
 
