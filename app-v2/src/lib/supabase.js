@@ -22,6 +22,7 @@ const TENANT_TABLES = new Set([
   'requisicoes_vagas', 'candidatos', 'entrevistas', 'admissoes',
   'financeiro_contas', 'financeiro_lancamentos', 'financeiro_categorias',
   'financeiro_extrato', 'financeiro_centros_custo', 'financeiro_orcamentos',
+  'orcamento_modelos', 'orcamento_grupos', 'orcamento_itens',
   'view_tarefas_resumo',
 ])
 

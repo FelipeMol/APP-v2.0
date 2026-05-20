@@ -65,6 +65,7 @@ import relatoriosService from '@/services/relatoriosService';
 import obrasService from '@/services/obrasService';
 import { lancamentosFinService } from '@/services/financeiroService';
 import { CronogramaModal } from '@/components/cronograma';
+import { OrcamentoBuilder } from '@/components/relatorios';
 
 // ============================================================================
 // HOOKS PERSONALIZADOS
@@ -2586,6 +2587,7 @@ export default function Relatorios() {
             <TabsTrigger value="cronograma">Cronograma</TabsTrigger>
             <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
             <TabsTrigger value="equipe">Equipe</TabsTrigger>
+            <TabsTrigger value="orcamento">Orçamento</TabsTrigger>
           </TabsList>
           {/* TAB: VISÃO GERAL */}
           <TabsContent value="visao-geral" className="space-y-6 mt-0">
@@ -3759,6 +3761,14 @@ export default function Relatorios() {
                 </>
               );
             })()}
+          </TabsContent>
+
+          {/* TAB: ORÇAMENTO */}
+          <TabsContent value="orcamento" className="mt-0">
+            <OrcamentoBuilder
+              obraId={obraSelecionada?.id}
+              obraNome={obraSelecionada?.nome}
+            />
           </TabsContent>
         </Tabs>
 
