@@ -638,6 +638,8 @@ export default function RelatoriosVisaoGeral() {
     </div>
   )
 }
+
+function MetricCard({ title, value, deltaLabel, tone = 'neutral', icon: Icon, footer }) {
   const toneStyles = {
     neutral: 'bg-slate-50 text-slate-700 border-slate-200',
     success: 'bg-emerald-50 text-emerald-700 border-emerald-200',
