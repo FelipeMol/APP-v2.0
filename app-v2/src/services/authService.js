@@ -17,7 +17,9 @@ const normalizePermissions = (permissions) => {
 const TENANTS_KEY = 'allowed_tenants';
 
 const authService = {
-  async login(usuario, senha) {
+  // domainTenantIds: IDs dos tenants do domínio atual (vem do grupoStore).
+  // Se informado e não-vazio, bloqueia login de usuários sem acesso a nenhum deles.
+  async login(usuario, senha, domainTenantIds = []) {
     try {
       const fakeEmail = `${usuario.toLowerCase().trim()}@app.internal`;
 
@@ -40,6 +42,18 @@ const authService = {
 
       const { usuario: user, permissoes, tenants } = dados || {};
       const normalizedPermissions = normalizePermissions(permissoes);
+
+      // Verificar acesso ao domínio atual.
+      // Só bloqueia se: domínio tem tenants definidos E usuário tem tenants definidos
+      // E não há interseção. (superadmin sem restrições de tenant passa sempre)
+      if (domainTenantIds.length > 0 && Array.isArray(tenants) && tenants.length > 0) {
+        const userTenantIds = tenants.map(t => t.id ?? t);
+        const hasAccess = userTenantIds.some(id => domainTenantIds.includes(id));
+        if (!hasAccess) {
+          await supabase.auth.signOut();
+          throw new Error('Sua conta não tem acesso a este sistema.');
+        }
+      }
 
       localStorage.setItem('user_data',        JSON.stringify(user));
       localStorage.setItem('user_permissions', JSON.stringify(normalizedPermissions));

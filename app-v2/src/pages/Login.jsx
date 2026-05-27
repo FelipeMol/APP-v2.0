@@ -12,7 +12,7 @@ import useTenantBranding from '../hooks/useTenantBranding';
 export default function Login() {
   const navigate = useNavigate();
   const { login, isLoading, isAuthenticated } = useAuthStore();
-  const { grupo, autoTenantId } = useGrupoStore();
+  const { grupo, autoTenantId, domainTenants } = useGrupoStore();
   const branding = useTenantBranding();
 
   const [formData, setFormData] = useState({ usuario: '', senha: '' });
@@ -33,7 +33,9 @@ export default function Login() {
     e.preventDefault();
     if (!formData.usuario || !formData.senha) return;
     try {
-      await login(formData.usuario, formData.senha);
+      // Passa os IDs dos tenants do domínio atual para bloquear acesso cross-tenant
+      const domainTenantIds = (domainTenants || []).map(t => t.id);
+      await login(formData.usuario, formData.senha, domainTenantIds);
       const dest = '/selecionar-empresa';
       navigate(dest, { replace: true });
     } catch (err) {

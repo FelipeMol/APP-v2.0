@@ -18,11 +18,11 @@ const useAuthStore = create((set, get) => ({
   /**
    * Fazer login
    */
-  login: async (usuario, senha) => {
+  login: async (usuario, senha, domainTenantIds = []) => {
     set({ isLoading: true, error: null });
 
     try {
-      const response = await authService.login(usuario, senha);
+      const response = await authService.login(usuario, senha, domainTenantIds);
       const { usuario: user, permissoes, tenants } = response || {};
 
       set({

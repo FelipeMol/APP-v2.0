@@ -6,9 +6,13 @@ import supabase from '../../lib/supabase.js';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '../../components/ui/dialog';
+import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '../../components/ui/table';
-import { Search, Users, RefreshCw } from 'lucide-react';
+import { Search, Users, RefreshCw, Pencil, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const TIPO_LABELS = {
   superadmin: { label: 'Super Admin', cls: 'bg-amber-100 text-amber-800 border-amber-300' },
@@ -23,40 +27,32 @@ function fmtDate(iso) {
 
 export default function UsuariosAdmin() {
   const [usuarios, setUsuarios] = useState([]);
-  const [tenantMap, setTenantMap] = useState({});
+  const [allTenants, setAllTenants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [busca, setBusca] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('todos');
 
+  // Estado do modal de edição de tenants
+  const [editingUser, setEditingUser] = useState(null);   // usuário sendo editado
+  const [selectedTenants, setSelectedTenants] = useState([]); // tenant_ids selecionados
+  const [saving, setSaving] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [{ data: users, error: e1 }, { data: uts, error: e2 }, { data: tenants, error: e3 }] =
-        await Promise.all([
-          supabase.from('usuarios').select('id, nome, usuario, email, tipo, ativo, ultimo_login, criado_em').order('nome'),
-          supabase.from('usuarios_tenants').select('usuario_id, tenant_id').eq('ativo', 1),
-          supabase.from('tenants').select('id, name, short_name').eq('active', true),
-        ]);
+      const [{ data: users, error: e1 }, { data: tenants, error: e2 }] = await Promise.all([
+        // RPC retorna todos os usuários (bypassa filtro de tenant do frontend) + seus tenant_ids
+        supabase.rpc('listar_todos_usuarios_superadmin'),
+        supabase.from('tenants').select('id, name, short_name').eq('active', true).order('name'),
+      ]);
 
       if (e1) throw e1;
       if (e2) throw e2;
-      if (e3) throw e3;
-
-      // Monta mapa tenantId → name
-      const tMap = {};
-      (tenants || []).forEach(t => { tMap[t.id] = t.short_name || t.name; });
-
-      // Agrupa tenants por usuário
-      const utMap = {};
-      (uts || []).forEach(ut => {
-        if (!utMap[ut.usuario_id]) utMap[ut.usuario_id] = [];
-        if (tMap[ut.tenant_id]) utMap[ut.usuario_id].push(tMap[ut.tenant_id]);
-      });
 
       setUsuarios(users || []);
-      setTenantMap(utMap);
+      setAllTenants(tenants || []);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -65,6 +61,41 @@ export default function UsuariosAdmin() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Abre modal para editar tenants do usuário
+  const openEdit = (u) => {
+    setEditingUser(u);
+    setSelectedTenants(u.tenant_ids || []);
+  };
+
+  const toggleTenant = (tenantId) => {
+    setSelectedTenants(prev =>
+      prev.includes(tenantId) ? prev.filter(t => t !== tenantId) : [...prev, tenantId]
+    );
+  };
+
+  const handleSaveTenants = async () => {
+    if (!editingUser) return;
+    setSaving(true);
+    try {
+      const { data, error } = await supabase.rpc('atualizar_tenants_usuario', {
+        p_usuario_id: editingUser.id,
+        p_tenant_ids: selectedTenants,
+      });
+      if (error) throw error;
+      if (!data?.sucesso) throw new Error(data?.mensagem || 'Erro ao salvar');
+      toast.success('Empresas atualizadas com sucesso');
+      setEditingUser(null);
+      load();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const tMap = {};
+  allTenants.forEach(t => { tMap[t.id] = t.short_name || t.name; });
 
   const filtered = usuarios.filter(u => {
     const matchBusca = !busca || u.nome?.toLowerCase().includes(busca.toLowerCase()) || u.usuario?.toLowerCase().includes(busca.toLowerCase()) || u.email?.toLowerCase().includes(busca.toLowerCase());
@@ -160,12 +191,13 @@ export default function UsuariosAdmin() {
                 <TableHead className="font-semibold text-gray-600">Empresas</TableHead>
                 <TableHead className="font-semibold text-gray-600">Último acesso</TableHead>
                 <TableHead className="font-semibold text-gray-600">Status</TableHead>
+                <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map(u => {
                 const t = TIPO_LABELS[u.tipo] || TIPO_LABELS.usuario;
-                const tenants = tenantMap[u.id] || [];
+                const tenantNames = (u.tenant_ids || []).map(id => tMap[id] || id);
                 return (
                   <TableRow key={u.id}>
                     <TableCell>
@@ -179,11 +211,11 @@ export default function UsuariosAdmin() {
                       <Badge variant="outline" className={t.cls}>{t.label}</Badge>
                     </TableCell>
                     <TableCell>
-                      {tenants.length === 0 ? (
+                      {tenantNames.length === 0 ? (
                         <span className="text-xs text-gray-400 italic">Sem empresa</span>
                       ) : (
                         <div className="flex flex-wrap gap-1">
-                          {tenants.map(tn => (
+                          {tenantNames.map(tn => (
                             <span key={tn} className="text-xs bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full">{tn}</span>
                           ))}
                         </div>
@@ -191,9 +223,19 @@ export default function UsuariosAdmin() {
                     </TableCell>
                     <TableCell className="text-sm text-gray-500">{fmtDate(u.ultimo_login)}</TableCell>
                     <TableCell>
-                      <Badge variant={u.ativo ? 'default' : 'secondary'} className={u.ativo ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-100' : 'bg-gray-100 text-gray-500'}>
-                        {u.ativo ? 'Ativo' : 'Inativo'}
+                      <Badge variant={u.ativo === 'Sim' ? 'default' : 'secondary'} className={u.ativo === 'Sim' ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-100' : 'bg-gray-100 text-gray-500'}>
+                        {u.ativo === 'Sim' ? 'Ativo' : 'Inativo'}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost" size="icon"
+                        className="h-7 w-7 text-gray-400 hover:text-gray-700"
+                        title="Editar empresas"
+                        onClick={() => openEdit(u)}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
@@ -208,6 +250,52 @@ export default function UsuariosAdmin() {
           )}
         </div>
       )}
+
+      {/* Modal: editar empresas do usuário */}
+      <Dialog open={!!editingUser} onOpenChange={open => { if (!open) setEditingUser(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Empresas de {editingUser?.nome}</DialogTitle>
+          </DialogHeader>
+
+          <p className="text-xs text-muted-foreground -mt-2">
+            Selecione as empresas que este usuário pode acessar.
+          </p>
+
+          <div className="space-y-2 py-2 max-h-64 overflow-y-auto pr-1">
+            {allTenants.map(t => (
+              <label
+                key={t.id}
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  selectedTenants.includes(t.id)
+                    ? 'border-blue-300 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 accent-blue-600"
+                  checked={selectedTenants.includes(t.id)}
+                  onChange={() => toggleTenant(t.id)}
+                />
+                <div>
+                  <div className="text-sm font-medium text-gray-900">{t.short_name || t.name}</div>
+                  <div className="text-xs text-gray-400">{t.id}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setEditingUser(null)} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveTenants} disabled={saving}>
+              {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando…</> : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
