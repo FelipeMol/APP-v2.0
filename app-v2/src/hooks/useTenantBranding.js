@@ -6,6 +6,7 @@ import useTenantStore from '../store/tenantStore';
 const ASSISTENTE_NAMES = {
   transformar: 'Assistente Transformar',
   voltuz:      'Assistente Voltuz',
+  studio33:    'Assistente Studio 33',
 };
 
 const DEFAULTS = {
