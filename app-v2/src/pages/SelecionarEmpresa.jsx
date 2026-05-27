@@ -1,11 +1,11 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import useTenantStore from '../store/tenantStore';
 import useGrupoStore from '../store/grupoStore';
 import authService from '../services/authService';
-import { Check, HardHat } from 'lucide-react';
+import { Check } from 'lucide-react';
 import useTenantBranding from '../hooks/useTenantBranding';
 
 function TenantCardSkeleton() {
@@ -49,10 +49,6 @@ export default function SelecionarEmpresa() {
   const { grupo, domainTenants, autoTenantId, isLoadingGrupo, loaded: grupoLoaded } = useGrupoStore();
   const branding = useTenantBranding();
 
-  const [entering, setEntering] = useState(false);
-  const [entered, setEntered] = useState(false);
-  const [enteringTenant, setEnteringTenant] = useState(null);
-
   useEffect(() => {
     // Aguarda o grupoStore terminar antes de carregar tenants
     // evita mostrar todos os tenants enquanto resolve_domain ainda está em andamento
@@ -77,15 +73,10 @@ export default function SelecionarEmpresa() {
 
   const handleSelect = async (tenantId) => {
     const tenant = tenants.find(t => t.id === tenantId);
-    if (!tenant || entering) return;
+    if (!tenant) return;
     setTenant(tenantId);
     await loadModulosDoTenant(tenantId);
-    setEnteringTenant(tenant);
-    setEntering(true);
-    window.setTimeout(() => {
-      setEntered(true);
-      window.setTimeout(() => navigate('/dashboard', { replace: true }), 500);
-    }, 600);
+    navigate('/dashboard', { replace: true });
   };
 
   return (
@@ -127,7 +118,7 @@ export default function SelecionarEmpresa() {
                   key={t.id}
                   tenant={t}
                   isSelected={selectedTenantId === t.id}
-                  disabled={entering}
+                  disabled={false}
                   onSelect={() => handleSelect(t.id)}
                 />
               ))
@@ -140,7 +131,7 @@ export default function SelecionarEmpresa() {
               variant="outline"
               className="text-xs"
               onClick={() => navigate('/login', { replace: true })}
-              disabled={entering}
+              disabled={false}
             >
               Voltar para login
             </Button>
@@ -148,35 +139,6 @@ export default function SelecionarEmpresa() {
         </div>
       </div>
 
-      {entering && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 9999, background: '#17273C',
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          justifyContent: 'center', gap: 20,
-          animation: 'rr-fade-in 0.55s cubic-bezier(0.4,0,0.2,1) forwards',
-          opacity: entered ? 1 : undefined,
-        }}>
-          <div style={{
-            width: 72, height: 72, borderRadius: 20,
-            background: 'rgba(255,255,255,0.10)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            animation: 'rr-pop-in 0.45s 0.25s cubic-bezier(0.34,1.56,0.64,1) both',
-          }}>
-            <HardHat size={36} color={branding.corAccent || '#E8A628'} strokeWidth={1.5} />
-          </div>
-          <div style={{
-            color: 'rgba(255,255,255,0.92)', fontSize: 18, fontWeight: 600,
-            letterSpacing: '-0.01em',
-            animation: 'rr-pop-in 0.45s 0.35s cubic-bezier(0.34,1.56,0.64,1) both',
-          }}>
-            {enteringTenant?.name || branding.nomeExibicao}
-          </div>
-          <style>{`
-            @keyframes rr-fade-in { from { opacity: 0; } to { opacity: 1; } }
-            @keyframes rr-pop-in  { from { opacity: 0; transform: scale(0.85) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
-          `}</style>
-        </div>
-      )}
     </div>
   );
 }

@@ -11,7 +11,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '../../components/ui/table';
-import { Search, Users, RefreshCw, Pencil, Loader2, UserPlus, Eye, EyeOff, Mail, AtSign } from 'lucide-react';
+import { Search, Users, RefreshCw, Pencil, Loader2, UserPlus, Eye, EyeOff, Mail, AtSign, Trash2, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const EMPTY_FORM = {
@@ -62,6 +62,10 @@ export default function UsuariosAdmin() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [showSenha, setShowSenha] = useState(false);
   const [creating, setCreating] = useState(false);
+
+  // Estado do modal de exclusão
+  const [deletingUser, setDeletingUser] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -166,6 +170,25 @@ export default function UsuariosAdmin() {
       toast.error(e.message);
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deletingUser) return;
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.rpc('excluir_usuario_superadmin', {
+        p_usuario_id: deletingUser.id,
+      });
+      if (error) throw error;
+      if (!data?.sucesso) throw new Error(data?.mensagem || 'Erro ao excluir usuário');
+      toast.success('Usuário excluído com sucesso');
+      setDeletingUser(null);
+      load();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -312,14 +335,26 @@ export default function UsuariosAdmin() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost" size="icon"
-                        className="h-7 w-7 text-gray-400 hover:text-gray-700"
-                        title="Editar empresas"
-                        onClick={() => openEdit(u)}
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost" size="icon"
+                          className="h-7 w-7 text-gray-400 hover:text-gray-700"
+                          title="Editar empresas"
+                          onClick={() => openEdit(u)}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        {u.tipo !== 'superadmin' && (
+                          <Button
+                            variant="ghost" size="icon"
+                            className="h-7 w-7 text-gray-400 hover:text-red-600"
+                            title="Excluir usuário"
+                            onClick={() => setDeletingUser(u)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -376,6 +411,35 @@ export default function UsuariosAdmin() {
             </Button>
             <Button onClick={handleSaveTenants} disabled={saving}>
               {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando…</> : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: confirmar exclusão */}
+      <Dialog open={!!deletingUser} onOpenChange={open => { if (!open && !deleting) setDeletingUser(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5" />
+              Excluir usuário
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-700">
+            Tem certeza que deseja excluir <span className="font-semibold">{deletingUser?.nome}</span>?
+          </p>
+          <p className="text-xs text-gray-400">
+            Esta ação é irreversível. O usuário será removido do sistema e perderá acesso a todas as empresas.
+          </p>
+          <DialogFooter className="gap-2 pt-2">
+            <Button variant="outline" onClick={() => setDeletingUser(null)} disabled={deleting}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting
+                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Excluindo…</>
+                : <><Trash2 className="w-4 h-4 mr-2" />Excluir</>
+              }
             </Button>
           </DialogFooter>
         </DialogContent>
