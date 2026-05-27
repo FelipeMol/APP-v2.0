@@ -26,11 +26,15 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, auth
 AS $$
 BEGIN
-  IF (auth.jwt() -> 'app_metadata' ->> 'role') <> 'superadmin' THEN
-    RAISE EXCEPTION 'Acesso negado: apenas superadmin pode listar todos os usuários';
+  -- Retorna vazio para não-superadmin (evita HTTP 400)
+  IF NOT COALESCE(
+    (auth.jwt() -> 'app_metadata' ->> 'role') = 'superadmin',
+    false
+  ) THEN
+    RETURN;
   END IF;
 
   RETURN QUERY
@@ -45,7 +49,7 @@ BEGIN
     u.criado_em,
     COALESCE(
       ARRAY(
-        SELECT ut.tenant_id
+        SELECT ut.tenant_id::TEXT   -- cast explícito: tenant_id é VARCHAR, não TEXT
         FROM usuarios_tenants ut
         WHERE ut.usuario_id = u.id AND ut.ativo = 1
         ORDER BY ut.tenant_id
