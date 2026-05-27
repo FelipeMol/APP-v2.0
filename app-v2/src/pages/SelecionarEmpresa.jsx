@@ -58,14 +58,19 @@ export default function SelecionarEmpresa() {
     // evita mostrar todos os tenants enquanto resolve_domain ainda está em andamento
     if (isLoadingGrupo || !grupoLoaded) return;
 
-    if (autoTenantId && domainTenants.length === 1) {
-      setTenant(autoTenantId);
-      loadModulosDoTenant(autoTenantId);
-      navigate('/dashboard', { replace: true });
-      return;
-    }
-
     const allowedTenants = authService.getAllowedTenants().map(t => t.id ?? t);
+
+    if (autoTenantId && domainTenants.length === 1) {
+      // Só faz auto-select se o usuário tiver permissão neste tenant
+      const canAccess = allowedTenants.length === 0 || allowedTenants.includes(autoTenantId);
+      if (canAccess) {
+        setTenant(autoTenantId);
+        loadModulosDoTenant(autoTenantId);
+        navigate('/dashboard', { replace: true });
+        return;
+      }
+      // Sem permissão: cai para loadTenants que vai retornar lista vazia
+    }
     const grupoId = grupo?.id ?? null;
     loadTenants(allowedTenants, grupoId, domainTenants, autoTenantId);
   }, [loadTenants, grupo, domainTenants, autoTenantId, isLoadingGrupo, grupoLoaded, setTenant, loadModulosDoTenant, navigate]);

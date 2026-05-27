@@ -24,8 +24,15 @@ const useTenantStore = create((set, get) => ({
     try {
       if (autoTenantId && domainTenants.length === 1) {
         const t = domainTenants[0];
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ id: t.id }));
-        set({ tenants: domainTenants, selectedTenantId: t.id, isLoadingTenants: false });
+        // Só faz auto-select se o usuário tiver permissão neste tenant
+        const canAccess = allowedTenantIds.length === 0 || allowedTenantIds.some(a => (a.id ?? a) === t.id);
+        if (canAccess) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ id: t.id }));
+          set({ tenants: domainTenants, selectedTenantId: t.id, isLoadingTenants: false });
+          return;
+        }
+        // Sem permissão: retorna lista vazia
+        set({ tenants: [], isLoadingTenants: false });
         return;
       }
 
@@ -33,9 +40,8 @@ const useTenantStore = create((set, get) => ({
         // Domain tenants take priority - they come from resolve_domain RPC
         let filtered = domainTenants;
         if (allowedTenantIds.length > 0) {
-          const intersected = domainTenants.filter(t => allowedTenantIds.some(a => (a.id ?? a) === t.id));
-          // Only narrow if intersection is non-empty; otherwise show all domain tenants
-          if (intersected.length > 0) filtered = intersected;
+          // Intersection vazia = usuário sem acesso a este domínio → lista vazia
+          filtered = domainTenants.filter(t => allowedTenantIds.some(a => (a.id ?? a) === t.id));
         }
         set({ tenants: filtered, isLoadingTenants: false });
         return;
