@@ -11,14 +11,33 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '../../components/ui/table';
-import { Search, Users, RefreshCw, Pencil, Loader2 } from 'lucide-react';
+import { Search, Users, RefreshCw, Pencil, Loader2, UserPlus, Eye, EyeOff, Mail, AtSign } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+const EMPTY_FORM = {
+  nome: '',
+  usuario: '',
+  email: '',
+  senha: '',
+  tipo: 'usuario',
+  ativo: 'Sim',
+  tipo_login: 'usuario',
+  tenant_ids: [],
+};
 
 const TIPO_LABELS = {
   superadmin: { label: 'Super Admin', cls: 'bg-amber-100 text-amber-800 border-amber-300' },
   admin:      { label: 'Admin',       cls: 'bg-blue-100  text-blue-800  border-blue-200'  },
   usuario:    { label: 'Usuário',     cls: 'bg-gray-100  text-gray-700  border-gray-200'  },
 };
+
+function FieldLabel({ children, required }) {
+  return (
+    <label className="block text-sm font-medium text-gray-700 mb-1">
+      {children}{required && <span className="text-red-500 ml-0.5">*</span>}
+    </label>
+  );
+}
 
 function fmtDate(iso) {
   if (!iso) return '—';
@@ -34,9 +53,15 @@ export default function UsuariosAdmin() {
   const [filtroTipo, setFiltroTipo] = useState('todos');
 
   // Estado do modal de edição de tenants
-  const [editingUser, setEditingUser] = useState(null);   // usuário sendo editado
-  const [selectedTenants, setSelectedTenants] = useState([]); // tenant_ids selecionados
+  const [editingUser, setEditingUser] = useState(null);
+  const [selectedTenants, setSelectedTenants] = useState([]);
   const [saving, setSaving] = useState(false);
+
+  // Estado do modal de criação
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [showSenha, setShowSenha] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -97,6 +122,53 @@ export default function UsuariosAdmin() {
   const tMap = {};
   allTenants.forEach(t => { tMap[t.id] = t.short_name || t.name; });
 
+  // --- Criar usuário ---
+  const openCreate = () => {
+    setForm(EMPTY_FORM);
+    setShowSenha(false);
+    setShowCreate(true);
+  };
+
+  const setField = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+
+  const toggleCreateTenant = (id) =>
+    setField('tenant_ids', form.tenant_ids.includes(id)
+      ? form.tenant_ids.filter(t => t !== id)
+      : [...form.tenant_ids, id]);
+
+  const handleCreate = async () => {
+    if (!form.nome.trim() || !form.usuario.trim() || !form.senha) {
+      toast.error('Nome, usuário e senha são obrigatórios');
+      return;
+    }
+    if (form.tipo_login === 'email' && !form.email.trim()) {
+      toast.error('E-mail é obrigatório para login por e-mail');
+      return;
+    }
+    setCreating(true);
+    try {
+      const { data, error } = await supabase.rpc('criar_usuario_superadmin', {
+        p_nome:       form.nome.trim(),
+        p_usuario:    form.usuario.trim(),
+        p_senha:      form.senha,
+        p_email:      form.email.trim() || null,
+        p_tipo:       form.tipo,
+        p_ativo:      form.ativo,
+        p_tenant_ids: form.tenant_ids,
+        p_tipo_login: form.tipo_login,
+      });
+      if (error) throw error;
+      if (!data?.sucesso) throw new Error(data?.mensagem || 'Erro ao criar usuário');
+      toast.success('Usuário criado com sucesso');
+      setShowCreate(false);
+      load();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const filtered = usuarios.filter(u => {
     const matchBusca = !busca || u.nome?.toLowerCase().includes(busca.toLowerCase()) || u.usuario?.toLowerCase().includes(busca.toLowerCase()) || u.email?.toLowerCase().includes(busca.toLowerCase());
     const matchTipo  = filtroTipo === 'todos' || u.tipo === filtroTipo;
@@ -116,10 +188,16 @@ export default function UsuariosAdmin() {
             {loading ? '…' : `${usuarios.length} usuários cadastrados`}
           </p>
         </div>
-        <Button variant="ghost" size="sm" onClick={load} disabled={loading} className="text-gray-500 gap-2">
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          Atualizar
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="ghost" size="sm" onClick={load} disabled={loading} className="text-gray-500 gap-2">
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Atualizar
+          </Button>
+          <Button size="sm" onClick={openCreate} className="gap-2">
+            <UserPlus className="w-4 h-4" />
+            Novo Usuário
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -205,7 +283,13 @@ export default function UsuariosAdmin() {
                       {u.email && <div className="text-xs text-gray-400 mt-0.5">{u.email}</div>}
                     </TableCell>
                     <TableCell>
-                      <code className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">{u.usuario || '—'}</code>
+                      <div className="flex items-center gap-1.5">
+                        <code className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">{u.usuario || '—'}</code>
+                        {u.tipo_login === 'email'
+                          ? <Mail className="w-3 h-3 text-blue-400 shrink-0" title="Login por e-mail" />
+                          : <AtSign className="w-3 h-3 text-gray-400 shrink-0" title="Login por nome de usuário" />
+                        }
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={t.cls}>{t.label}</Badge>
@@ -292,6 +376,193 @@ export default function UsuariosAdmin() {
             </Button>
             <Button onClick={handleSaveTenants} disabled={saving}>
               {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando…</> : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: criar novo usuário */}
+      <Dialog open={showCreate} onOpenChange={open => { if (!open) setShowCreate(false); }}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Novo Usuário</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-1">
+            {/* Nome */}
+            <div>
+              <FieldLabel required>Nome completo</FieldLabel>
+              <input
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Ex: João da Silva"
+                value={form.nome}
+                onChange={e => setField('nome', e.target.value)}
+              />
+            </div>
+
+            {/* Tipo de Login */}
+            <div>
+              <FieldLabel required>Tipo de login</FieldLabel>
+              <div className="grid grid-cols-2 gap-2">
+                <label className={`flex items-center gap-2.5 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  form.tipo_login === 'usuario' ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                }`}>
+                  <input type="radio" className="accent-blue-600" name="tipo_login" value="usuario"
+                    checked={form.tipo_login === 'usuario'}
+                    onChange={() => setField('tipo_login', 'usuario')} />
+                  <div>
+                    <div className="text-sm font-medium flex items-center gap-1.5">
+                      <AtSign className="w-3.5 h-3.5 text-gray-500" />
+                      Nome de usuário
+                    </div>
+                    <div className="text-xs text-gray-400 mt-0.5">Loga só com o usuário</div>
+                  </div>
+                </label>
+                <label className={`flex items-center gap-2.5 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  form.tipo_login === 'email' ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                }`}>
+                  <input type="radio" className="accent-blue-600" name="tipo_login" value="email"
+                    checked={form.tipo_login === 'email'}
+                    onChange={() => setField('tipo_login', 'email')} />
+                  <div>
+                    <div className="text-sm font-medium flex items-center gap-1.5">
+                      <Mail className="w-3.5 h-3.5 text-blue-500" />
+                      E-mail
+                    </div>
+                    <div className="text-xs text-gray-400 mt-0.5">Loga com e-mail e senha</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Usuário + E-mail (side by side when email required) */}
+            <div className={`grid gap-3 ${form.tipo_login === 'email' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <div>
+                <FieldLabel required>Nome de usuário</FieldLabel>
+                <input
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  placeholder="sem espaços (ex: joao.silva)"
+                  value={form.usuario}
+                  onChange={e => setField('usuario', e.target.value.toLowerCase().replace(/\s/g, ''))}
+                />
+                <p className="text-xs text-gray-400 mt-1">Deve ser único no sistema</p>
+              </div>
+              {form.tipo_login === 'email' && (
+                <div>
+                  <FieldLabel required>E-mail</FieldLabel>
+                  <input
+                    type="email"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="usuario@empresa.com"
+                    value={form.email}
+                    onChange={e => setField('email', e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* E-mail opcional quando tipo_login = usuario */}
+            {form.tipo_login === 'usuario' && (
+              <div>
+                <FieldLabel>E-mail (opcional)</FieldLabel>
+                <input
+                  type="email"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Para contato, não usado no login"
+                  value={form.email}
+                  onChange={e => setField('email', e.target.value)}
+                />
+              </div>
+            )}
+
+            {/* Senha */}
+            <div>
+              <FieldLabel required>Senha</FieldLabel>
+              <div className="relative">
+                <input
+                  type={showSenha ? 'text' : 'password'}
+                  className="w-full px-3 py-2 pr-10 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Mínimo 6 caracteres"
+                  value={form.senha}
+                  onChange={e => setField('senha', e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  onClick={() => setShowSenha(v => !v)}
+                >
+                  {showSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Tipo + Status */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <FieldLabel>Tipo de acesso</FieldLabel>
+                <select
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={form.tipo}
+                  onChange={e => setField('tipo', e.target.value)}
+                >
+                  <option value="usuario">Usuário</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div>
+                <FieldLabel>Status</FieldLabel>
+                <select
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={form.ativo}
+                  onChange={e => setField('ativo', e.target.value)}
+                >
+                  <option value="Sim">Ativo</option>
+                  <option value="Não">Inativo</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Empresas */}
+            <div>
+              <FieldLabel>Empresas com acesso</FieldLabel>
+              <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+                {allTenants.map(t => (
+                  <label
+                    key={t.id}
+                    className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                      form.tenant_ids.includes(t.id)
+                        ? 'border-blue-300 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 accent-blue-600 shrink-0"
+                      checked={form.tenant_ids.includes(t.id)}
+                      onChange={() => toggleCreateTenant(t.id)}
+                    />
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">{t.short_name || t.name}</div>
+                      <div className="text-xs text-gray-400">{t.id}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              {form.tenant_ids.length === 0 && (
+                <p className="text-xs text-amber-600 mt-1.5">Nenhuma empresa selecionada — o usuário não conseguirá acessar o sistema.</p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 pt-2">
+            <Button variant="outline" onClick={() => setShowCreate(false)} disabled={creating}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCreate} disabled={creating}>
+              {creating
+                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Criando…</>
+                : <><UserPlus className="w-4 h-4 mr-2" />Criar Usuário</>
+              }
             </Button>
           </DialogFooter>
         </DialogContent>

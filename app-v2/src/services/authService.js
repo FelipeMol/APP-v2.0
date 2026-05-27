@@ -21,10 +21,14 @@ const authService = {
   // Se informado e não-vazio, bloqueia login de usuários sem acesso a nenhum deles.
   async login(usuario, senha, domainTenantIds = []) {
     try {
-      const fakeEmail = `${usuario.toLowerCase().trim()}@app.internal`;
+      // Se o input contém '@', é um e-mail real (tipo_login='email')
+      // Caso contrário, constrói o e-mail interno: usuario@app.internal
+      const loginEmail = usuario.includes('@')
+        ? usuario.trim()
+        : `${usuario.toLowerCase().trim()}@app.internal`;
 
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: fakeEmail,
+        email: loginEmail,
         password: senha,
       });
 

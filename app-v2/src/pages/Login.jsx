@@ -79,7 +79,7 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="usuario" className="text-xs font-medium text-foreground">
-                Usuario
+                Usuário ou e-mail
               </Label>
               <div className="relative">
                 <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
@@ -87,7 +87,7 @@ export default function Login() {
                   id="usuario"
                   name="usuario"
                   type="text"
-                  placeholder="Seu usuario"
+                  placeholder="nome de usuário ou email@empresa.com"
                   value={formData.usuario}
                   onChange={handleChange}
                   disabled={isLoading}
