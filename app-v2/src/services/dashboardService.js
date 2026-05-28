@@ -16,9 +16,12 @@ const dashboardService = {
       return count || 0
     }
 
-    const [funcionarios, obras, lancamentosCount, tarefasCount, lancamentosRecentes] = await Promise.all([
+    const hoje = new Date().toISOString().split('T')[0]
+    const primeiroDia = hoje.slice(0, 7) + '-01'
+
+    const [funcionarios, obras, lancamentosCount, tarefasCount, lancamentosRecentes, lancamentosDoMes] = await Promise.all([
       allowed('funcionarios')
-        ? safe('funcionarios', supabase.from('funcionarios').select('id, empresa'))
+        ? safe('funcionarios', supabase.from('funcionarios').select('id').eq('situacao', 'Ativo'))
         : [],
       allowed('obras')
         ? safe('obras', supabase.from('obras').select('*').order('id', { ascending: true }))
@@ -30,7 +33,10 @@ const dashboardService = {
         ? safeCount('tarefas', supabase.from('view_tarefas_resumo').select('*', { count: 'exact', head: true }))
         : 0,
       allowed('lancamentos')
-        ? safe('lancamentos_recentes', supabase.from('lancamentos').select('id, data, funcionario, obra, horas, diarias').order('id', { ascending: false }).limit(8))
+        ? safe('lancamentos_recentes', supabase.from('lancamentos').select('id, data, funcionario, obra, horas, diarias').order('data', { ascending: false }).order('id', { ascending: false }).limit(8))
+        : [],
+      allowed('lancamentos')
+        ? safe('lancamentos_mes', supabase.from('lancamentos').select('id, diarias, funcionario').gte('data', primeiroDia).lte('data', hoje))
         : [],
     ])
 
@@ -41,7 +47,7 @@ const dashboardService = {
         lancamentos: lancamentosCount,
         tarefas: tarefasCount,
       },
-      data: { obras, lancamentosRecentes },
+      data: { obras, lancamentosRecentes, lancamentosDoMes },
     }
   },
 }

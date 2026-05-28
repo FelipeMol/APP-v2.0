@@ -108,16 +108,16 @@ function ObraCard({ obra }) {
   };
   const prog = Math.min(Number(obra.progresso ?? 0), 100);
 
-  const prazoText = obra.data_entrega
-    ? new Date(obra.data_entrega + 'T00:00:00').toLocaleDateString('pt-BR', {
+  const prazoText = obra.data_prevista
+    ? new Date(obra.data_prevista + 'T00:00:00').toLocaleDateString('pt-BR', {
         month: 'short',
         year: 'numeric',
       })
     : obra.prazo ?? '—';
 
-  const valorText = obra.valor_contrato
+  const valorText = obra.orcamento
     ? 'R$ ' +
-      (Number(obra.valor_contrato) / 1e6).toFixed(1).replace('.', ',') +
+      (Number(obra.orcamento) / 1e6).toFixed(1).replace('.', ',') +
       'M'
     : '—';
 
@@ -223,6 +223,16 @@ function ObraCard({ obra }) {
       </div>
     </div>
   );
+}
+
+// ── Parse horas helper (TIME type from DB comes as "HH:MM:SS") ─
+function parseHoras(h) {
+  if (!h) return null;
+  const [hh, mm] = h.split(':');
+  const hours = parseInt(hh, 10);
+  const mins = parseInt(mm || '0', 10);
+  if (isNaN(hours)) return null;
+  return mins > 0 ? `${hours}h${mins}m` : `${hours}h`;
 }
 
 // ── Recent Entries ────────────────────────────────────────────
@@ -378,7 +388,7 @@ function RecentEntries({ items = [], isLoading }) {
                   whiteSpace: 'nowrap',
                 }}
               >
-                {l.horas ? `${l.horas}h` : l.diarias ? `${l.diarias}d` : '—'}
+                {l.diarias ? `${Number(l.diarias)}d` : parseHoras(l.horas) ?? '—'}
               </div>
             </div>
           ))}
@@ -386,153 +396,141 @@ function RecentEntries({ items = [], isLoading }) {
   );
 }
 
-// ── Cash Banner (setor em desenvolvimento) ────────────────────
-function CashBanner() {
+// ── Resumo do Mês ─────────────────────────────────────────────
+function MesResumo({ lancamentos = [], isLoading }) {
+  const totalDiarias = lancamentos.reduce((s, l) => s + (Number(l.diarias) || 0), 0)
+  const funcUnicos = new Set(lancamentos.filter(l => l.funcionario).map(l => l.funcionario)).size
+  const mesLabel = new Date()
+    .toLocaleString('pt-BR', { month: 'long', year: 'numeric' })
+    .replace(/^\w/, c => c.toUpperCase())
+
+  const items = [
+    { label: 'Lançamentos', value: lancamentos.length, sub: 'registros no mês' },
+    { label: 'Diárias acumuladas', value: Math.round(totalDiarias), sub: 'no período' },
+    { label: 'Funcionários', value: funcUnicos, sub: 'com registro no mês' },
+  ]
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #DDD6C7', borderRadius: 10, padding: '18px 20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#1C2330' }}>Resumo do mês</div>
+          <div style={{ fontSize: 11, color: '#7F8A99', marginTop: 2 }}>{mesLabel} · lançamentos de mão de obra</div>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, borderTop: '1px solid #E8E2D5', paddingTop: 14 }}>
+        {items.map(({ label, value, sub }) => (
+          <div key={label} style={{ padding: '12px 14px', borderRadius: 8, background: '#F6F3ED' }}>
+            <div style={{ fontSize: 11, color: '#7F8A99', fontWeight: 500, marginBottom: 4 }}>{label}</div>
+            <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.02em', color: '#1C2330', lineHeight: 1 }}>
+              {isLoading
+                ? <span style={{ display: 'inline-block', height: 28, width: 56, borderRadius: 4, background: '#E0DBD0' }} />
+                : value}
+            </div>
+            <div style={{ fontSize: 10, color: '#7F8A99', marginTop: 3 }}>{sub}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Obras por cidade ──────────────────────────────────────────
+function ObrasPorCidade({ obras = [], isLoading }) {
+  const cidades = {}
+  obras.forEach(o => {
+    const c = o.cidade || 'Sem cidade'
+    if (!cidades[c]) cidades[c] = []
+    cidades[c].push(o)
+  })
+
   return (
     <div
       style={{
         background: '#fff',
         border: '1px solid #DDD6C7',
         borderRadius: 10,
-        padding: '22px 24px',
-      }}
-    >
-      <div style={{ marginBottom: 8 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#1C2330' }}>
-          Fluxo de caixa
-        </div>
-        <div style={{ fontSize: 11, color: '#7F8A99', marginTop: 2 }}>
-          Últimos 12 meses · consolidado do grupo
-        </div>
-      </div>
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '32px 0',
-          gap: 10,
-          borderTop: '1px solid #E8E2D5',
-        }}
-      >
-        <svg
-          width={40}
-          height={40}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#C8C0B0"
-          strokeWidth={1.2}
-          strokeLinecap="round"
-        >
-          <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
-        </svg>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#7F8A99' }}>
-          Setor financeiro em desenvolvimento
-        </div>
-        <div style={{ fontSize: 11, color: '#7F8A99' }}>
-          Dados de fluxo de caixa estarão disponíveis em breve
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Site Map (em desenvolvimento) ────────────────────────────
-function SiteMapPlaceholder({ obrasCount }) {
-  return (
-    <div
-      style={{
-        background: 'linear-gradient(180deg,#F6F3ED 0%,#EEEBE5 100%)',
-        borderRadius: 10,
-        border: '1px solid #DDD6C7',
-        position: 'relative',
-        overflow: 'hidden',
-        minHeight: 320,
+        padding: '18px 20px',
         gridColumn: 'span 7',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 10,
+        minHeight: 320,
+        overflowY: 'auto',
       }}
     >
-      {/* Grid texture */}
-      <svg
-        style={{
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-        }}
-        viewBox="0 0 100 80"
-        preserveAspectRatio="none"
-      >
-        <defs>
-          <pattern
-            id="rr-mapgrid"
-            width="5"
-            height="5"
-            patternUnits="userSpaceOnUse"
-          >
-            <path
-              d="M 5 0 L 0 0 0 5"
-              fill="none"
-              stroke="#D8D1C1"
-              strokeWidth="0.08"
-            />
-          </pattern>
-        </defs>
-        <rect width="100" height="80" fill="url(#rr-mapgrid)" />
-      </svg>
-
-      {/* Header */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 16,
-          left: 20,
-          right: 20,
-          zIndex: 2,
-        }}
-      >
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#1C2330' }}>
-          Obras no mapa
-        </div>
-        <div style={{ fontSize: 11, color: '#7F8A99', marginTop: 2 }}>
-          {obrasCount} canteiros · visualização geográfica em desenvolvimento
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#1C2330' }}>Obras por cidade</div>
+          <div style={{ fontSize: 11, color: '#7F8A99', marginTop: 2 }}>
+            {obras.length} canteiros em {Object.keys(cidades).length} cidades
+          </div>
         </div>
       </div>
-
-      <svg
-        width={48}
-        height={48}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="#C8C0B0"
-        strokeWidth={1.2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        style={{ zIndex: 2, marginTop: 32 }}
-      >
-        <path d="M3 20h18" />
-        <path d="M5 20V9l7-5 7 5v11" />
-        <rect x="10" y="13" width="4" height="7" />
-      </svg>
-      <div
-        style={{ fontSize: 13, fontWeight: 600, color: '#7F8A99', zIndex: 2 }}
-      >
-        Mapa de obras em desenvolvimento
-      </div>
-      <div style={{ fontSize: 11, color: '#7F8A99', zIndex: 2 }}>
-        Localização geográfica dos canteiros será adicionada em breve
-      </div>
+      {isLoading ? (
+        [1, 2, 3].map(i => (
+          <div
+            key={i}
+            style={{ height: 60, borderRadius: 8, marginBottom: 8, background: 'linear-gradient(90deg,#EDE9E1 25%,#E0DBD0 50%,#EDE9E1 75%)', backgroundSize: '200% 100%' }}
+          />
+        ))
+      ) : (
+        Object.entries(cidades)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([cidade, items]) => (
+            <div key={cidade} style={{ marginBottom: 16 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: '#7F8A99',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.12em',
+                  paddingBottom: 6,
+                  borderBottom: '1px solid #E8E2D5',
+                  marginBottom: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                }}
+              >
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#7F8A99" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2a7 7 0 00-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 00-7-7z" />
+                  <circle cx="12" cy="9" r="2.5" />
+                </svg>
+                {cidade} · {items.length}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(185px, 1fr))', gap: 8 }}>
+                {items.map(o => {
+                  const prog = Math.min(Number(o.progresso ?? 0), 100)
+                  const key2 = (o.status ?? '').toLowerCase().replace(/\s+/g, '_')
+                  const barColor = (OBRA_STATUS[key2] ?? { c: '#3D7A50' }).c
+                  return (
+                    <div key={o.id} style={{ padding: '10px 12px', borderRadius: 8, background: '#F6F3ED', border: '1px solid #EAE5DC' }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#1C2330', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {o.nome}
+                      </div>
+                      <div style={{ height: 4, background: '#E0DBD0', borderRadius: 2, overflow: 'hidden', marginBottom: 4 }}>
+                        <div style={{ width: `${prog}%`, height: '100%', borderRadius: 2, background: barColor }} />
+                      </div>
+                      <div style={{ fontSize: 10, color: '#7F8A99', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>{prog > 0 ? `${prog}%` : 'Em andamento'}</span>
+                        <span style={{ color: barColor, fontWeight: 600 }}>{o.status}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))
+      )}
     </div>
-  );
+  )
 }
 
-// ── Alerts Panel (em desenvolvimento) ────────────────────────
-function AlertsPanel() {
+// ── Pendências & Alertas ──────────────────────────────────────
+function ObrasAlerta({ obras = [], isLoading }) {
+  const hoje = new Date().toISOString().split('T')[0]
+  const atrasadas = obras.filter(o => o.data_prevista && o.data_prevista < hoje)
+  const semPrazo = obras.filter(o => !o.data_prevista)
+
   return (
     <div
       style={{
@@ -546,48 +544,58 @@ function AlertsPanel() {
       }}
     >
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#1C2330' }}>
-          Pendências & alertas
-        </div>
-        <div style={{ fontSize: 11, color: '#7F8A99', marginTop: 2 }}>
-          Itens que precisam de atenção
-        </div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#1C2330' }}>Pendências &amp; alertas</div>
+        <div style={{ fontSize: 11, color: '#7F8A99', marginTop: 2 }}>Itens que precisam de atenção</div>
       </div>
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 10,
-          padding: '30px 0',
-        }}
-      >
-        <svg
-          width={40}
-          height={40}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#C8C0B0"
-          strokeWidth={1.2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M6 16V10a6 6 0 0112 0v6l1.5 2h-15z" />
-          <path d="M10 20a2 2 0 004 0" />
-        </svg>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#7F8A99' }}>
-          Sistema de alertas em desenvolvimento
+      {isLoading ? (
+        <div style={{ flex: 1 }}>
+          {[1, 2, 3].map(i => (
+            <div key={i} style={{ height: 36, borderRadius: 6, marginBottom: 8, background: '#F0EDE8' }} />
+          ))}
         </div>
-        <div
-          style={{ fontSize: 11, color: '#7F8A99', textAlign: 'center' }}
-        >
-          Notificações automáticas estarão disponíveis em breve
+      ) : atrasadas.length === 0 && semPrazo.length === 0 ? (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '20px 0' }}>
+          <svg width={36} height={36} viewBox="0 0 24 24" fill="none" stroke="#3D7A50" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#45505F' }}>Tudo em dia</div>
+          <div style={{ fontSize: 11, color: '#7F8A99', textAlign: 'center' }}>Nenhuma obra atrasada no momento</div>
         </div>
-      </div>
+      ) : (
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {atrasadas.length > 0 && (
+            <>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#B84A33', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
+                ⚠ Atrasadas ({atrasadas.length})
+              </div>
+              {atrasadas.map(o => (
+                <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #E8E2D5', fontSize: 12 }}>
+                  <span style={{ fontWeight: 500, color: '#1C2330', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }}>{o.nome}</span>
+                  <span style={{ fontSize: 10, color: '#B84A33', fontWeight: 600, flexShrink: 0 }}>
+                    {new Date(o.data_prevista + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                  </span>
+                </div>
+              ))}
+            </>
+          )}
+          {semPrazo.length > 0 && (
+            <>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#E8A628', textTransform: 'uppercase', letterSpacing: '0.1em', margin: atrasadas.length ? '10px 0 6px' : '0 0 6px' }}>
+                Sem prazo ({semPrazo.length})
+              </div>
+              {semPrazo.map(o => (
+                <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #E8E2D5', fontSize: 12 }}>
+                  <span style={{ fontWeight: 500, color: '#1C2330', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>{o.nome}</span>
+                  <span style={{ fontSize: 10, color: '#7F8A99' }}>Indefinido</span>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
     </div>
-  );
+  )
 }
 
 // ── Main Dashboard ────────────────────────────────────────────
@@ -604,6 +612,7 @@ export default function Dashboard() {
   const [datasets, setDatasets] = useState({
     obras: [],
     lancamentosRecentes: [],
+    lancamentosDoMes: [],
   });
   const controllerRef = useRef(null);
 
@@ -783,9 +792,9 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* ── Cash Banner ─────────────────────────────────────────── */}
+      {/* ── Resumo do Mês ────────────────────────────────────────── */}
       <div style={{ marginBottom: 14 }}>
-        <CashBanner />
+        <MesResumo lancamentos={datasets.lancamentosDoMes} isLoading={isLoading} />
       </div>
 
       {/* ── Map + Alerts ────────────────────────────────────────── */}
@@ -797,8 +806,8 @@ export default function Dashboard() {
           marginBottom: 14,
         }}
       >
-        <SiteMapPlaceholder obrasCount={stats.obras} />
-        <AlertsPanel />
+        <ObrasPorCidade obras={datasets.obras} isLoading={isLoading} />
+        <ObrasAlerta obras={datasets.obras} isLoading={isLoading} />
       </div>
 
       {/* ── Obras + Recent Entries ──────────────────────────────── */}
