@@ -464,6 +464,7 @@ function MapFitBounds({ coords }) {
 
 // ── Obras por cidade ──────────────────────────────────────────
 function ObrasPorCidade({ obras = [], isLoading }) {
+  const navigate = useNavigate()
   const obrasComCoords = obras.filter(o => o.latitude && o.longitude)
   const obrasSemCoords = obras.filter(o => !o.latitude || !o.longitude)
   const cidades = {}
@@ -539,16 +540,32 @@ function ObrasPorCidade({ obras = [], isLoading }) {
                   icon={makeMarkerIcon(cor)}
                 >
                   <Popup>
-                    <div style={{ minWidth: 160, fontFamily: 'inherit' }}>
+                    <div style={{ minWidth: 170, fontFamily: 'inherit' }}>
                       <div style={{ fontWeight: 700, fontSize: 13, color: '#1C2330', marginBottom: 4 }}>{o.nome}</div>
                       <div style={{ fontSize: 11, color: '#7F8A99', marginBottom: 6 }}>{o.cidade}</div>
                       <div style={{ height: 4, background: '#E0DBD0', borderRadius: 2, overflow: 'hidden', marginBottom: 6 }}>
                         <div style={{ width: `${prog}%`, height: '100%', background: cor, borderRadius: 2 }} />
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 8 }}>
                         <span style={{ color: cor, fontWeight: 600 }}>{o.status}</span>
                         <span style={{ color: '#7F8A99' }}>{prog > 0 ? `${prog}%` : 'Em andamento'}</span>
                       </div>
+                      <button
+                        onClick={() => navigate('/relatorios', { state: { obraId: o.id } })}
+                        style={{
+                          width: '100%',
+                          padding: '5px 0',
+                          background: '#3D7A50',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 5,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Abrir obra
+                      </button>
                     </div>
                   </Popup>
                 </Marker>
