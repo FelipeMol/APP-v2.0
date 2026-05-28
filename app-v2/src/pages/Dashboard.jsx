@@ -1,5 +1,8 @@
 ﻿import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import useAuthStore from '../store/authStore';
 import dashboardService from '../services/dashboardService';
 
@@ -435,8 +438,34 @@ function MesResumo({ lancamentos = [], isLoading }) {
   )
 }
 
+// ── Leaflet helpers ───────────────────────────────────────────
+function makeMarkerIcon(color) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:16px;height:16px;background:${color};border:2.5px solid #fff;border-radius:50%;box-shadow:0 1px 5px rgba(0,0,0,0.35)"></div>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+    popupAnchor: [0, -12],
+  })
+}
+
+function MapFitBounds({ coords }) {
+  const map = useMap()
+  useEffect(() => {
+    if (!coords.length) return
+    if (coords.length === 1) {
+      map.setView(coords[0], 13)
+    } else {
+      map.fitBounds(coords, { padding: [40, 40], maxZoom: 12 })
+    }
+  }, [coords.length]) // eslint-disable-line
+  return null
+}
+
 // ── Obras por cidade ──────────────────────────────────────────
 function ObrasPorCidade({ obras = [], isLoading }) {
+  const obrasComCoords = obras.filter(o => o.latitude && o.longitude)
+  const obrasSemCoords = obras.filter(o => !o.latitude || !o.longitude)
   const cidades = {}
   obras.forEach(o => {
     const c = o.cidade || 'Sem cidade'
@@ -444,82 +473,89 @@ function ObrasPorCidade({ obras = [], isLoading }) {
     cidades[c].push(o)
   })
 
+  const coords = obrasComCoords.map(o => [Number(o.latitude), Number(o.longitude)])
+
   return (
     <div
       style={{
         background: '#fff',
         border: '1px solid #DDD6C7',
         borderRadius: 10,
-        padding: '18px 20px',
         gridColumn: 'span 7',
         minHeight: 320,
-        overflowY: 'auto',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+      {/* Header */}
+      <div style={{ padding: '14px 18px 10px', borderBottom: '1px solid #E8E2D5', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#1C2330' }}>Obras por cidade</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#1C2330' }}>Obras no mapa</div>
           <div style={{ fontSize: 11, color: '#7F8A99', marginTop: 2 }}>
-            {obras.length} canteiros em {Object.keys(cidades).length} cidades
+            {obras.length} canteiros · {Object.keys(cidades).length} cidades
           </div>
         </div>
+        {!isLoading && obrasSemCoords.length > 0 && (
+          <div style={{ fontSize: 10, color: '#E8A628', fontWeight: 600 }}>
+            {obrasSemCoords.length} sem coordenadas
+          </div>
+        )}
       </div>
+
+      {/* Map */}
       {isLoading ? (
-        [1, 2, 3].map(i => (
-          <div
-            key={i}
-            style={{ height: 60, borderRadius: 8, marginBottom: 8, background: 'linear-gradient(90deg,#EDE9E1 25%,#E0DBD0 50%,#EDE9E1 75%)', backgroundSize: '200% 100%' }}
-          />
-        ))
+        <div style={{ flex: 1, minHeight: 280, background: '#F0EDE8' }} />
+      ) : obrasComCoords.length === 0 ? (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#7F8A99', padding: 24 }}>
+          <svg width={36} height={36} viewBox="0 0 24 24" fill="none" stroke="#C8C0B0" strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2a7 7 0 00-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 00-7-7z" />
+            <circle cx="12" cy="9" r="2.5" />
+          </svg>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>Nenhuma coordenada cadastrada</div>
+          <div style={{ fontSize: 11, textAlign: 'center' }}>Adicione latitude e longitude em cada obra para visualizar no mapa</div>
+        </div>
       ) : (
-        Object.entries(cidades)
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([cidade, items]) => (
-            <div key={cidade} style={{ marginBottom: 16 }}>
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: '#7F8A99',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.12em',
-                  paddingBottom: 6,
-                  borderBottom: '1px solid #E8E2D5',
-                  marginBottom: 8,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
-                }}
-              >
-                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#7F8A99" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 2a7 7 0 00-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 00-7-7z" />
-                  <circle cx="12" cy="9" r="2.5" />
-                </svg>
-                {cidade} · {items.length}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(185px, 1fr))', gap: 8 }}>
-                {items.map(o => {
-                  const prog = Math.min(Number(o.progresso ?? 0), 100)
-                  const key2 = (o.status ?? '').toLowerCase().replace(/\s+/g, '_')
-                  const barColor = (OBRA_STATUS[key2] ?? { c: '#3D7A50' }).c
-                  return (
-                    <div key={o.id} style={{ padding: '10px 12px', borderRadius: 8, background: '#F6F3ED', border: '1px solid #EAE5DC' }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#1C2330', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {o.nome}
+        <div style={{ flex: 1, minHeight: 280 }}>
+          <MapContainer
+            center={[-15.7801, -47.9292]}
+            zoom={5}
+            style={{ width: '100%', height: '100%', minHeight: 280 }}
+            zoomControl
+          >
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            <MapFitBounds coords={coords} />
+            {obrasComCoords.map(o => {
+              const key2 = (o.status ?? '').toLowerCase().replace(/\s+/g, '_')
+              const cor = (OBRA_STATUS[key2] ?? { c: '#3D7A50' }).c
+              const prog = Math.min(Number(o.progresso ?? 0), 100)
+              return (
+                <Marker
+                  key={o.id}
+                  position={[Number(o.latitude), Number(o.longitude)]}
+                  icon={makeMarkerIcon(cor)}
+                >
+                  <Popup>
+                    <div style={{ minWidth: 160, fontFamily: 'inherit' }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: '#1C2330', marginBottom: 4 }}>{o.nome}</div>
+                      <div style={{ fontSize: 11, color: '#7F8A99', marginBottom: 6 }}>{o.cidade}</div>
+                      <div style={{ height: 4, background: '#E0DBD0', borderRadius: 2, overflow: 'hidden', marginBottom: 6 }}>
+                        <div style={{ width: `${prog}%`, height: '100%', background: cor, borderRadius: 2 }} />
                       </div>
-                      <div style={{ height: 4, background: '#E0DBD0', borderRadius: 2, overflow: 'hidden', marginBottom: 4 }}>
-                        <div style={{ width: `${prog}%`, height: '100%', borderRadius: 2, background: barColor }} />
-                      </div>
-                      <div style={{ fontSize: 10, color: '#7F8A99', display: 'flex', justifyContent: 'space-between' }}>
-                        <span>{prog > 0 ? `${prog}%` : 'Em andamento'}</span>
-                        <span style={{ color: barColor, fontWeight: 600 }}>{o.status}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                        <span style={{ color: cor, fontWeight: 600 }}>{o.status}</span>
+                        <span style={{ color: '#7F8A99' }}>{prog > 0 ? `${prog}%` : 'Em andamento'}</span>
                       </div>
                     </div>
-                  )
-                })}
-              </div>
-            </div>
-          ))
+                  </Popup>
+                </Marker>
+              )
+            })}
+          </MapContainer>
+        </div>
       )}
     </div>
   )
