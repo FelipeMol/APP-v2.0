@@ -18,7 +18,7 @@ export default function Obras() {
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({ nome: '', responsavel: '', cidade: '' });
+  const [formData, setFormData] = useState({ nome: '', responsavel: '', cidade: '', latitude: '', longitude: '' });
   const [responsavelManual, setResponsavelManual] = useState('');
   const [useCustomResponsavel, setUseCustomResponsavel] = useState(false);
 
@@ -78,7 +78,7 @@ export default function Obras() {
 
   function openCreate() {
     setEditingId(null);
-    setFormData({ nome: '', responsavel: '', cidade: '' });
+    setFormData({ nome: '', responsavel: '', cidade: '', latitude: '', longitude: '' });
     setResponsavelManual('');
     setUseCustomResponsavel(false);
     setIsModalOpen(true);
@@ -89,9 +89,11 @@ export default function Obras() {
 
     setEditingId(item.id);
     setFormData({
-      nome: item.nome || '',
-      responsavel: isKnownResponsavel ? item.responsavel || '' : '',
-      cidade: item.cidade || '',
+      nome: item.nome ?? '',
+      responsavel: isKnownResponsavel ? item.responsavel ?? '' : '',
+      cidade: item.cidade ?? '',
+      latitude: item.latitude ?? '',
+      longitude: item.longitude ?? '',
     });
     setUseCustomResponsavel(!isKnownResponsavel && !!item.responsavel);
     setResponsavelManual(!isKnownResponsavel ? item.responsavel || '' : '');
@@ -115,9 +117,23 @@ export default function Obras() {
       return;
     }
 
+    const lat = formData.latitude !== '' ? Number(formData.latitude) : null;
+    const lng = formData.longitude !== '' ? Number(formData.longitude) : null;
+
+    if (formData.latitude !== '' && (isNaN(lat) || lat < -90 || lat > 90)) {
+      toast.error('Latitude inválida (deve estar entre -90 e 90)');
+      return;
+    }
+    if (formData.longitude !== '' && (isNaN(lng) || lng < -180 || lng > 180)) {
+      toast.error('Longitude inválida (deve estar entre -180 e 180)');
+      return;
+    }
+
     const payload = {
       ...formData,
       responsavel: useCustomResponsavel ? responsavelManual : formData.responsavel,
+      latitude: lat,
+      longitude: lng,
     };
 
     try {
@@ -300,6 +316,33 @@ export default function Obras() {
                   onChange={(e) => setFormData({ ...formData, cidade: e.target.value })}
                   placeholder="Cidade da obra"
                 />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Localização no mapa</Label>
+                <p className="text-xs text-gray-500">Informe as coordenadas para exibir a obra no mapa do dashboard.</p>
+                <div className="flex gap-2">
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-xs text-gray-500">Latitude</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={formData.latitude}
+                      onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
+                      placeholder="-23.5505"
+                    />
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-xs text-gray-500">Longitude</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={formData.longitude}
+                      onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
+                      placeholder="-46.6333"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-2">
