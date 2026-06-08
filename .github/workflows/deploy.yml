@@ -1,0 +1,189 @@
+name: Build e Deploy - Multi-tenant
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app-v2/**'
+      - 'supabase/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app-v2/package-lock.json
+
+      - name: Instalar dependencias
+        working-directory: app-v2
+        run: npm ci
+
+      - name: Build de producao
+        working-directory: app-v2
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_AI_API_URL: ${{ secrets.VITE_AI_API_URL }}
+        run: npm run build
+
+      - name: Copiar .htaccess para dist/
+        working-directory: app-v2
+        run: |
+          if [ -f .htaccess ]; then
+            cp .htaccess dist/.htaccess
+            echo ".htaccess copiado"
+          fi
+
+      - name: Verificar build
+        working-directory: app-v2
+        run: |
+          ls -la dist/
+          test -f dist/index.html || (echo "ERRO: index.html nao encontrado!" && exit 1)
+
+      - name: Upload artefato de build
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-build
+          path: app-v2/dist/
+          retention-days: 1
+
+  deploy-construtora:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: construtorarr
+    steps:
+      - name: Download artefato
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-build
+          path: dist/
+
+      - name: Diagnosticar FTP
+        run: |
+          echo "FTP_HOST length: ${#FTP_HOST}"
+          echo "FTP_HOST first 4 chars: ${FTP_HOST:0:4}"
+          if command -v nslookup &> /dev/null; then
+            nslookup "$FTP_HOST" || echo "DNS lookup failed"
+          else
+            host "$FTP_HOST" || echo "DNS lookup failed"
+          fi
+        env:
+          FTP_HOST: "${{ secrets.FTP_HOST }}"
+
+      - name: Normalizar FTP path
+        id: ftp
+        run: |
+          path="${{ secrets.FTP_REMOTE_PATH }}"
+          [[ "$path" != */ ]] && path="$path/"
+          echo "path=$path" >> $GITHUB_OUTPUT
+
+      - name: Deploy FTP -> construtorarr.online
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASS }}
+          local-dir: dist/
+          server-dir: ${{ steps.ftp.outputs.path }}
+          protocol: ftps
+          port: 21
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git*
+            api/**
+
+      - name: Resumo
+        run: echo "Deploy concluido para construtorarr.online"
+
+  deploy-empresa2:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: grupoempresarialmfk
+    steps:
+      - name: Download artefato
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-build
+          path: dist/
+
+      - name: Diagnosticar FTP
+        run: |
+          echo "=== FTP Diagnostico ==="
+          echo "FTP_HOST length: ${#FTP_HOST}"
+          echo "FTP_HOST first 4: ${FTP_HOST:0:4}"
+          echo "FTP_USER length: ${#FTP_USER}"
+          echo "FTP_USER first 3: ${FTP_USER:0:3}"
+          echo "FTP_USER last 4: ${FTP_USER: -4}"
+          echo "FTP_REMOTE_PATH: [${FTP_REMOTE_PATH}]"
+          echo "=== Teste de login FTP ==="
+          curl -v --connect-timeout 10 --user "$FTP_USER:$FTP_PASS" "ftp://$FTP_HOST:21/" 2>&1 | head -50 || true
+        env:
+          FTP_HOST: "${{ secrets.FTP_HOST }}"
+          FTP_USER: "${{ secrets.FTP_USER }}"
+          FTP_PASS: "${{ secrets.FTP_PASS }}"
+          FTP_REMOTE_PATH: "${{ secrets.FTP_REMOTE_PATH }}"
+
+      - name: Normalizar FTP path
+        id: ftp
+        run: |
+          path="${{ secrets.FTP_REMOTE_PATH }}"
+          [[ "$path" != */ ]] && path="$path/"
+          echo "path=$path" >> $GITHUB_OUTPUT
+
+      - name: Deploy FTP -> segundo dominio
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASS }}
+          local-dir: dist/
+          server-dir: ${{ steps.ftp.outputs.path }}
+          protocol: ftp
+          port: 21
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git*
+            api/**
+
+      - name: Resumo
+        run: echo "Deploy concluido para segundo dominio"
+
+  deploy-edge-functions:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy Edge Function chat
+        run: supabase functions deploy chat --no-verify-jwt --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Setar secrets na Edge Function
+        run: |
+          supabase secrets set \
+            GLM_API_KEY=${{ secrets.GLM_API_KEY }} \
+            GLM_MODEL=${{ secrets.GLM_MODEL }} \
+            JWT_SECRET=${{ secrets.JWT_SECRET }} \
+            --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
