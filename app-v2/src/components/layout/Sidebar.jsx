@@ -33,6 +33,7 @@ import {
   Landmark,
   Bot,
   ClipboardCheck,
+  ShoppingCart,
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -76,6 +77,7 @@ export default function Sidebar() {
       submenuItems: [
         { name: 'Painel',           path: '/financeiro/painel',             icon: PieChart,        permission: 'financeiro' },
         { name: 'Lançamentos',      path: '/financeiro/lancamentos',        icon: CreditCard,      permission: 'financeiro' },
+        { name: 'Compras',          path: '/financeiro/compras',            icon: ShoppingCart,    permission: 'financeiro' },
         { name: 'Contas',           path: '/financeiro/contas',             icon: Landmark,        permission: 'financeiro' },
         { name: 'Extrato',          path: '/financeiro/extrato',            icon: FileSpreadsheet, permission: 'financeiro' },
         { name: 'Previsto x Real',  path: '/financeiro/previsto-realizado', icon: TrendingUp,      permission: 'financeiro' },

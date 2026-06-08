@@ -31,6 +31,7 @@ import Configuracoes from './pages/financeiro/Configuracoes';
 import PrevistoRealizado from './pages/financeiro/PrevistoRealizado';
 import ImportarCSV from './pages/financeiro/ImportarCSV';
 import ExtratoIA from './pages/financeiro/ExtratoIA';
+import Compras from './pages/financeiro/Compras';
 import ContatosCadastros from './pages/cadastros/Contatos';
 import CategoriasFinanceiro from './pages/cadastros/CategoriasFinanceiro';
 import ImportarCategorias from './pages/cadastros/ImportarCategorias';
@@ -200,6 +201,14 @@ const router = createHashRouter([
         element: (
           <ModuleGuard moduleId="financeiro">
             <LancamentosFinanceiros />
+          </ModuleGuard>
+        ),
+      },
+      {
+        path: 'financeiro/compras',
+        element: (
+          <ModuleGuard moduleId="financeiro">
+            <Compras />
           </ModuleGuard>
         ),
       },
