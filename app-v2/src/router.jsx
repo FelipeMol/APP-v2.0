@@ -37,6 +37,7 @@ import CategoriasFinanceiro from './pages/cadastros/CategoriasFinanceiro';
 import ImportarCategorias from './pages/cadastros/ImportarCategorias';
 import AICopilot from './pages/AICopilot';
 import RelatorioDiario from './pages/RelatorioDiario';
+import ComprasPedidos from './pages/compras/Pedidos';
 
 // Usando HashRouter para compatibilidade com hospedagem compartilhada
 // URLs ficam: /#/dashboard, /#/login, etc.
@@ -263,6 +264,12 @@ const router = createHashRouter([
       {
         path: 'cadastros/importar-categorias',
         element: <ImportarCategorias />,
+      },
+
+      // Compras
+      {
+        path: 'compras/pedidos',
+        element: <ComprasPedidos />,
       },
 
       // IA Copilot

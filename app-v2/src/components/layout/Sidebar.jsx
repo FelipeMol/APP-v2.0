@@ -34,6 +34,7 @@ import {
   Bot,
   ClipboardCheck,
   ShoppingCart,
+  Package,
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -42,7 +43,7 @@ export default function Sidebar() {
   const queryClient = useQueryClient();
   const branding = useTenantBranding();
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [openSubmenus, setOpenSubmenus] = useState({ Financeiro: true, Equipe: false, 'Relatórios': false, Cadastros: false });
+  const [openSubmenus, setOpenSubmenus] = useState({ Financeiro: true, Compras: false, Equipe: false, 'Relatórios': false, Cadastros: false });
 
   function toggleSubmenu(name) {
     setOpenSubmenus(prev => ({ ...prev, [name]: !prev[name] }));
@@ -82,6 +83,13 @@ export default function Sidebar() {
         { name: 'Extrato',          path: '/financeiro/extrato',            icon: FileSpreadsheet, permission: 'financeiro' },
         { name: 'Previsto x Real',  path: '/financeiro/previsto-realizado', icon: TrendingUp,      permission: 'financeiro' },
         { name: 'Configurações',    path: '/financeiro/configuracoes',      icon: Settings,        permission: 'financeiro' },
+      ],
+    },
+
+    {
+      name: 'Compras', icon: Package, isSubmenu: true,
+      submenuItems: [
+        { name: 'Pedidos', path: '/compras/pedidos', icon: ClipboardList, permission: 'compras' },
       ],
     },
 
