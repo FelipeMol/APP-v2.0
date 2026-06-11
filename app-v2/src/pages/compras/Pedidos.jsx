@@ -1,11 +1,11 @@
 // Compras — Pedidos de Compra
-// Módulo independente para lançamento e acompanhamento de compras de materiais
 import { useMemo, useState, useRef, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { PDFDownloadLink } from '@react-pdf/renderer'
-import { comprasPedidosService, comprasItensService } from '@/services/comprasService'
+import { comprasPedidosService, comprasItensService, comprasAnexosService } from '@/services/comprasService'
 import { contatosService } from '@/services/contatosService'
+import { contasService, categoriasService } from '@/services/financeiroService'
 import obrasService from '@/services/obrasService'
 import useAuthStore from '@/store/authStore'
 import useTenantBranding from '@/hooks/useTenantBranding'
@@ -19,7 +19,7 @@ const C = {
   line: '#DDD6C7', line2: '#E8E2D5',
 }
 
-// ── Utilidades ────────────────────────────────────────────────────────
+// ── Utilitários ───────────────────────────────────────────────────────
 function brl(n) {
   const v = parseFloat(n) || 0
   return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -29,8 +29,12 @@ function fmtDate(d) {
   const [y, m, day] = String(d).slice(0, 10).split('-')
   return `${day}/${m}/${y}`
 }
-function today() {
-  return new Date().toISOString().split('T')[0]
+function today() { return new Date().toISOString().split('T')[0] }
+function fmtFileSize(bytes) {
+  if (!bytes) return ''
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / 1048576).toFixed(1) + ' MB'
 }
 
 // ── Status ────────────────────────────────────────────────────────────
@@ -51,6 +55,8 @@ function StatusPill({ status }) {
 
 // ── Unidades comuns na construção ─────────────────────────────────────
 const UNIDADES = ['un', 'saco', 'kg', 'g', 't', 'm', 'm²', 'm³', 'litro', 'ml', 'pç', 'cx', 'rolo', 'par', 'jg', 'fardo', 'pacote', 'barra', 'folha', 'dúzia', 'lata', 'galão']
+
+const FORMAS_PAGAMENTO = ['Boleto', 'Pix', 'Cartão de crédito', 'Cartão de débito', 'Cheque', 'Dinheiro', 'Transferência']
 
 // ── Combobox de contatos ──────────────────────────────────────────────
 function ContatoCombobox({ value, onChange, contatos, queryClient: qc }) {
@@ -156,64 +162,149 @@ function ItemRow({ item, idx, onChange, onRemove, isLast }) {
   const totalItem = (parseFloat(item.quantidade) || 0) * (parseFloat(item.valor_unitario) || 0)
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 70px 90px 110px 100px 32px', gap: 6, alignItems: 'center', padding: '6px 0', borderBottom: isLast ? 'none' : `1px solid ${C.line2}` }}>
-      {/* Descrição */}
-      <input
-        type="text"
-        placeholder="Ex: Cimento CP III MIZU"
-        value={item.descricao}
-        onChange={e => onChange(idx, 'descricao', e.target.value)}
-        style={{ ...inp, padding: '7px 10px', fontSize: 12 }}
-      />
-      {/* Unidade */}
-      <select value={item.unidade} onChange={e => onChange(idx, 'unidade', e.target.value)}
-        style={{ ...inp, padding: '7px 6px', fontSize: 12 }}>
+      <input type="text" placeholder="Ex: Cimento CP III MIZU" value={item.descricao} onChange={e => onChange(idx, 'descricao', e.target.value)} style={{ ...inp, padding: '7px 10px', fontSize: 12 }} />
+      <select value={item.unidade} onChange={e => onChange(idx, 'unidade', e.target.value)} style={{ ...inp, padding: '7px 6px', fontSize: 12 }}>
         {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
       </select>
-      {/* Quantidade */}
-      <input
-        type="number" min="0" step="0.001" placeholder="0"
-        value={item.quantidade}
-        onChange={e => onChange(idx, 'quantidade', e.target.value)}
-        style={{ ...inp, padding: '7px 10px', fontSize: 12, textAlign: 'right' }}
-      />
-      {/* Valor unitário */}
-      <input
-        type="number" min="0" step="0.01" placeholder="0,00"
-        value={item.valor_unitario}
-        onChange={e => onChange(idx, 'valor_unitario', e.target.value)}
-        style={{ ...inp, padding: '7px 10px', fontSize: 12, textAlign: 'right' }}
-      />
-      {/* Total calculado */}
-      <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, textAlign: 'right', paddingRight: 4, fontFamily: '"Libre Caslon Text", Georgia, serif' }}>
-        {brl(totalItem)}
-      </div>
-      {/* Remover */}
+      <input type="number" min="0" step="0.001" placeholder="0" value={item.quantidade} onChange={e => onChange(idx, 'quantidade', e.target.value)} style={{ ...inp, padding: '7px 10px', fontSize: 12, textAlign: 'right' }} />
+      <input type="number" min="0" step="0.01" placeholder="0,00" value={item.valor_unitario} onChange={e => onChange(idx, 'valor_unitario', e.target.value)} style={{ ...inp, padding: '7px 10px', fontSize: 12, textAlign: 'right' }} />
+      <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, textAlign: 'right', paddingRight: 4, fontFamily: '"Libre Caslon Text", Georgia, serif' }}>{brl(totalItem)}</div>
       <button type="button" onClick={() => onRemove(idx)}
         style={{ background: 'none', border: 'none', color: C.ink3, cursor: 'pointer', fontSize: 18, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 4 }}
         onMouseEnter={e => e.currentTarget.style.background = '#FDE8E4'}
         onMouseLeave={e => e.currentTarget.style.background = 'none'}
-        title="Remover item">
-        ×
-      </button>
+        title="Remover item">×</button>
+    </div>
+  )
+}
+
+// ── Seção de anexos (apenas no modo edição) ───────────────────────────
+function AnexosSection({ pedidoId, qc }) {
+  const fileInputRef = useRef(null)
+  const [uploading, setUploading] = useState(false)
+
+  const { data: anexos = [], refetch } = useQuery({
+    queryKey: ['compras-anexos', pedidoId],
+    queryFn: () => comprasAnexosService.list(pedidoId),
+    enabled: !!pedidoId,
+    staleTime: 30_000,
+  })
+
+  async function handleUpload(e) {
+    const arquivo = e.target.files?.[0]
+    if (!arquivo) return
+    if (arquivo.size > 15 * 1024 * 1024) { toast.error('Arquivo muito grande. Máximo 15MB'); return }
+    setUploading(true)
+    try {
+      await comprasAnexosService.upload(pedidoId, arquivo)
+      toast.success('Arquivo enviado!')
+      refetch()
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    } catch (err) {
+      toast.error('Erro ao enviar: ' + err.message)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function handleRemove(anexo) {
+    if (!confirm(`Remover "${anexo.nome_original}"?`)) return
+    try {
+      await comprasAnexosService.remove(anexo.id, anexo.caminho)
+      toast.success('Anexo removido.')
+      refetch()
+    } catch (err) {
+      toast.error('Erro ao remover: ' + err.message)
+    }
+  }
+
+  function fileIcon(mime) {
+    if (!mime) return '📎'
+    if (mime.startsWith('image/')) return '🖼️'
+    if (mime.includes('pdf')) return '📄'
+    if (mime.includes('word') || mime.includes('document')) return '📝'
+    if (mime.includes('excel') || mime.includes('spreadsheet')) return '📊'
+    if (mime.includes('zip') || mime.includes('rar')) return '📦'
+    return '📎'
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.ink3, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+          Documentos e Anexos
+        </p>
+        <div>
+          <input ref={fileInputRef} type="file" onChange={handleUpload} className="hidden" style={{ display: 'none' }} />
+          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', background: C.surface2, color: C.ink2, border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: uploading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: uploading ? 0.6 : 1 }}>
+            <span>📎</span>{uploading ? 'Enviando...' : 'Anexar arquivo'}
+          </button>
+        </div>
+      </div>
+
+      {anexos.length === 0 ? (
+        <div style={{ padding: '18px 0', textAlign: 'center', border: `1.5px dashed ${C.line}`, borderRadius: 8, color: C.ink3, fontSize: 12 }}>
+          Nenhum documento anexado
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {anexos.map(a => (
+            <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', border: `1px solid ${C.line2}`, borderRadius: 8, background: C.surface2 }}>
+              <span style={{ fontSize: 20, flexShrink: 0 }}>{fileIcon(a.tipo_mime)}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.nome_original}</div>
+                <div style={{ fontSize: 10, color: C.ink3 }}>
+                  {fmtFileSize(a.tamanho)}{a.criado_em ? ' · ' + fmtDate(a.criado_em.slice(0, 10)) : ''}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <a href={a.url} target="_blank" rel="noopener noreferrer"
+                  style={{ display: 'flex', alignItems: 'center', padding: '4px 10px', background: C.surface, border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 11, color: C.ink2, textDecoration: 'none', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Abrir
+                </a>
+                <button type="button" onClick={() => handleRemove(a)}
+                  style={{ padding: '4px 8px', background: 'transparent', border: `1px solid transparent`, borderRadius: 6, fontSize: 13, color: C.ink3, cursor: 'pointer' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#FDE8E4'; e.currentTarget.style.color = C.bad }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.ink3 }}>
+                  🗑
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
 // ── Formulário do pedido ──────────────────────────────────────────────
-const EMPTY_PEDIDO = { data: today(), contato_id: '', obra_id: '', numero_nf: '', status: 'recebido', observacao: '' }
-const EMPTY_ITEM   = { descricao: '', unidade: 'un', quantidade: '', valor_unitario: '' }
+const EMPTY_PEDIDO = {
+  data: today(), contato_id: '', obra_id: '', numero_nf: '',
+  status: 'recebido', observacao: '',
+  forma_pagamento: '', parcelas: 1,
+  conta_id: '', categoria_id: '',
+  data_vencimento: '', data_pagamento: '',
+}
+const EMPTY_ITEM = { descricao: '', unidade: 'un', quantidade: '', valor_unitario: '' }
 
-function FormPedido({ initialData, obras, contatos, queryClient: qc, onSuccess, onCancel }) {
+function FormPedido({ initialData, obras, contatos, contas, categorias, queryClient: qc, onSuccess, onCancel }) {
   const isEdit = !!initialData?.id
   const [form, setForm] = useState(() => {
     if (!initialData) return { ...EMPTY_PEDIDO }
     return {
-      data:       initialData.data || today(),
-      contato_id: initialData.contato_id || '',
-      obra_id:    initialData.obra_id ? String(initialData.obra_id) : '',
-      numero_nf:  initialData.numero_nf || '',
-      status:     initialData.status || 'recebido',
-      observacao: initialData.observacao || '',
+      data:            initialData.data || today(),
+      contato_id:      initialData.contato_id || '',
+      obra_id:         initialData.obra_id ? String(initialData.obra_id) : '',
+      numero_nf:       initialData.numero_nf || '',
+      status:          initialData.status || 'recebido',
+      observacao:      initialData.observacao || '',
+      forma_pagamento: initialData.forma_pagamento || '',
+      parcelas:        initialData.parcelas ?? 1,
+      conta_id:        initialData.conta_id ? String(initialData.conta_id) : '',
+      categoria_id:    initialData.categoria_id ? String(initialData.categoria_id) : '',
+      data_vencimento: initialData.data_vencimento || '',
+      data_pagamento:  initialData.data_pagamento || '',
     }
   })
   const [itens, setItens] = useState(() => {
@@ -229,10 +320,7 @@ function FormPedido({ initialData, obras, contatos, queryClient: qc, onSuccess, 
   })
 
   function setField(k, v) { setForm(f => ({ ...f, [k]: v })) }
-
-  function changeItem(idx, key, val) {
-    setItens(prev => prev.map((it, i) => i === idx ? { ...it, [key]: val } : it))
-  }
+  function changeItem(idx, key, val) { setItens(prev => prev.map((it, i) => i === idx ? { ...it, [key]: val } : it)) }
   function addItem() { setItens(prev => [...prev, { ...EMPTY_ITEM }]) }
   function removeItem(idx) { setItens(prev => prev.filter((_, i) => i !== idx)) }
 
@@ -246,13 +334,19 @@ function FormPedido({ initialData, obras, contatos, queryClient: qc, onSuccess, 
       if (!itensValidos.length) throw new Error('Adicione ao menos um item com descrição')
 
       const payload = {
-        data:       form.data,
-        contato_id: form.contato_id || null,
-        obra_id:    form.obra_id ? parseInt(form.obra_id) : null,
-        numero_nf:  form.numero_nf.trim() || null,
-        status:     form.status,
-        observacao: form.observacao.trim() || null,
-        valor_total: totalGeral,
+        data:            form.data,
+        contato_id:      form.contato_id || null,
+        obra_id:         form.obra_id ? parseInt(form.obra_id) : null,
+        numero_nf:       form.numero_nf.trim() || null,
+        status:          form.status,
+        observacao:      form.observacao.trim() || null,
+        valor_total:     totalGeral,
+        forma_pagamento: form.forma_pagamento || null,
+        parcelas:        parseInt(form.parcelas) || 1,
+        conta_id:        form.conta_id ? parseInt(form.conta_id) : null,
+        categoria_id:    form.categoria_id ? parseInt(form.categoria_id) : null,
+        data_vencimento: form.data_vencimento || null,
+        data_pagamento:  form.data_pagamento || null,
       }
 
       let pedido
@@ -265,10 +359,10 @@ function FormPedido({ initialData, obras, contatos, queryClient: qc, onSuccess, 
       await comprasItensService.replaceAll(pedido.id, itensValidos)
       return pedido
     },
-    onSuccess: () => {
+    onSuccess: (pedido) => {
       qc.invalidateQueries({ queryKey: ['compras-pedidos'] })
       toast.success(isEdit ? 'Pedido atualizado!' : 'Pedido registrado!')
-      onSuccess()
+      onSuccess(pedido)
     },
     onError: err => toast.error('Erro: ' + err.message),
   })
@@ -285,29 +379,25 @@ function FormPedido({ initialData, obras, contatos, queryClient: qc, onSuccess, 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
 
-      {/* Cabeçalho do pedido */}
+      {/* Dados do pedido */}
       <p style={secTitle}>Dados do Pedido</p>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 14px', marginBottom: 4 }}>
 
-        {/* Data */}
         <div>
           <Label required>Data</Label>
           <input type="date" value={form.data} onChange={e => setField('data', e.target.value)} style={inp} />
         </div>
 
-        {/* NF */}
         <div>
           <Label>Nº NF / Documento</Label>
           <input type="text" placeholder="Ex: NF 251153" value={form.numero_nf} onChange={e => setField('numero_nf', e.target.value)} style={inp} />
         </div>
 
-        {/* Fornecedor — span full */}
         <div style={{ gridColumn: 'span 2' }}>
           <Label>Fornecedor</Label>
           <ContatoCombobox value={form.contato_id} onChange={v => setField('contato_id', v)} contatos={contatos} queryClient={qc} />
         </div>
 
-        {/* Obra — span full */}
         <div style={{ gridColumn: 'span 2' }}>
           <Label>Obra</Label>
           <select value={form.obra_id} onChange={e => setField('obra_id', e.target.value)} style={inp}>
@@ -316,7 +406,6 @@ function FormPedido({ initialData, obras, contatos, queryClient: qc, onSuccess, 
           </select>
         </div>
 
-        {/* Status */}
         <div style={{ gridColumn: 'span 2' }}>
           <Label>Status</Label>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -338,6 +427,53 @@ function FormPedido({ initialData, obras, contatos, queryClient: qc, onSuccess, 
 
       <div style={divider} />
 
+      {/* Dados financeiros */}
+      <p style={secTitle}>Dados do Pagamento</p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 14px', marginBottom: 4 }}>
+
+        <div>
+          <Label>Forma de Pagamento</Label>
+          <select value={form.forma_pagamento} onChange={e => setField('forma_pagamento', e.target.value)} style={inp}>
+            <option value="">— Selecionar —</option>
+            {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{f}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <Label>Nº de Parcelas</Label>
+          <input type="number" min="1" max="120" value={form.parcelas} onChange={e => setField('parcelas', e.target.value)} style={inp} placeholder="1" />
+        </div>
+
+        <div>
+          <Label>Conta Bancária</Label>
+          <select value={form.conta_id} onChange={e => setField('conta_id', e.target.value)} style={inp}>
+            <option value="">— Selecionar —</option>
+            {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <Label>Categoria</Label>
+          <select value={form.categoria_id} onChange={e => setField('categoria_id', e.target.value)} style={inp}>
+            <option value="">— Selecionar —</option>
+            {categorias.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <Label>Data de Vencimento</Label>
+          <input type="date" value={form.data_vencimento} onChange={e => setField('data_vencimento', e.target.value)} style={inp} />
+        </div>
+
+        <div>
+          <Label>Data de Pagamento</Label>
+          <input type="date" value={form.data_pagamento} onChange={e => setField('data_pagamento', e.target.value)} style={inp} />
+        </div>
+
+      </div>
+
+      <div style={divider} />
+
       {/* Itens */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
         <p style={{ ...secTitle, marginBottom: 0, marginTop: 0 }}>Itens da Compra</p>
@@ -347,14 +483,12 @@ function FormPedido({ initialData, obras, contatos, queryClient: qc, onSuccess, 
         </button>
       </div>
 
-      {/* Cabeçalho da tabela de itens */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 70px 90px 110px 100px 32px', gap: 6, padding: '0 0 6px', borderBottom: `1px solid ${C.line}`, marginBottom: 4 }}>
         {['Descrição / Material', 'Unidade', 'Quantidade', 'Vl. Unitário', 'Total', ''].map((h, i) => (
           <div key={i} style={{ fontSize: 10, fontWeight: 700, color: C.ink3, letterSpacing: '0.06em', textTransform: 'uppercase', textAlign: i >= 3 ? 'right' : 'left' }}>{h}</div>
         ))}
       </div>
 
-      {/* Linhas de itens */}
       <div style={{ minHeight: 40 }}>
         {itens.map((item, idx) => (
           <ItemRow key={idx} item={item} idx={idx} onChange={changeItem} onRemove={removeItem} isLast={idx === itens.length - 1} />
@@ -375,7 +509,7 @@ function FormPedido({ initialData, obras, contatos, queryClient: qc, onSuccess, 
 
       <div style={divider} />
 
-      {/* Observação */}
+      {/* Observações */}
       <p style={secTitle}>Observações</p>
       <textarea value={form.observacao} onChange={e => setField('observacao', e.target.value)} rows={2} placeholder="Observações sobre a compra..."
         style={{ ...inp, resize: 'vertical', lineHeight: 1.5 }} />
@@ -391,6 +525,15 @@ function FormPedido({ initialData, obras, contatos, queryClient: qc, onSuccess, 
           {saveMut.isPending ? 'Salvando...' : (isEdit ? 'Salvar alterações' : 'Registrar pedido')}
         </button>
       </div>
+
+      {/* Anexos — visível apenas em modo edição */}
+      {isEdit && (
+        <>
+          <div style={divider} />
+          <AnexosSection pedidoId={initialData.id} qc={qc} />
+        </>
+      )}
+
     </form>
   )
 }
@@ -408,7 +551,7 @@ function Drawer({ open, onClose, title, children }) {
       <div onClick={onClose}
         style={{ position: 'fixed', inset: 0, background: 'rgba(23,39,60,0.35)', zIndex: 400, opacity: open ? 1 : 0, pointerEvents: open ? 'auto' : 'none', transition: 'opacity 0.2s' }} />
       <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, width: 620, maxWidth: '97vw',
+        position: 'fixed', top: 0, right: 0, bottom: 0, width: 640, maxWidth: '97vw',
         background: C.surface, zIndex: 401, display: 'flex', flexDirection: 'column',
         boxShadow: '-4px 0 32px rgba(0,0,0,0.15)',
         transform: open ? 'translateX(0)' : 'translateX(100%)',
@@ -426,7 +569,7 @@ function Drawer({ open, onClose, title, children }) {
   )
 }
 
-// ── Card de itens expandido ───────────────────────────────────────────
+// ── Itens expandidos ──────────────────────────────────────────────────
 function ItensExpand({ itens }) {
   if (!itens || itens.length === 0) return <div style={{ fontSize: 12, color: C.ink3, padding: '8px 16px' }}>Sem itens</div>
   return (
@@ -440,9 +583,7 @@ function ItensExpand({ itens }) {
         <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 60px 70px 110px 110px', gap: '4px 8px', padding: '4px 0', borderTop: i === 0 ? `1px solid ${C.line2}` : 'none' }}>
           <div style={{ fontSize: 12, color: C.ink, fontWeight: 500 }}>{it.descricao}</div>
           <div style={{ fontSize: 11, color: C.ink3, textAlign: 'right' }}>{it.unidade}</div>
-          <div style={{ fontSize: 11, color: C.ink2, textAlign: 'right' }}>
-            {Number(it.quantidade).toLocaleString('pt-BR', { maximumFractionDigits: 3 })}
-          </div>
+          <div style={{ fontSize: 11, color: C.ink2, textAlign: 'right' }}>{Number(it.quantidade).toLocaleString('pt-BR', { maximumFractionDigits: 3 })}</div>
           <div style={{ fontSize: 11, color: C.ink2, textAlign: 'right' }}>{brl(it.valor_unitario)}</div>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, textAlign: 'right' }}>{brl(it.valor_total)}</div>
         </div>
@@ -459,7 +600,7 @@ export default function ComprasPedidos() {
   const canEdit = isAdmin() || isSuperAdmin() || hasPermission('compras', 'editar') || hasPermission('financeiro', 'editar')
 
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [editItem, setEditItem] = useState(null)
+  const [editItem, setEditItem]     = useState(null)
   const [expandedIds, setExpandedIds] = useState(new Set())
 
   // Filtros
@@ -496,6 +637,16 @@ export default function ComprasPedidos() {
     queryFn: () => contatosService.list(),
     staleTime: 5 * 60_000,
   })
+  const { data: contas = [] } = useQuery({
+    queryKey: ['fin-contas'],
+    queryFn: () => contasService.list(),
+    staleTime: 5 * 60_000,
+  })
+  const { data: categorias = [] } = useQuery({
+    queryKey: ['fin-categorias'],
+    queryFn: () => categoriasService.list(),
+    staleTime: 5 * 60_000,
+  })
 
   const deleteMut = useMutation({
     mutationFn: id => comprasPedidosService.remove(id),
@@ -521,11 +672,10 @@ export default function ComprasPedidos() {
     const total        = items.reduce((s, p) => s + (+p.valor_total || 0), 0)
     const totalItens   = items.reduce((s, p) => s + (p.itens?.length || 0), 0)
     const fornecedores = new Set(items.filter(p => p.contato_id).map(p => p.contato_id)).size
-    const mediaValor   = items.length ? total / items.length : 0
-    return { total, totalItens, fornecedores, mediaValor, qtd: items.length }
+    return { total, totalItens, fornecedores, qtd: items.length }
   }, [items])
 
-  // Lista de meses
+  // Meses
   const meses = useMemo(() => {
     const lista = []
     const now = new Date()
@@ -538,9 +688,19 @@ export default function ComprasPedidos() {
     return lista
   }, [])
 
-  function openNew()    { setEditItem(null); setDrawerOpen(true) }
-  function openEdit(p)  { setEditItem(p); setDrawerOpen(true) }
-  function closeDrawer(){ setDrawerOpen(false); setEditItem(null) }
+  function openNew()     { setEditItem(null); setDrawerOpen(true) }
+  function openEdit(p)   { setEditItem(p); setDrawerOpen(true) }
+  function closeDrawer() { setDrawerOpen(false); setEditItem(null) }
+
+  // Após salvar: se era novo pedido, reabre em modo edição para permitir anexos
+  function handleFormSuccess(pedido) {
+    if (!editItem) {
+      // Era novo: reabre em edição para poder adicionar anexos
+      setEditItem({ ...pedido, itens: pedido.itens || [] })
+    } else {
+      closeDrawer()
+    }
+  }
 
   function toggleExpand(id) {
     setExpandedIds(prev => {
@@ -556,8 +716,13 @@ export default function ComprasPedidos() {
     deleteMut.mutate(id)
   }
 
-  const geradoEm = new Date().toLocaleString('pt-BR')
+  const geradoEm    = new Date().toLocaleString('pt-BR')
   const periodoLabel = meses.find(m => m.val === filtroMes)?.label || filtroMes
+
+  // Categorias filtradas para despesa
+  const categoriasDespesa = useMemo(() =>
+    categorias.filter(c => !c.tipo || c.tipo === 'despesa' || c.tipo === 'saida'),
+  [categorias])
 
   return (
     <div style={{ padding: '28px 32px', maxWidth: 1280, margin: '0 auto' }}>
@@ -569,22 +734,14 @@ export default function ComprasPedidos() {
           <p style={{ margin: '4px 0 0', fontSize: 13, color: C.ink3 }}>Registro e acompanhamento de pedidos de materiais</p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* Botão exportar PDF */}
           <PDFDownloadLink
-            document={
-              <ComprasPDFDocument
-                pedidos={items}
-                empresa={branding.nomeExibicao}
-                periodo={periodoLabel}
-                geradoEm={geradoEm}
-              />
-            }
+            document={<ComprasPDFDocument pedidos={items} empresa={branding.nomeExibicao} periodo={periodoLabel} geradoEm={geradoEm} />}
             fileName={`compras_${filtroMes}.pdf`}
             style={{ textDecoration: 'none' }}
           >
             {({ loading }) => (
               <button type="button" disabled={loading || items.length === 0}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: loading || items.length === 0 ? C.surface2 : C.surface2, color: C.ink2, border: `1px solid ${C.line}`, borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: loading || items.length === 0 ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: items.length === 0 ? 0.5 : 1 }}>
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: C.surface2, color: C.ink2, border: `1px solid ${C.line}`, borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: loading || items.length === 0 ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: items.length === 0 ? 0.5 : 1 }}>
                 <span style={{ fontSize: 15 }}>⬇</span>
                 {loading ? 'Gerando PDF...' : 'Exportar PDF'}
               </button>
@@ -603,10 +760,10 @@ export default function ComprasPedidos() {
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
         {[
-          { label: 'Total do período', value: brl(kpis.total),       color: C.ink },
-          { label: 'Pedidos',          value: kpis.qtd + ' pedido(s)', color: C.ink },
-          { label: 'Itens comprados',  value: kpis.totalItens + ' iten(s)', color: C.ink2 },
-          { label: 'Fornecedores',     value: kpis.fornecedores + ' fornecedor(es)', color: C.ink2 },
+          { label: 'Total do período',  value: brl(kpis.total),                      color: C.ink },
+          { label: 'Pedidos',           value: kpis.qtd + ' pedido(s)',              color: C.ink },
+          { label: 'Itens comprados',   value: kpis.totalItens + ' iten(s)',         color: C.ink2 },
+          { label: 'Fornecedores',      value: kpis.fornecedores + ' fornecedor(es)', color: C.ink2 },
         ].map(k => (
           <div key={k.label} style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 10, padding: '14px 16px' }}>
             <div style={{ fontSize: 10, color: C.ink3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{k.label}</div>
@@ -640,18 +797,15 @@ export default function ComprasPedidos() {
         <span style={{ fontSize: 12, color: C.ink3, marginLeft: 'auto', whiteSpace: 'nowrap' }}>{items.length} pedido(s)</span>
       </div>
 
-      {/* Lista de pedidos */}
+      {/* Lista */}
       <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, overflow: 'hidden' }}>
-        {/* Cabeçalho da tabela */}
         <div style={{ display: 'grid', gridTemplateColumns: '100px 160px 1fr 90px 60px 120px 90px 80px', gap: 0, padding: '10px 16px', borderBottom: `1px solid ${C.line}`, background: C.surface2 }}>
           {['Data', 'Fornecedor', 'Itens / Obra', 'NF', 'Itens', 'Total', 'Status', 'Ações'].map(h => (
             <div key={h} style={{ fontSize: 10, fontWeight: 700, color: C.ink3, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</div>
           ))}
         </div>
 
-        {isLoading && (
-          <div style={{ padding: '48px 0', textAlign: 'center', color: C.ink3, fontSize: 13 }}>Carregando...</div>
-        )}
+        {isLoading && <div style={{ padding: '48px 0', textAlign: 'center', color: C.ink3, fontSize: 13 }}>Carregando...</div>}
 
         {!isLoading && items.length === 0 && (
           <div style={{ padding: '60px 0', textAlign: 'center' }}>
@@ -662,13 +816,13 @@ export default function ComprasPedidos() {
         )}
 
         {items.map((pedido, idx) => {
-          const expanded = expandedIds.has(pedido.id)
-          const rowBg = idx % 2 === 0 ? C.surface : '#FAFAF8'
-          const primeiroItem = pedido.itens?.[0]
+          const expanded      = expandedIds.has(pedido.id)
+          const rowBg         = idx % 2 === 0 ? C.surface : '#FAFAF8'
+          const primeiroItem  = pedido.itens?.[0]
+          const nAnexos       = pedido.anexos?.length || 0
 
           return (
             <div key={pedido.id} style={{ borderBottom: `1px solid ${C.line2}` }}>
-              {/* Linha principal */}
               <div
                 style={{ display: 'grid', gridTemplateColumns: '100px 160px 1fr 90px 60px 120px 90px 80px', gap: 0, padding: '11px 16px', background: rowBg, alignItems: 'center', cursor: 'pointer', transition: 'background 0.1s' }}
                 onClick={() => toggleExpand(pedido.id)}
@@ -691,9 +845,8 @@ export default function ComprasPedidos() {
                       {pedido.itens.length > 1 && <span style={{ color: C.ink3, fontSize: 11 }}> +{pedido.itens.length - 1} itens</span>}
                     </div>
                   )}
-                  {pedido.obra?.nome && (
-                    <div style={{ fontSize: 10, color: C.ink3, marginTop: 2 }}>{pedido.obra.nome}</div>
-                  )}
+                  {pedido.obra?.nome && <div style={{ fontSize: 10, color: C.ink3, marginTop: 2 }}>{pedido.obra.nome}</div>}
+                  {nAnexos > 0 && <div style={{ fontSize: 9, color: C.amber, marginTop: 1 }}>📎 {nAnexos} anexo(s)</div>}
                 </div>
 
                 {/* NF */}
@@ -718,15 +871,13 @@ export default function ComprasPedidos() {
                 {/* Ações */}
                 <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
                   {canEdit && (
-                    <button onClick={() => openEdit(pedido)}
-                      title="Editar"
+                    <button onClick={() => openEdit(pedido)} title="Editar"
                       style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: `1px solid ${C.line}`, background: C.surface2, color: C.ink2, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
                       ✏
                     </button>
                   )}
                   {canEdit && (
-                    <button onClick={e => handleDelete(e, pedido.id)}
-                      title="Excluir"
+                    <button onClick={e => handleDelete(e, pedido.id)} title="Excluir"
                       style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: `1px solid transparent`, background: 'transparent', color: C.ink3, cursor: 'pointer', fontFamily: 'inherit' }}
                       onMouseEnter={e => { e.currentTarget.style.background = '#FDE8E4'; e.currentTarget.style.color = C.bad }}
                       onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.ink3 }}>
@@ -736,7 +887,6 @@ export default function ComprasPedidos() {
                 </div>
               </div>
 
-              {/* Itens expandidos */}
               {expanded && <ItensExpand itens={pedido.itens} />}
             </div>
           )
@@ -752,15 +902,17 @@ export default function ComprasPedidos() {
         </div>
       )}
 
-      {/* Drawer de lançamento */}
+      {/* Drawer */}
       <Drawer open={drawerOpen} onClose={closeDrawer} title={editItem ? 'Editar Pedido' : 'Novo Pedido de Compra'}>
         {drawerOpen && (
           <FormPedido
             initialData={editItem}
             obras={obrasData}
             contatos={contatos}
+            contas={contas}
+            categorias={categoriasDespesa}
             queryClient={qc}
-            onSuccess={closeDrawer}
+            onSuccess={handleFormSuccess}
             onCancel={closeDrawer}
           />
         )}
