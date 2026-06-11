@@ -8,7 +8,7 @@
 CREATE TABLE IF NOT EXISTS compras_pedidos (
   id            BIGSERIAL PRIMARY KEY,
   data          DATE        NOT NULL DEFAULT CURRENT_DATE,
-  contato_id    BIGINT      REFERENCES contatos(id) ON DELETE SET NULL,
+  contato_id    UUID        REFERENCES contatos(id) ON DELETE SET NULL,
   obra_id       BIGINT      REFERENCES obras(id)    ON DELETE SET NULL,
   numero_nf     TEXT,
   status        TEXT        NOT NULL DEFAULT 'recebido'

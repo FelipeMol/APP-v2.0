@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { PDFDownloadLink } from '@react-pdf/renderer'
 import { comprasPedidosService, comprasItensService } from '@/services/comprasService'
 import { contatosService } from '@/services/contatosService'
-import { obrasService } from '@/services/obrasService'
+import obrasService from '@/services/obrasService'
 import useAuthStore from '@/store/authStore'
 import useTenantBranding from '@/hooks/useTenantBranding'
 import ComprasPDFDocument from '@/components/compras/ComprasPDFDocument'
@@ -456,7 +456,7 @@ export default function ComprasPedidos() {
   const qc = useQueryClient()
   const { hasPermission, isAdmin, isSuperAdmin } = useAuthStore()
   const branding = useTenantBranding()
-  const canEdit = isAdmin() || isSuperAdmin() || hasPermission('compras', 'editar')
+  const canEdit = isAdmin() || isSuperAdmin() || hasPermission('compras', 'editar') || hasPermission('financeiro', 'editar')
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editItem, setEditItem] = useState(null)

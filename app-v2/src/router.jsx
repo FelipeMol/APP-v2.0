@@ -31,7 +31,6 @@ import Configuracoes from './pages/financeiro/Configuracoes';
 import PrevistoRealizado from './pages/financeiro/PrevistoRealizado';
 import ImportarCSV from './pages/financeiro/ImportarCSV';
 import ExtratoIA from './pages/financeiro/ExtratoIA';
-import Compras from './pages/financeiro/Compras';
 import ContatosCadastros from './pages/cadastros/Contatos';
 import CategoriasFinanceiro from './pages/cadastros/CategoriasFinanceiro';
 import ImportarCategorias from './pages/cadastros/ImportarCategorias';
@@ -207,11 +206,7 @@ const router = createHashRouter([
       },
       {
         path: 'financeiro/compras',
-        element: (
-          <ModuleGuard moduleId="financeiro">
-            <Compras />
-          </ModuleGuard>
-        ),
+        element: <Navigate to="/compras/pedidos" replace />,
       },
       {
         path: 'financeiro/extrato',
@@ -268,8 +263,16 @@ const router = createHashRouter([
 
       // Compras
       {
+        path: 'compras',
+        element: <Navigate to="/compras/pedidos" replace />,
+      },
+      {
         path: 'compras/pedidos',
-        element: <ComprasPedidos />,
+        element: (
+          <ModuleGuard moduleId="financeiro">
+            <ComprasPedidos />
+          </ModuleGuard>
+        ),
       },
 
       // IA Copilot

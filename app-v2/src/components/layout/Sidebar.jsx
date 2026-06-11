@@ -33,7 +33,6 @@ import {
   Landmark,
   Bot,
   ClipboardCheck,
-  ShoppingCart,
   Package,
 } from 'lucide-react';
 
@@ -78,7 +77,6 @@ export default function Sidebar() {
       submenuItems: [
         { name: 'Painel',           path: '/financeiro/painel',             icon: PieChart,        permission: 'financeiro' },
         { name: 'Lançamentos',      path: '/financeiro/lancamentos',        icon: CreditCard,      permission: 'financeiro' },
-        { name: 'Compras',          path: '/financeiro/compras',            icon: ShoppingCart,    permission: 'financeiro' },
         { name: 'Contas',           path: '/financeiro/contas',             icon: Landmark,        permission: 'financeiro' },
         { name: 'Extrato',          path: '/financeiro/extrato',            icon: FileSpreadsheet, permission: 'financeiro' },
         { name: 'Previsto x Real',  path: '/financeiro/previsto-realizado', icon: TrendingUp,      permission: 'financeiro' },
@@ -89,7 +87,7 @@ export default function Sidebar() {
     {
       name: 'Compras', icon: Package, isSubmenu: true,
       submenuItems: [
-        { name: 'Pedidos', path: '/compras/pedidos', icon: ClipboardList, permission: 'compras' },
+        { name: 'Lançamentos', path: '/compras/pedidos', icon: ClipboardList, permissionAny: ['compras', 'financeiro'] },
       ],
     },
 
@@ -134,6 +132,9 @@ export default function Sidebar() {
     if (item.isSubmenu) {
       return item.submenuItems.some((s) => {
         if (s.adminOnly && !isAdminOrSuper()) return false;
+        if (s.permissionAny?.length) {
+          return isAdminOrSuper() || s.permissionAny.some((p) => hasPermission(p, 'visualizar'));
+        }
         return isAdminOrSuper() || hasPermission(s.permission, 'visualizar');
       });
     }
@@ -146,7 +147,12 @@ export default function Sidebar() {
     const Icon = item.icon;
 
     if (item.isSubmenu) {
-      const subs = item.submenuItems.filter((s) => !s.adminOnly || isAdminOrSuper());
+      const subs = item.submenuItems.filter((s) => {
+        if (s.adminOnly && !isAdminOrSuper()) return false;
+        if (isAdminOrSuper()) return true;
+        if (s.permissionAny?.length) return s.permissionAny.some((p) => hasPermission(p, 'visualizar'));
+        return hasPermission(s.permission, 'visualizar');
+      });
       const isOpen = openSubmenus[item.name] ?? true;
       return (
         <div key={item.name}>
