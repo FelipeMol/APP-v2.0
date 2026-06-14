@@ -95,12 +95,6 @@ export default function Header() {
 
       <div className="flex-1" />
 
-      {/* Live indicator */}
-      <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium" style={{ background: 'hsl(var(--secondary))', color: '#45505F' }}>
-        <span className="w-1.5 h-1.5 rounded-full bg-green-500" style={{ animation: 'pulse 2s infinite' }} />
-        Ao vivo
-      </div>
-
       {/* Search */}
       <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border" style={{ background: 'hsl(var(--secondary))', width: 200 }}>
         <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
