@@ -2,7 +2,15 @@
 // Centro de operações: horas por dia, rankings de obras/funções/equipe, feed
 import { useMemo, useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import {
+  Download, ArrowRight, Building2, Users, TrendingUp, BarChart3,
+  Wallet, AlertTriangle, Search, Filter, ChevronRight, PieChart, CheckCircle2,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import lancamentosService from '@/services/lancamentosService'
 
 // ── Palette ──────────────────────────────────────────────────────
@@ -522,6 +530,8 @@ function MetricCard({ title, value, deltaLabel, tone = 'neutral', icon: Icon, fo
     </Card>
   );
 }
+
+const Kpi = MetricCard;
 
 function RiskDot({ level = 'baixo' }) {
   const map = {
