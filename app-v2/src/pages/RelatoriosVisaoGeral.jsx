@@ -2,6 +2,7 @@
 // Centro de operações: horas por dia, rankings de obras/funções/equipe, feed
 import { useMemo, useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { Button } from '@/components/ui/button'
 import lancamentosService from '@/services/lancamentosService'
 
 // ── Palette ──────────────────────────────────────────────────────
