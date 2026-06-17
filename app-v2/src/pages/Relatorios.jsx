@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, useRef, Fragment } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
   Building2,
@@ -1886,6 +1886,7 @@ function ReportDetailModal({ open, onClose, report, obra, onSave }) {
 // ============================================================================
 export default function Relatorios() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAdmin, hasPermission } = useAuthStore();
 
   // View state
@@ -1930,6 +1931,18 @@ export default function Relatorios() {
       loadGlobalKpis();
     }
   }, [canView]);
+
+  // Auto-select obra when navigated from dashboard map
+  useEffect(() => {
+    const targetId = location.state?.obraId;
+    if (!targetId || obras.length === 0) return;
+    const obra = obras.find(o => o.id === targetId);
+    if (obra) {
+      handleObraClick(obra);
+      // Clear state so back navigation doesn't re-trigger
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [obras, location.state?.obraId]); // eslint-disable-line
 
   async function loadObras() {
     setLoading(true);
