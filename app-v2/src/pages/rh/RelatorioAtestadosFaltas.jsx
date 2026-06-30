@@ -1,9 +1,10 @@
 // RH — Relatório de Atestados e Faltas
 // Consolida registros das tabelas `atestados` e `faltas`, com filtros,
-// KPIs, exportação CSV/impressão e formulário rápido para registrar faltas.
+// KPIs, exportação CSV/impressão e formulários para registrar faltas e atestados.
 import { useEffect, useMemo, useState } from 'react'
 import supabase from '../../lib/supabase.js'
 import useTenantStore from '../../store/tenantStore.js'
+import { CID10_COMUM } from '../../utils/cid10_common.js'
 
 const C = {
   navy: '#17273C', amber: '#E8A628', ok: '#3D7A50', bad: '#B84A33',
@@ -59,10 +60,27 @@ export default function RelatorioAtestadosFaltas() {
   const [loading, setLoading]           = useState(true)
   const [erro, setErro]                 = useState('')
 
+  // ── Estado: Formulário de Falta ──
   const [showFalta, setShowFalta] = useState(false)
   const [novaFalta, setNovaFalta] = useState({ funcionario_id: '', data_inicio: '', data_fim: '', motivo: 'injustificada', abonada: false, justificativa: '', observacoes: '' })
   const [salvandoFalta, setSalvandoFalta] = useState(false)
   const [msgFalta, setMsgFalta] = useState('')
+
+  // ── Estado: Formulário de Atestado ──
+  const [showAtestado, setShowAtestado] = useState(false)
+  const [novoAtestado, setNovoAtestado] = useState({ funcionario_id: '', data_inicio: '', data_fim: '', cid_codigo: '', cid_descricao: '', observacoes: '' })
+  const [salvandoAtestado, setSalvandoAtestado] = useState(false)
+  const [msgAtestado, setMsgAtestado] = useState('')
+  const [cidBusca, setCidBusca] = useState('')
+
+  // ── Estado: Edição ──
+  const [editando, setEditando] = useState(null) // null | { tipo: 'falta'|'atestado', id: uuid, dados: {...} }
+  const [editSalvando, setEditSalvando] = useState(false)
+  const [msgEdit, setMsgEdit] = useState('')
+
+  // ── Estado: Exclusão ──
+  const [excluindo, setExcluindo] = useState(null) // null | { tipo, id }
+  const [msgExclusao, setMsgExclusao] = useState('')
 
   const carregar = async () => {
     setLoading(true); setErro('')
@@ -114,6 +132,15 @@ export default function RelatorioAtestadosFaltas() {
     return Array.from(s).sort()
   }, [funcionarios])
 
+  // CID-10 filtrado
+  const cidFiltrados = useMemo(() => {
+    if (!cidBusca.trim()) return CID10_COMUM.slice(0, 20)
+    const q = cidBusca.toLowerCase()
+    return CID10_COMUM.filter(c =>
+      c.codigo.toLowerCase().includes(q) || c.descricao.toLowerCase().includes(q)
+    ).slice(0, 20)
+  }, [cidBusca])
+
   // Linhas unificadas
   const linhas = useMemo(() => {
     const arr = []
@@ -122,6 +149,7 @@ export default function RelatorioAtestadosFaltas() {
         const f = funcById[a.funcionario_id]
         arr.push({
           id: 'a-' + a.id,
+          rawId: a.id,
           tipo: 'Atestado',
           funcionario_id: a.funcionario_id,
           colaborador: f?.nome || '—',
@@ -141,6 +169,7 @@ export default function RelatorioAtestadosFaltas() {
         const f = funcById[fa.funcionario_id]
         arr.push({
           id: 'f-' + fa.id,
+          rawId: fa.id,
           tipo: 'Falta',
           funcionario_id: fa.funcionario_id,
           colaborador: f?.nome || '—',
@@ -196,7 +225,7 @@ export default function RelatorioAtestadosFaltas() {
     URL.revokeObjectURL(url)
   }
 
-  // Registrar falta
+  // ── Registrar Falta ──
   const setNF = (k, v) => setNovaFalta(f => ({ ...f, [k]: v }))
   const salvarFalta = async () => {
     if (!novaFalta.funcionario_id) { setMsgFalta('Selecione o colaborador.'); return }
@@ -226,11 +255,144 @@ export default function RelatorioAtestadosFaltas() {
     }
   }
 
+  // ── Registrar Atestado ──
+  const setNA = (k, v) => setNovoAtestado(f => ({ ...f, [k]: v }))
+  const salvarAtestado = async () => {
+    if (!novoAtestado.funcionario_id) { setMsgAtestado('Selecione o colaborador.'); return }
+    if (!novoAtestado.data_inicio)    { setMsgAtestado('Informe a data de início.'); return }
+    setSalvandoAtestado(true); setMsgAtestado('')
+    try {
+      const payload = {
+        tenant_id:      getTenantId(),
+        funcionario_id: Number(novoAtestado.funcionario_id),
+        data_inicio:    novoAtestado.data_inicio,
+        data_fim:       novoAtestado.data_fim || null,
+        cid_codigo:     novoAtestado.cid_codigo?.trim() || null,
+        cid_descricao:  novoAtestado.cid_descricao?.trim() || null,
+        observacoes:    novoAtestado.observacoes?.trim() || null,
+      }
+      const { error } = await supabase.from('atestados').insert(payload)
+      if (error) throw error
+      setMsgAtestado('Atestado registrado!')
+      setNovoAtestado({ funcionario_id: '', data_inicio: '', data_fim: '', cid_codigo: '', cid_descricao: '', observacoes: '' })
+      setCidBusca('')
+      setShowAtestado(false)
+      carregar()
+    } catch (e) {
+      setMsgAtestado('Erro: ' + (e.message || 'falhou'))
+    } finally {
+      setSalvandoAtestado(false)
+    }
+  }
+
+  // ── Editar registro ──
+  const iniciarEdicao = (linha) => {
+    setMsgEdit('')
+    setMsgExclusao('')
+    if (linha.tipo === 'Falta') {
+      const fa = faltas.find(x => x.id === linha.rawId)
+      if (!fa) return
+      setEditando({
+        tipo: 'falta',
+        id: fa.id,
+        dados: {
+          funcionario_id: String(fa.funcionario_id),
+          data_inicio: fa.data_inicio || '',
+          data_fim: fa.data_fim || '',
+          motivo: fa.motivo || 'injustificada',
+          abonada: !!fa.abonada,
+          justificativa: fa.justificativa || '',
+          observacoes: fa.observacoes || '',
+        },
+      })
+    } else {
+      const at = atestados.find(x => x.id === linha.rawId)
+      if (!at) return
+      setEditando({
+        tipo: 'atestado',
+        id: at.id,
+        dados: {
+          funcionario_id: String(at.funcionario_id),
+          data_inicio: at.data_inicio || '',
+          data_fim: at.data_fim || '',
+          cid_codigo: at.cid_codigo || '',
+          cid_descricao: at.cid_descricao || '',
+          observacoes: at.observacoes || '',
+        },
+      })
+      setCidBusca(at.cid_codigo || '')
+    }
+  }
+
+  const setEditCampo = (k, v) => setEditando(e => ({ ...e, dados: { ...e.dados, [k]: v } }))
+
+  const salvarEdicao = async () => {
+    if (!editando) return
+    const { tipo: t, id, dados } = editando
+    if (!dados.funcionario_id) { setMsgEdit('Selecione o colaborador.'); return }
+    if (!dados.data_inicio)    { setMsgEdit('Informe a data de início.'); return }
+    setEditSalvando(true); setMsgEdit('')
+    try {
+      let error
+      if (t === 'falta') {
+        const res = await supabase.from('faltas').update({
+          funcionario_id: Number(dados.funcionario_id),
+          data_inicio: dados.data_inicio,
+          data_fim: dados.data_fim || null,
+          motivo: dados.motivo || null,
+          abonada: !!dados.abonada,
+          justificativa: dados.justificativa?.trim() || null,
+          observacoes: dados.observacoes?.trim() || null,
+        }).eq('id', id)
+        error = res.error
+      } else {
+        const res = await supabase.from('atestados').update({
+          funcionario_id: Number(dados.funcionario_id),
+          data_inicio: dados.data_inicio,
+          data_fim: dados.data_fim || null,
+          cid_codigo: dados.cid_codigo?.trim() || null,
+          cid_descricao: dados.cid_descricao?.trim() || null,
+          observacoes: dados.observacoes?.trim() || null,
+        }).eq('id', id)
+        error = res.error
+      }
+      if (error) throw error
+      setEditando(null)
+      carregar()
+    } catch (e) {
+      setMsgEdit('Erro: ' + (e.message || 'falhou'))
+    } finally {
+      setEditSalvando(false)
+    }
+  }
+
+  // ── Excluir registro ──
+  const confirmarExclusao = (linha) => {
+    setEditando(null)
+    setMsgExclusao('')
+    setExcluindo({ tipo: linha.tipo, id: linha.rawId, nome: linha.colaborador })
+  }
+
+  const executarExclusao = async () => {
+    if (!excluindo) return
+    setMsgExclusao('')
+    try {
+      const tabela = excluindo.tipo === 'Falta' ? 'faltas' : 'atestados'
+      const { error } = await supabase.from(tabela).delete().eq('id', excluindo.id)
+      if (error) throw error
+      setExcluindo(null)
+      carregar()
+    } catch (e) {
+      setMsgExclusao('Erro ao excluir: ' + (e.message || 'falhou'))
+    }
+  }
+
   // ── Estilos rápidos ─────────────────────────────────────────
   const inputStyle = { width: '100%', border: `1px solid ${C.line}`, borderRadius: 7, padding: '8px 10px', fontSize: 12.5, color: C.ink, background: C.surface, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }
   const labelStyle = { fontSize: 10.5, fontWeight: 600, color: C.ink3, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 5 }
   const TH = (extra = {}) => ({ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '9px 10px', borderBottom: `1px solid ${C.line}`, color: C.ink3, textAlign: 'left', background: C.surface2, ...extra })
   const TD = (extra = {}) => ({ padding: '10px 10px', verticalAlign: 'middle', color: C.ink, fontSize: 12.5, borderBottom: `1px solid ${C.line2}`, ...extra })
+  const btnSmall = (cor = C.ink2) => ({ background: 'transparent', border: `1px solid ${C.line}`, color: cor, fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit' })
 
   return (
     <div style={{ fontFamily: 'Inter, system-ui, sans-serif', color: C.ink }}>
@@ -240,9 +402,12 @@ export default function RelatorioAtestadosFaltas() {
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.02em', color: C.ink }}>Relatório de Atestados e Faltas</h1>
           <div style={{ fontSize: 11.5, color: C.ink3, marginTop: 4 }}>Período de {fmtDate(dataInicio)} a {fmtDate(dataFim)}</div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setShowFalta(v => !v)} style={{ background: 'transparent', border: `1px solid ${C.line}`, color: C.ink2, fontSize: 12, fontWeight: 600, padding: '7px 14px', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={() => { setShowFalta(v => !v); setShowAtestado(false); setEditando(null) }} style={{ background: 'transparent', border: `1px solid ${C.line}`, color: C.ink2, fontSize: 12, fontWeight: 600, padding: '7px 14px', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit' }}>
             {showFalta ? '✕ Cancelar' : '+ Registrar falta'}
+          </button>
+          <button onClick={() => { setShowAtestado(v => !v); setShowFalta(false); setEditando(null) }} style={{ background: 'transparent', border: `1px solid ${C.line}`, color: C.info, fontSize: 12, fontWeight: 600, padding: '7px 14px', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit' }}>
+            {showAtestado ? '✕ Cancelar' : '+ Registrar atestado'}
           </button>
           <button onClick={exportarCSV} disabled={!linhas.length} style={{ background: 'transparent', border: `1px solid ${C.line}`, color: C.ink2, fontSize: 12, fontWeight: 600, padding: '7px 14px', borderRadius: 7, cursor: linhas.length ? 'pointer' : 'not-allowed', fontFamily: 'inherit', opacity: linhas.length ? 1 : 0.5 }}>
             Exportar CSV
@@ -287,12 +452,12 @@ export default function RelatorioAtestadosFaltas() {
         </div>
       </div>
 
-      {/* Formulário Nova Falta */}
+      {/* ── Formulário Nova Falta ── */}
       {showFalta && (
         <div className="no-print" style={{ background: C.surface2, border: `1px solid ${C.line}`, borderRadius: 10, padding: 18, marginBottom: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, marginBottom: 14 }}>Registrar nova falta</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
-            <div style={{ gridColumn: 'span 1' }}>
+            <div>
               <div style={labelStyle}>Colaborador *</div>
               <select value={novaFalta.funcionario_id} onChange={e => setNF('funcionario_id', e.target.value)} style={inputStyle}>
                 <option value="">Selecione…</option>
@@ -346,6 +511,203 @@ export default function RelatorioAtestadosFaltas() {
         </div>
       )}
 
+      {/* ── Formulário Novo Atestado ── */}
+      {showAtestado && (
+        <div className="no-print" style={{ background: '#EDF2F8', border: `1px solid ${C.line}`, borderRadius: 10, padding: 18, marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.info, marginBottom: 14 }}>Registrar novo atestado</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+            <div>
+              <div style={labelStyle}>Colaborador *</div>
+              <select value={novoAtestado.funcionario_id} onChange={e => setNA('funcionario_id', e.target.value)} style={inputStyle}>
+                <option value="">Selecione…</option>
+                {funcionarios.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={labelStyle}>Data início *</div>
+              <input type="date" value={novoAtestado.data_inicio} onChange={e => setNA('data_inicio', e.target.value)} style={inputStyle} />
+            </div>
+            <div>
+              <div style={labelStyle}>Data fim</div>
+              <input type="date" value={novoAtestado.data_fim} onChange={e => setNA('data_fim', e.target.value)} style={inputStyle} />
+            </div>
+            <div style={{ gridColumn: 'span 3' }}>
+              <div style={labelStyle}>CID-10 (código / diagnóstico)</div>
+              <input
+                type="text"
+                value={cidBusca}
+                onChange={e => { setCidBusca(e.target.value); setNA('cid_codigo', ''); setNA('cid_descricao', '') }}
+                placeholder="Busque por código ou descrição…"
+                style={inputStyle}
+              />
+              {cidBusca && !novoAtestado.cid_codigo && cidFiltrados.length > 0 && (
+                <div style={{ border: `1px solid ${C.line}`, borderTop: 'none', borderRadius: '0 0 7px 7px', background: C.surface, maxHeight: 160, overflowY: 'auto', position: 'relative', zIndex: 10 }}>
+                  {cidFiltrados.map(c => (
+                    <div
+                      key={c.codigo}
+                      onClick={() => { setNA('cid_codigo', c.codigo); setNA('cid_descricao', c.descricao); setCidBusca(`${c.codigo} — ${c.descricao}`) }}
+                      style={{ padding: '7px 10px', fontSize: 12, cursor: 'pointer', borderBottom: `1px solid ${C.line2}`, color: C.ink }}
+                      onMouseEnter={e => e.currentTarget.style.background = C.surface2}
+                      onMouseLeave={e => e.currentTarget.style.background = C.surface}
+                    >
+                      <span style={{ fontWeight: 600, marginRight: 6 }}>{c.codigo}</span>{c.descricao}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={{ gridColumn: 'span 3' }}>
+              <div style={labelStyle}>Observações</div>
+              <textarea value={novoAtestado.observacoes} onChange={e => setNA('observacoes', e.target.value)} rows={2} placeholder="Observações adicionais…" style={{ ...inputStyle, resize: 'vertical' }} />
+            </div>
+          </div>
+          {msgAtestado && (
+            <div style={{ marginTop: 12, padding: '8px 12px', background: msgAtestado.startsWith('Erro') ? '#FBE9E4' : '#E4F1E8', borderRadius: 7, fontSize: 12, color: msgAtestado.startsWith('Erro') ? C.bad : C.ok }}>{msgAtestado}</div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
+            <button onClick={salvarAtestado} disabled={salvandoAtestado} style={{ background: C.info, border: 'none', color: '#FFF', fontSize: 13, fontWeight: 700, padding: '9px 20px', borderRadius: 8, cursor: salvandoAtestado ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: salvandoAtestado ? 0.7 : 1 }}>
+              {salvandoAtestado ? 'Salvando…' : 'Salvar atestado'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Formulário de Edição ── */}
+      {editando && (
+        <div className="no-print" style={{ background: '#FFF8E8', border: `2px solid ${C.amber}`, borderRadius: 10, padding: 18, marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.warn }}>
+              Editando {editando.tipo === 'falta' ? 'Falta' : 'Atestado'}
+            </div>
+            <button onClick={() => setEditando(null)} style={{ background: 'transparent', border: 'none', color: C.ink3, fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>✕</button>
+          </div>
+
+          {editando.tipo === 'falta' ? (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+              <div>
+                <div style={labelStyle}>Colaborador *</div>
+                <select value={editando.dados.funcionario_id} onChange={e => setEditCampo('funcionario_id', e.target.value)} style={inputStyle}>
+                  <option value="">Selecione…</option>
+                  {funcionarios.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={labelStyle}>Data início *</div>
+                <input type="date" value={editando.dados.data_inicio} onChange={e => setEditCampo('data_inicio', e.target.value)} style={inputStyle} />
+              </div>
+              <div>
+                <div style={labelStyle}>Data fim</div>
+                <input type="date" value={editando.dados.data_fim} onChange={e => setEditCampo('data_fim', e.target.value)} style={inputStyle} />
+              </div>
+              <div>
+                <div style={labelStyle}>Motivo</div>
+                <select value={editando.dados.motivo} onChange={e => setEditCampo('motivo', e.target.value)} style={inputStyle}>
+                  <option value="injustificada">Injustificada</option>
+                  <option value="justificada">Justificada</option>
+                  <option value="pessoal">Motivo pessoal</option>
+                  <option value="transporte">Transporte</option>
+                  <option value="familia">Família</option>
+                  <option value="outros">Outros</option>
+                </select>
+              </div>
+              <div>
+                <div style={labelStyle}>Abonada</div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', fontSize: 12.5, color: C.ink2 }}>
+                  <input type="checkbox" checked={editando.dados.abonada} onChange={e => setEditCampo('abonada', e.target.checked)} />
+                  Falta abonada (não desconta)
+                </label>
+              </div>
+              <div />
+              <div style={{ gridColumn: 'span 3' }}>
+                <div style={labelStyle}>Justificativa</div>
+                <input type="text" value={editando.dados.justificativa} onChange={e => setEditCampo('justificativa', e.target.value)} style={inputStyle} />
+              </div>
+              <div style={{ gridColumn: 'span 3' }}>
+                <div style={labelStyle}>Observações</div>
+                <textarea value={editando.dados.observacoes} onChange={e => setEditCampo('observacoes', e.target.value)} rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+              <div>
+                <div style={labelStyle}>Colaborador *</div>
+                <select value={editando.dados.funcionario_id} onChange={e => setEditCampo('funcionario_id', e.target.value)} style={inputStyle}>
+                  <option value="">Selecione…</option>
+                  {funcionarios.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={labelStyle}>Data início *</div>
+                <input type="date" value={editando.dados.data_inicio} onChange={e => setEditCampo('data_inicio', e.target.value)} style={inputStyle} />
+              </div>
+              <div>
+                <div style={labelStyle}>Data fim</div>
+                <input type="date" value={editando.dados.data_fim} onChange={e => setEditCampo('data_fim', e.target.value)} style={inputStyle} />
+              </div>
+              <div style={{ gridColumn: 'span 3' }}>
+                <div style={labelStyle}>CID-10</div>
+                <input
+                  type="text"
+                  value={cidBusca}
+                  onChange={e => { setCidBusca(e.target.value); setEditCampo('cid_codigo', ''); setEditCampo('cid_descricao', '') }}
+                  placeholder="Busque por código ou descrição…"
+                  style={inputStyle}
+                />
+                {cidBusca && !editando.dados.cid_codigo && cidFiltrados.length > 0 && (
+                  <div style={{ border: `1px solid ${C.line}`, borderTop: 'none', borderRadius: '0 0 7px 7px', background: C.surface, maxHeight: 160, overflowY: 'auto', position: 'relative', zIndex: 10 }}>
+                    {cidFiltrados.map(c => (
+                      <div
+                        key={c.codigo}
+                        onClick={() => { setEditCampo('cid_codigo', c.codigo); setEditCampo('cid_descricao', c.descricao); setCidBusca(`${c.codigo} — ${c.descricao}`) }}
+                        style={{ padding: '7px 10px', fontSize: 12, cursor: 'pointer', borderBottom: `1px solid ${C.line2}`, color: C.ink }}
+                        onMouseEnter={e => e.currentTarget.style.background = C.surface2}
+                        onMouseLeave={e => e.currentTarget.style.background = C.surface}
+                      >
+                        <span style={{ fontWeight: 600, marginRight: 6 }}>{c.codigo}</span>{c.descricao}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div style={{ gridColumn: 'span 3' }}>
+                <div style={labelStyle}>Observações</div>
+                <textarea value={editando.dados.observacoes} onChange={e => setEditCampo('observacoes', e.target.value)} rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
+              </div>
+            </div>
+          )}
+
+          {msgEdit && (
+            <div style={{ marginTop: 12, padding: '8px 12px', background: msgEdit.startsWith('Erro') ? '#FBE9E4' : '#E4F1E8', borderRadius: 7, fontSize: 12, color: msgEdit.startsWith('Erro') ? C.bad : C.ok }}>{msgEdit}</div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
+            <button onClick={() => setEditando(null)} style={{ background: 'transparent', border: `1px solid ${C.line}`, color: C.ink2, fontSize: 13, fontWeight: 600, padding: '9px 18px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Cancelar
+            </button>
+            <button onClick={salvarEdicao} disabled={editSalvando} style={{ background: C.amber, border: 'none', color: C.navy, fontSize: 13, fontWeight: 700, padding: '9px 20px', borderRadius: 8, cursor: editSalvando ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: editSalvando ? 0.7 : 1 }}>
+              {editSalvando ? 'Salvando…' : 'Salvar alterações'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirmação de exclusão ── */}
+      {excluindo && (
+        <div className="no-print" style={{ background: '#FBE9E4', border: `2px solid ${C.bad}`, borderRadius: 10, padding: 16, marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 13, color: C.bad }}>
+            Excluir registro de <strong>{excluindo.tipo}</strong> — <strong>{excluindo.nome}</strong>?
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {msgExclusao && <span style={{ fontSize: 12, color: C.bad, alignSelf: 'center' }}>{msgExclusao}</span>}
+            <button onClick={() => setExcluindo(null)} style={{ background: 'transparent', border: `1px solid ${C.line}`, color: C.ink2, fontSize: 12, fontWeight: 600, padding: '6px 14px', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Cancelar
+            </button>
+            <button onClick={executarExclusao} style={{ background: C.bad, border: 'none', color: '#FFF', fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Excluir
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
         <KPICard titulo="Atestados" valor={kpis.totalAtestados} sub={`${kpis.diasAtestados} dia${kpis.diasAtestados !== 1 ? 's' : ''}`} cor={C.info} />
@@ -383,6 +745,7 @@ export default function RelatorioAtestadosFaltas() {
                 <th style={TH()}>Motivo / CID</th>
                 <th style={TH({ width: 90, textAlign: 'center' })}>Abonada</th>
                 <th style={TH()}>Observações</th>
+                <th className="no-print" style={TH({ width: 100, textAlign: 'center' })}>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -400,6 +763,10 @@ export default function RelatorioAtestadosFaltas() {
                   <td style={TD({ color: C.ink2 })}>{r.motivo}</td>
                   <td style={TD({ textAlign: 'center', color: r.abonada ? C.ok : C.bad, fontWeight: 600 })}>{r.abonada ? 'Sim' : 'Não'}</td>
                   <td style={TD({ color: C.ink3, fontSize: 11.5 })}>{r.observacoes || '—'}</td>
+                  <td className="no-print" style={TD({ textAlign: 'center', whiteSpace: 'nowrap' })}>
+                    <button onClick={() => iniciarEdicao(r)} title="Editar" style={{ ...btnSmall(C.warn), marginRight: 4 }}>Editar</button>
+                    <button onClick={() => confirmarExclusao(r)} title="Excluir" style={btnSmall(C.bad)}>Apagar</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -407,7 +774,7 @@ export default function RelatorioAtestadosFaltas() {
               <tr>
                 <td colSpan={6} style={{ ...TD(), background: C.surface2, fontWeight: 700, fontSize: 11.5 }}>TOTAIS</td>
                 <td style={{ ...TD(), background: C.surface2, textAlign: 'right', fontWeight: 700 }}>{kpis.diasAtestados + kpis.diasFaltas}</td>
-                <td colSpan={3} style={{ ...TD(), background: C.surface2, fontSize: 11, color: C.ink3 }}>
+                <td colSpan={4} style={{ ...TD(), background: C.surface2, fontSize: 11, color: C.ink3 }}>
                   {kpis.totalAtestados} atestado{kpis.totalAtestados !== 1 ? 's' : ''} ({kpis.diasAtestados}d) · {kpis.totalFaltas} falta{kpis.totalFaltas !== 1 ? 's' : ''} ({kpis.diasFaltas}d)
                 </td>
               </tr>
