@@ -1,4 +1,4 @@
-﻿// RH — Ficha do Colaborador (P5)
+// RH — Ficha do Colaborador (P5)
 // Modal de 8 abas: Dados Pessoais | Documentos | Experiência | Obras | Exames | Disciplinar | EPIs | Avaliações
 import { useState, useEffect, useRef } from 'react'
 import supabase from '../../lib/supabase.js'
@@ -399,15 +399,17 @@ function TabAtestados({ funcionario }) {
   const [preview, setPreview] = useState(null)       // URL to show full-size
 
   // Extrai o "path" dentro do bucket a partir de um foto_url salvo
-  // (suporta tanto URLs antigas com /atestados/ quanto paths já normalizados)
   const extrairPath = (foto_url) => {
     if (!foto_url) return null
-    const marker = '/atestados/'
-    const idx = foto_url.indexOf(marker)
-    if (idx >= 0) return foto_url.substring(idx + marker.length)
-    // Já é path (não tem protocolo http)
-    if (!/^https?:\/\//.test(foto_url)) return foto_url
-    return null
+    // URL completa do Supabase storage: .../object/sign/atestados/<path>?...
+    if (/^https?:\/\//.test(foto_url)) {
+      const marker = '/atestados/'
+      const idx = foto_url.indexOf(marker)
+      if (idx >= 0) return foto_url.substring(idx + marker.length)
+      return null
+    }
+    // Path relativo direto (ex: "construtora/123/123456.jpg" ou "123/123456.jpg")
+    return foto_url
   }
 
   const carregar = async () => {

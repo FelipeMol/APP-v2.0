@@ -72,6 +72,8 @@ export default function RelatorioAtestadosFaltas() {
   const [salvandoAtestado, setSalvandoAtestado] = useState(false)
   const [msgAtestado, setMsgAtestado] = useState('')
   const [cidBusca, setCidBusca] = useState('')
+  const [fotoFile, setFotoFile] = useState(null)
+  const [fotoPreview, setFotoPreview] = useState(null)
 
   // ── Estado: Edição ──
   const [editando, setEditando] = useState(null) // null | { tipo: 'falta'|'atestado', id: uuid, dados: {...} }
@@ -147,21 +149,22 @@ export default function RelatorioAtestadosFaltas() {
     if (tipo !== 'falta') {
       atestados.forEach(a => {
         const f = funcById[a.funcionario_id]
-        arr.push({
-          id: 'a-' + a.id,
-          rawId: a.id,
-          tipo: 'Atestado',
-          funcionario_id: a.funcionario_id,
-          colaborador: f?.nome || '—',
-          empresa: f?.empresa || '—',
-          funcao: f?.funcao || '—',
-          data_inicio: a.data_inicio,
-          data_fim: a.data_fim,
-          dias: a.dias,
-          motivo: [a.cid_codigo, a.cid_descricao].filter(Boolean).join(' — ') || '—',
-          abonada: true,
-          observacoes: a.observacoes || '',
-        })
+          arr.push({
+            id: 'a-' + a.id,
+            rawId: a.id,
+            tipo: 'Atestado',
+            funcionario_id: a.funcionario_id,
+            colaborador: f?.nome || '—',
+            empresa: f?.empresa || '—',
+            funcao: f?.funcao || '—',
+            data_inicio: a.data_inicio,
+            data_fim: a.data_fim,
+            dias: a.dias,
+            motivo: [a.cid_codigo, a.cid_descricao].filter(Boolean).join(' — ') || '—',
+            abonada: true,
+            observacoes: a.observacoes || '',
+            foto_url: a.foto_url || null,
+          })
       })
     }
     if (tipo !== 'atestado') {
@@ -190,6 +193,25 @@ export default function RelatorioAtestadosFaltas() {
       .filter(r => empresa === 'todas' || r.empresa === empresa)
       .sort((a, b) => (b.data_inicio || '').localeCompare(a.data_inicio || ''))
   }, [atestados, faltas, funcById, tipo, funcionarioId, empresa])
+
+  // Signed URLs para anexos
+  const [signedUrls, setSignedUrls] = useState({})
+  useEffect(() => {
+    const gerarSignedUrls = async () => {
+      const entries = await Promise.all(
+        linhas
+          .filter(r => r.foto_url)
+          .map(async (r) => {
+            try {
+              const { data } = await supabase.storage.from('atestados').createSignedUrl(r.foto_url, 3600)
+              return [r.id, data?.signedUrl || null]
+            } catch { return [r.id, null] }
+          })
+      )
+      setSignedUrls(Object.fromEntries(entries))
+    }
+    if (linhas.some(r => r.foto_url)) gerarSignedUrls()
+  }, [linhas])
 
   // KPIs
   const kpis = useMemo(() => {
@@ -257,11 +279,29 @@ export default function RelatorioAtestadosFaltas() {
 
   // ── Registrar Atestado ──
   const setNA = (k, v) => setNovoAtestado(f => ({ ...f, [k]: v }))
+
+  const handleFotoAtestado = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) { setMsgAtestado('Arquivo muito grande (máx. 5 MB).'); return }
+    setFotoFile(file)
+    setFotoPreview(URL.createObjectURL(file))
+  }
+
   const salvarAtestado = async () => {
     if (!novoAtestado.funcionario_id) { setMsgAtestado('Selecione o colaborador.'); return }
     if (!novoAtestado.data_inicio)    { setMsgAtestado('Informe a data de início.'); return }
     setSalvandoAtestado(true); setMsgAtestado('')
     try {
+      let foto_url = null
+      if (fotoFile) {
+        const funcId = Number(novoAtestado.funcionario_id)
+        const ext = fotoFile.name.split('.').pop()
+        const path = `${getTenantId()}/${funcId}/${Date.now()}.${ext}`
+        const { error: upErr } = await supabase.storage.from('atestados').upload(path, fotoFile, { upsert: false })
+        if (upErr) throw upErr
+        foto_url = path
+      }
       const payload = {
         tenant_id:      getTenantId(),
         funcionario_id: Number(novoAtestado.funcionario_id),
@@ -270,12 +310,14 @@ export default function RelatorioAtestadosFaltas() {
         cid_codigo:     novoAtestado.cid_codigo?.trim() || null,
         cid_descricao:  novoAtestado.cid_descricao?.trim() || null,
         observacoes:    novoAtestado.observacoes?.trim() || null,
+        foto_url,
       }
       const { error } = await supabase.from('atestados').insert(payload)
       if (error) throw error
       setMsgAtestado('Atestado registrado!')
       setNovoAtestado({ funcionario_id: '', data_inicio: '', data_fim: '', cid_codigo: '', cid_descricao: '', observacoes: '' })
       setCidBusca('')
+      setFotoFile(null); setFotoPreview(null)
       setShowAtestado(false)
       carregar()
     } catch (e) {
@@ -560,6 +602,23 @@ export default function RelatorioAtestadosFaltas() {
               <div style={labelStyle}>Observações</div>
               <textarea value={novoAtestado.observacoes} onChange={e => setNA('observacoes', e.target.value)} rows={2} placeholder="Observações adicionais…" style={{ ...inputStyle, resize: 'vertical' }} />
             </div>
+            <div style={{ gridColumn: 'span 3' }}>
+              <div style={labelStyle}>Anexo (imagem ou PDF)</div>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', background: C.surface, border: `1px dashed ${C.line}`, borderRadius: 8, padding: '10px 16px', fontSize: 12.5, color: C.ink2 }}>
+                📎 {fotoFile ? fotoFile.name : 'Selecionar arquivo (máx. 5 MB)'}
+                <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={handleFotoAtestado} />
+              </label>
+              {fotoPreview && (
+                <div style={{ marginTop: 10, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  {fotoFile?.type?.startsWith('image/') ? (
+                    <img src={fotoPreview} alt="Preview" style={{ height: 80, borderRadius: 7, border: `1px solid ${C.line}`, objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ padding: '8px 14px', background: C.surface2, borderRadius: 7, border: `1px solid ${C.line}`, fontSize: 12, color: C.ink2 }}>📄 {fotoFile?.name}</div>
+                  )}
+                  <button type="button" onClick={() => { setFotoFile(null); setFotoPreview(null) }} style={{ background: 'none', border: 'none', color: C.bad, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', padding: '4px 0' }}>Remover</button>
+                </div>
+              )}
+            </div>
           </div>
           {msgAtestado && (
             <div style={{ marginTop: 12, padding: '8px 12px', background: msgAtestado.startsWith('Erro') ? '#FBE9E4' : '#E4F1E8', borderRadius: 7, fontSize: 12, color: msgAtestado.startsWith('Erro') ? C.bad : C.ok }}>{msgAtestado}</div>
@@ -745,6 +804,7 @@ export default function RelatorioAtestadosFaltas() {
                 <th style={TH()}>Motivo / CID</th>
                 <th style={TH({ width: 90, textAlign: 'center' })}>Abonada</th>
                 <th style={TH()}>Observações</th>
+                <th className="no-print" style={TH({ width: 70, textAlign: 'center' })}>Anexo</th>
                 <th className="no-print" style={TH({ width: 100, textAlign: 'center' })}>Ações</th>
               </tr>
             </thead>
@@ -763,6 +823,13 @@ export default function RelatorioAtestadosFaltas() {
                   <td style={TD({ color: C.ink2 })}>{r.motivo}</td>
                   <td style={TD({ textAlign: 'center', color: r.abonada ? C.ok : C.bad, fontWeight: 600 })}>{r.abonada ? 'Sim' : 'Não'}</td>
                   <td style={TD({ color: C.ink3, fontSize: 11.5 })}>{r.observacoes || '—'}</td>
+                  <td className="no-print" style={TD({ textAlign: 'center' })}>
+                    {r.foto_url ? (
+                      <a href={signedUrls[r.id] || '#'} target="_blank" rel="noopener noreferrer" style={{ color: C.info, fontSize: 12, textDecoration: 'none', fontWeight: 600 }}>
+                        Ver
+                      </a>
+                    ) : <span style={{ color: C.ink3, fontSize: 11 }}>—</span>}
+                  </td>
                   <td className="no-print" style={TD({ textAlign: 'center', whiteSpace: 'nowrap' })}>
                     <button onClick={() => iniciarEdicao(r)} title="Editar" style={{ ...btnSmall(C.warn), marginRight: 4 }}>Editar</button>
                     <button onClick={() => confirmarExclusao(r)} title="Excluir" style={btnSmall(C.bad)}>Apagar</button>
